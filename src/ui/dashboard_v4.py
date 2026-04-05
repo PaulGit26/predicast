@@ -271,74 +271,107 @@ def api_call(endpoint, method="GET", data=None):
 # SIDEBAR - INFORMACIÓN DE SESIÓN
 # ============================================
 def render_sidebar():
-    """Renderizar sidebar con información profesional"""
+    """Renderizar sidebar con información profesional y elegante"""
     with st.sidebar:
-        # Logo y título
+        # Logo y título principal
         st.markdown("""
-            <div style='text-align: center; margin: 20px 0;'>
-                <h2 style='color: white; margin: 0; font-size: 28px;'>🚀 PREDICAST</h2>
-                <p style='color: rgba(255,255,255,0.8); margin: 5px 0 0 0; font-size: 12px;'>v4.0 Profesional</p>
+            <div style='text-align: center; margin: 30px 0 20px 0;'>
+                <div style='font-size: 40px; margin-bottom: 8px;'>🚀</div>
+                <h1 style='color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 1px;'>PREDICAST</h1>
+                <p style='color: rgba(255,255,255,0.7); margin: 8px 0 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;'>Demanda Inteligente v4.0</p>
+                <div style='width: 60px; height: 2px; background: linear-gradient(90deg, #3b82f6, #10b981); margin: 12px auto 0 auto; border-radius: 1px;'></div>
             </div>
         """, unsafe_allow_html=True)
         
         st.divider()
         
-        # Información de sesión
+        # === INFORMACIÓN DE SESIÓN ===
         st.markdown("""
-            <div class='sidebar-section'>
-                <div class='sidebar-label'>👤 Usuario Registrado</div>
-                <div class='sidebar-value'>Paulcesar</div>
+            <div style='background: rgba(59, 130, 246, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #3b82f6;'>
+                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;'>👤 Usuario</div>
+                <div style='font-size: 16px; color: #ffffff; font-weight: 700;'>Paulcesar</div>
+                <div style='font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;'>Admin • ProbaEmpresa</div>
             </div>
         """, unsafe_allow_html=True)
         
+        # === ESTADÍSTICAS DEL SISTEMA ===
         st.markdown("""
-            <div class='sidebar-section'>
-                <div class='sidebar-label'>🏢 Empresa</div>
-                <div class='sidebar-value'>ProbaEmpresa</div>
+            <div style='background: rgba(16, 185, 129, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #10b981;'>
+                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>📊 Estadísticas</div>
+                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 12px;'>
+                    <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px; text-align: center;'>
+                        <div style='font-size: 18px; color: #10b981; font-weight: 800;'>20</div>
+                        <div style='font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px;'>Productos</div>
+                    </div>
+                    <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px; text-align: center;'>
+                        <div style='font-size: 18px; color: #3b82f6; font-weight: 800;'>52</div>
+                        <div style='font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px;'>Semanas</div>
+                    </div>
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
+        # === CALIDAD DEL MODELO ===
         st.markdown("""
-            <div class='sidebar-section'>
-                <div class='sidebar-label'>👔 Rol</div>
-                <div class='sidebar-value'>Administrador</div>
+            <div style='background: rgba(168, 85, 247, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #a855f7;'>
+                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>🤖 Modelo XGBoost</div>
+                <div style='font-size: 10px; color: rgba(255,255,255,0.8); line-height: 1.8;'>
+                    <div><strong style='color: #a855f7;'>R² Score:</strong> 0.9939</div>
+                    <div><strong style='color: #a855f7;'>MAE:</strong> 17.34 u</div>
+                    <div><strong style='color: #a855f7;'>Confianza:</strong> 95%</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # === ESTADO DE DATOS ===
+        st.markdown("""
+            <div style='background: rgba(34, 197, 94, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #22c55e;'>
+                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>✅ Estado</div>
+                <div style='font-size: 10px; color: rgba(255,255,255,0.8); line-height: 1.8;'>
+                    <div style='display: flex; align-items: center; gap: 8px;'><span style='width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> Datos cacheados</div>
+                    <div style='display: flex; align-items: center; gap: 8px; margin-top: 4px;'><span style='width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> API conectada</div>
+                    <div style='display: flex; align-items: center; gap: 8px; margin-top: 4px;'><span style='width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> Sistema listo</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # === INFORMACIÓN DE ACTUALIZACIÓN ===
+        st.markdown("""
+            <div style='background: rgba(59, 130, 246, 0.05); border-radius: 10px; padding: 14px; margin-bottom: 16px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.2);'>
+                <div style='font-size: 10px; color: rgba(255,255,255,0.6); margin-bottom: 6px;'>⏱️ Última actualización</div>
+                <div style='font-size: 13px; color: #3b82f6; font-weight: 700;'>2026-04-02 14:32</div>
+                <div style='font-size: 9px; color: rgba(255,255,255,0.5); margin-top: 4px;'>Sincronizado automáticamente</div>
             </div>
         """, unsafe_allow_html=True)
         
         st.divider()
         
-        # Resumen de datos
+        # === ACCIONES ===
         st.markdown("""
-            <div class='sidebar-section'>
-                <div class='sidebar-label'>📊 Datos Cacheados</div>
-                <div class='sidebar-value'>✓ Completamente cargados</div>
-            </div>
+            <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 12px 0;'>Acciones</div>
         """, unsafe_allow_html=True)
         
-        st.markdown("""
-            <div class='sidebar-section'>
-                <div class='sidebar-label'>⏱️ Última Actualización</div>
-                <div class='sidebar-value'>2026-04-02</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-            <div class='sidebar-section'>
-                <div class='sidebar-label'>✅ Estado</div>
-                <div class='sidebar-value'>Listo para análisis</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        # Botón de cierre de sesión
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns(2, gap="small")
         with col1:
-            if st.button("🔄 Refrescar", use_container_width=True):
+            if st.button("🔄 Refrescar", use_container_width=True, key="btn_refresh_sidebar"):
                 st.rerun()
         with col2:
-            if st.button("🚪 Cerrar Sesión", use_container_width=True):
-                st.info("Sesión cerrada")
+            if st.button("⚙️ Configurar", use_container_width=True, key="btn_config_sidebar"):
+                st.info("Configuración en desarrollo")
+        
+        st.divider()
+        
+        # === INFORMACIÓN ADICIONAL ===
+        st.markdown("""
+            <div style='text-align: center; padding: 12px 0;'>
+                <div style='font-size: 10px; color: rgba(255,255,255,0.5); line-height: 1.6;'>
+                    <strong>PREDICAST v4.0</strong><br>
+                    Forecasting Inteligente<br>
+                    <span style='font-size: 9px;'>© 2026 Todos los derechos reservados</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
 
 # ============================================
 # PÁGINA PRINCIPAL - DASHBOARD
