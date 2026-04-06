@@ -1583,9 +1583,8 @@ def page_analisis_grupo():
         st.error(f"❌ Error: {forecast_resp.get('error')}")
         return
     
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2 = st.tabs([
         "📊 Resumen Comparativo",
-        "📉 Análisis Económico",
         "🎯 Recomendación Masiva"
     ])
     
@@ -1726,102 +1725,25 @@ def page_analisis_grupo():
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
-                else:
-                    st.warning("⚠️ No hay registro de ventas en Data.csv")
-            else:
-                st.error("❌ No se encontró Data.csv")
-        
-        except Exception as e:
-            st.error(f"❌ Error procesando datos reales: {str(e)}")
-            import traceback
-            traceback.print_exc()
-    
-    with tab2:
-   
-        st.markdown("""
-        <div class='section-description'>
-            <strong>💰 Análisis de ingresos:</strong> Datos calculados directamente desde transacciones reales (Data.csv).
-            Muestra los productos con mayor generación de ingresos, precio promedio y volumen vendido.
-        </div>
-        """, unsafe_allow_html=True)
-        
-        try:
-            # Cargar datos reales del CSV
-            base_path = Path(__file__).resolve().parent.parent.parent.parent
-            data_csv = base_path / "01_Datos" / "Data.csv"
-            
-            if data_csv.exists():
-                # Leer CSV con separador correcto
-                df_data = pd.read_csv(data_csv, sep=';', decimal='.')
-                
-                # Filtrar solo ventas
-                df_ventas = df_data[df_data['Tipo_movimiento'].str.strip() == 'Venta'].copy()
-                
-                if len(df_ventas) > 0:
-                    # Convertir Valor_total a numérico (en caso de que tenga símbolos)
-                    df_ventas['Valor_total'] = pd.to_numeric(df_ventas['Valor_total'], errors='coerce')
-                    df_ventas['Precio_unitario'] = pd.to_numeric(df_ventas['Precio_unitario'], errors='coerce')
-                    df_ventas['Cantidad'] = pd.to_numeric(df_ventas['Cantidad'], errors='coerce')
+                    # ============ ANÁLISIS DETALLADO DE INGRESOS ============
+                    st.divider()
+                    st.markdown("#### 📈 Análisis Detallado de Ingresos por Producto")
                     
-                    # Eliminar filas con NaN
-                    df_ventas = df_ventas.dropna(subset=['Valor_total', 'Producto_codigo'])
+                    st.markdown("""
+                    <div class='section-description'>
+                        <strong>💰 Análisis de ingresos:</strong> Detalle de los productos con mayor generación de ingresos, precio promedio y volumen vendido.
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Agrupar por producto
-                    df_ingresos = df_ventas.groupby('Producto_codigo').agg({
+                    # Agrupar por producto para gráficos
+                    df_ingresos_detalle = df_ventas.groupby('Producto_codigo').agg({
                         'Valor_total': 'sum',
                         'Cantidad': 'sum',
                         'Precio_unitario': 'mean'
                     }).reset_index()
                     
-                    df_ingresos.columns = ['Producto', 'Ingresos_Total', 'Unidades_Vendidas', 'Precio_Promedio']
-                    
-                    # Ordenar por ingresos descendente y tomar top 10
-                    df_ingresos = df_ingresos.sort_values('Ingresos_Total', ascending=False).head(10)
-                    
-                    # Calcular métricas agregadas
-                    ingresos_totales = df_ventas['Valor_total'].sum()
-                    unidades_totales = df_ventas['Cantidad'].sum()
-                    precio_promedio_general = ingresos_totales / unidades_totales if unidades_totales > 0 else 0
-                    num_productos = len(df_ventas['Producto_codigo'].unique())
-                    
-                    # KPIs principales con datos REALES
-                    col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-                    
-                    with col_kpi1:
-                        st.markdown(f"""
-                        <div class='metric-card'>
-                            <div class='metric-label'>💰 Ingresos Totales</div>
-                            <div class='metric-value'>${ingresos_totales:,.0f}</div>
-                            <small style='color: #64748b;'>Histórico real</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col_kpi2:
-                        st.markdown(f"""
-                        <div class='metric-card'>
-                            <div class='metric-label'>📊 Unidades Vendidas</div>
-                            <div class='metric-value'>{unidades_totales:,.0f}</div>
-                            <small style='color: #64748b;'>Total histórico</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col_kpi3:
-                        st.markdown(f"""
-                        <div class='metric-card'>
-                            <div class='metric-label'>💵 Precio Promedio</div>
-                            <div class='metric-value'>${precio_promedio_general:,.0f}</div>
-                            <small style='color: #64748b;'>Por unidad</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col_kpi4:
-                        st.markdown(f"""
-                        <div class='metric-card'>
-                            <div class='metric-label'>📦 Productos</div>
-                            <div class='metric-value'>{num_productos}</div>
-                            <small style='color: #64748b;'>Con ventas registradas</small>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    df_ingresos_detalle.columns = ['Producto', 'Ingresos_Total', 'Unidades_Vendidas', 'Precio_Promedio']
+                    df_ingresos_detalle = df_ingresos_detalle.sort_values('Ingresos_Total', ascending=False).head(10)
                     
                     st.divider()
                     
@@ -1830,16 +1752,16 @@ def page_analisis_grupo():
                     
                     fig_ingresos = go.Figure()
                     fig_ingresos.add_trace(go.Bar(
-                        y=df_ingresos['Producto'],
-                        x=df_ingresos['Ingresos_Total'],
+                        y=df_ingresos_detalle['Producto'],
+                        x=df_ingresos_detalle['Ingresos_Total'],
                         orientation='h',
                         marker=dict(
-                            color=df_ingresos['Ingresos_Total'],
+                            color=df_ingresos_detalle['Ingresos_Total'],
                             colorscale='Greens',
                             showscale=True,
                             colorbar=dict(title="Ingresos ($)")
                         ),
-                        text=df_ingresos['Ingresos_Total'].apply(lambda x: f'${x:,.0f}'),
+                        text=df_ingresos_detalle['Ingresos_Total'].apply(lambda x: f'${x:,.0f}'),
                         textposition='outside',
                         hovertemplate='<b>%{y}</b><br>Ingresos: $%{x:,.0f}<extra></extra>'
                     ))
@@ -1860,7 +1782,7 @@ def page_analisis_grupo():
                     # Tabla detallada con datos reales
                     st.markdown("#### 📊 Tabla Detallada - Top 10 Productos")
                     
-                    df_tabla = df_ingresos.copy()
+                    df_tabla = df_ingresos_detalle.copy()
                     df_tabla['Ingresos_Total'] = df_tabla['Ingresos_Total'].apply(lambda x: f'${x:,.2f}')
                     df_tabla['Unidades_Vendidas'] = df_tabla['Unidades_Vendidas'].apply(lambda x: f'{x:,.0f}')
                     df_tabla['Precio_Promedio'] = df_tabla['Precio_Promedio'].apply(lambda x: f'${x:,.2f}')
@@ -1874,7 +1796,7 @@ def page_analisis_grupo():
                     st.markdown("#### 📈 Análisis: Unidades Vendidas vs Ingresos")
                     
                     fig_scatter = px.scatter(
-                        df_ingresos,
+                        df_ingresos_detalle,
                         x='Unidades_Vendidas',
                         y='Ingresos_Total',
                         size='Unidades_Vendidas',
@@ -1894,16 +1816,16 @@ def page_analisis_grupo():
                     st.plotly_chart(fig_scatter, use_container_width=True)
                     
                 else:
-                    st.warning("⚠️ No hay registros de ventas en Data.csv")
+                    st.warning("⚠️ No hay registro de ventas en Data.csv")
             else:
                 st.error("❌ No se encontró Data.csv")
         
         except Exception as e:
-            st.error(f"❌ Error procesando ingresos: {str(e)}")
+            st.error(f"❌ Error procesando datos reales: {str(e)}")
             import traceback
             traceback.print_exc()
     
-    with tab3:
+    with tab2:
         st.markdown("### 🎯 Recomendación Masiva de Producción")
         
         if not forecast_resp.get("error"):
