@@ -1910,22 +1910,6 @@ def page_analisis_grupo():
                 st.error("❌ No se pudieron calcular los cronogramas de producción")
 
 # ============================================
-# ANÁLISIS EXTENDIDO
-# ============================================
-def page_analisis_extendido():
-    """Análisis visual y detallado de series temporales"""
-    st.markdown("# 🔬 Análisis Extendido")
-    
-    st.markdown("""
-    <div class='section-description'>
-        <strong>📊 Análisis profundo:</strong> Visualización completa con descomposición de componentes,
-        análisis estacional y diagnósticos avanzados.
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.info("📌 Sección de análisis extendido - Gráficos y reportes detallados por demanda")
-
-# ============================================
 # PANEL DE ADMINISTRACIÓN
 # ============================================
 def page_admin():
@@ -1977,11 +1961,10 @@ def main():
     render_sidebar()
     
     # Tabs principales
-    tab_dashboard, tab_individual, tab_grupo, tab_extendido, tab_admin = st.tabs([
+    tab_dashboard, tab_individual, tab_grupo, tab_admin = st.tabs([
         "🏠 Dashboard",
         "📊 Análisis Individual",
         "📈 Análisis de Grupo",
-        "🔬 Análisis Extendido",
         "⚙️ Admin"
     ])
     
@@ -1993,9 +1976,6 @@ def main():
     
     with tab_grupo:
         page_analisis_grupo()
-    
-    with tab_extendido:
-        page_analisis_extendido()
     
     with tab_admin:
         page_admin()
