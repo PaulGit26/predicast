@@ -511,58 +511,26 @@ def page_analisis_individual():
     productos = forecast_resp.get("productos", [])
     productos_names = sorted([p['codigo'] for p in productos])
     
-    # === SELECTOR FLOTANTE COMPACTO ===
-    st.markdown("""
-        <style>
-            [data-testid="stWidgetLabel"] {
-                display: none !important;
-            }
-            
-            .producto-selector-floating {
-                position: fixed;
-                top: 75px;
-                right: 20px;
-                width: 200px;
-                z-index: 999;
-                background: white;
-                padding: 8px 12px;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-                border: 1px solid #e5e7eb;
-            }
-            
-            .producto-selector-floating label {
-                font-size: 10px !important;
-                font-weight: 600 !important;
-                color: #6b7280 !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.5px !important;
-                display: block !important;
-                margin-bottom: 4px !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
+    # === SELECTOR COMPACTO HORIZONTAL ===
+    col1, col2, col3 = st.columns([0.15, 0.3, 1])
     
-    col_select = st.columns([1])[0]
-    with col_select:
+    with col1:
+        st.markdown("""
+            <div style='display: flex; align-items: center; height: 100%; padding-top: 10px;'>
+                <span style='font-size: 12px; font-weight: 700; color: #1f2937;'>📦 Producto:</span>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
         selected_producto = st.selectbox(
-            "📦 Producto",
-            productos_names,
+            label="",
+            options=productos_names,
             index=0,
             key="producto_selector"
         )
     
-    # Aplicar CSS de posición flotante al selectbox
-    st.markdown("""
-        <script>
-            // Buscar el selectbox más reciente y aplicar clase flotante
-            const selectElements = document.querySelectorAll('[data-testid="stSelectbox"]');
-            if (selectElements.length > 0) {
-                const lastSelect = selectElements[selectElements.length - 1];
-                lastSelect.parentElement.parentElement.classList.add('producto-selector-floating');
-            }
-        </script>
-    """, unsafe_allow_html=True)
+    with col3:
+        st.write("")  # Espacrador
     
     # Obtener datos del producto seleccionado
     producto_info = next((p for p in productos if p['codigo'] == selected_producto), None)
