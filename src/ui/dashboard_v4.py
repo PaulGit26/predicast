@@ -1589,215 +1589,235 @@ def page_analisis_grupo():
     ])
     
     with tab1:
-        st.markdown("### 📊 Tabla Comparativa de Productos")
+        st.markdown("### 🎯 Indicadores Globales y Gestión de Portafolio")
         
         productos = forecast_resp.get("productos", [])
         df_productos = pd.DataFrame(productos)
         
-        # Reordenar columnas
-        cols_show = ['codigo', 'prediccion_media', 'prediccion_std', 'tendencia_52sem']
-        df_productos_show = df_productos[cols_show].copy()
-        df_productos_show.columns = ['Producto', 'Demanda Media', 'Volatilidad', 'Tendencia 52sem']
-        df_productos_show['Demanda Media'] = df_productos_show['Demanda Media'].round(2)
-        df_productos_show['Volatilidad'] = df_productos_show['Volatilidad'].round(2)
+        # Obtener datos económicos
+        econ_resp = api_call("/api/v1/benchmarking/economic-impact")
+        econ_data = {}
+        if not econ_resp.get("error"):
+            productos_econ = econ_resp.get("analisis_economico", {}).get("productos", [])
+            resumen_econ = econ_resp.get("analisis_economico", {}).get("resumen_total", {})
+            econ_data = {p['codigo']: p for p in productos_econ}
         
-        st.dataframe(df_productos_show, use_container_width=True, hide_index=True)
+        # ============ KPIS GENERALES ============
+        st.markdown("#### 📊 INDICADORES GENERALES DEL PORTAFOLIO")
+        
+        col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
+        
+        # KPI 1: Total de productos
+        with col_kpi1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #3b82f6; text-align: center;'>
+                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📦 Productos</div>
+                <div style='font-size: 32px; font-weight: 900; color: #1e3a8a;'>{len(df_productos)}</div>
+                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>En cartera</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # KPI 2: Demanda total agregada
+        with col_kpi2:
+            demanda_total = df_productos['prediccion_media'].sum()
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #ec4899; text-align: center;'>
+                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📈 Demanda/Año</div>
+                <div style='font-size: 32px; font-weight: 900; color: #831843;'>{int(demanda_total*52):,}</div>
+                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Unidades anuales</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # KPI 3: Ganancia total
+        with col_kpi3:
+            ganancia_total = resumen_econ.get('ganancia_total_historica', 0) if econ_data else 0
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #22c55e; text-align: center;'>
+                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>💰 Ganancia</div>
+                <div style='font-size: 28px; font-weight: 900; color: #15803d;'>${ganancia_total/1e6:.1f}M</div>
+                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Histórico acumulado</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # KPI 4: Ahorro potencial
+        with col_kpi4:
+            ahorro_total = resumen_econ.get('potencial_ahorro_total_anual', 0) if econ_data else 0
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #f97316; text-align: center;'>
+                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>💵 Ahorro/Año</div>
+                <div style='font-size: 28px; font-weight: 900; color: #92400e;'>${ahorro_total/1e3:.0f}K</div>
+                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Con optimización</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # KPI 5: ROI promedio
+        with col_kpi5:
+            roi_promedio = resumen_econ.get('roi_promedio_proyectado', 0) if econ_data else 0
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #7c3aed; text-align: center;'>
+                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📊 ROI Prom.</div>
+                <div style='font-size: 32px; font-weight: 900; color: #5b21b6;'>{roi_promedio:.0f}%</div>
+                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Retorno estimado</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.divider()
         
-        # Top productos por demanda
-        st.markdown("### 🏆 Top 5 Productos por Demanda - Último Año vs Predicciones")
-        top5_productos = df_productos.nlargest(5, 'prediccion_media')['codigo'].tolist()
+        # ============ TOP 3 LÍDERES ============
+        st.markdown("#### 🏆 PRODUCTOS LÍDERES POR CATEGORÍA")
         
-        # Gráfico de líneas: Demanda histórica vs predicción para TOP 5
-        try:
-            df_hist = load_historical_data()
-            
-            if df_hist is not None and len(df_hist) > 0:
-                # Preparar datos históricos (últimas 52 semanas)
-                df_hist['Semana'] = pd.to_datetime(df_hist['AñoSemana'] + '-1', format='%Y-W%W-%w')
-                df_hist_sorted = df_hist.sort_values('Semana')
-                
-                # Últimas 52 semanas
-                df_hist_52 = df_hist_sorted.tail(52).copy()
-                
-                fig_demand = go.Figure()
-                
-                # Agregar líneas para cada Top 5
-                for producto in top5_productos:
-                    df_prod_hist = df_hist_52[df_hist_52['Producto_codigo'] == producto].sort_values('Semana')
-                    
-                    if len(df_prod_hist) > 0:
-                        fig_demand.add_trace(go.Scatter(
-                            x=df_prod_hist['Semana'],
-                            y=df_prod_hist['Ventas_Semana'],
-                            name=f"📊 {producto} (Histórico)",
-                            mode='lines',
-                            line=dict(width=2),
-                            hovertemplate='<b>%{name}</b><br>Semana: %{x}<br>Demanda: %{y:.0f}u<extra></extra>'
-                        ))
-                
-                # Agregar predicciones para TOP 5
-                for producto in top5_productos:
-                    try:
-                        pred_resp = api_call(f"/api/v1/forecasting/52weeks/{producto}")
-                        if not pred_resp.get("error") and "predicciones_52_semanas" in pred_resp:
-                            preds = pred_resp.get("predicciones_52_semanas", [])
-                            fechas_pred = pred_resp.get("fechas", [])
-                            
-                            # Convertir fechas a datetime
-                            try:
-                                fechas_dt = pd.to_datetime([f + '-1' for f in fechas_pred], format='%Y-W%W-%w')
-                            except:
-                                fechas_dt = list(range(len(preds)))
-                            
-                            fig_demand.add_trace(go.Scatter(
-                                x=fechas_dt,
-                                y=preds,
-                                name=f"🔮 {producto} (Predicción)",
-                                mode='lines',
-                                line=dict(width=2, dash='dash'),
-                                hovertemplate='<b>%{name}</b><br>Semana: %{x}<br>Demanda: %{y:.0f}u<extra></extra>'
-                            ))
-                    except:
-                        pass
-                
-                fig_demand.update_layout(
-                    title='📈 Demanda: Últimas 52 Semanas vs Predicción (Top 5 Productos)',
-                    xaxis_title='Semana',
-                    yaxis_title='Demanda (unidades)',
-                    height=500,
-                    hovermode='x unified',
-                    legend=dict(x=0.01, y=0.99),
-                    margin=dict(b=80)
-                )
-                st.plotly_chart(fig_demand, use_container_width=True)
-            
-            st.divider()
-            
-            # Gráfico de optimización de stock
-            st.markdown("### 📦 Optimización de Stock: Actual vs Sistema Inteligente")
-            
-            # Generar datos de stock simulados basados en predicciones
-            try:
-                fig_stock = go.Figure()
-                
-                # Usar índices numéricos (semanas)
-                # -52 a 0: últimas 52 semanas, 0+ : próximas 52 semanas
-                semanas_indices = list(range(-52, 52))
-                
-                for idx, producto in enumerate(top5_productos):
-                    try:
-                        # Obtener predicciones
-                        pred_resp = api_call(f"/api/v1/forecasting/52weeks/{producto}")
-                        
-                        if not pred_resp.get("error"):
-                            preds = pred_resp.get("predicciones_52_semanas", [])
-                            
-                            if len(preds) > 0:
-                                media_pred = float(np.mean(preds))
-                                std_pred = float(np.std(preds))
-                                
-                                # Stock de seguridad
-                                stock_seguridad = media_pred + 1.65 * std_pred
-                                
-                                # Generar stock simulado
-                                np.random.seed(idx)
-                                stock_actual = []
-                                for i in range(52):
-                                    s = stock_seguridad * 1.2 + np.random.normal(0, stock_seguridad * 0.15)
-                                    stock_actual.append(max(1, s))
-                                
-                                # Stock optimizado (15-25% más bajo)
-                                stock_optimizado = [max(1, s * np.random.uniform(0.75, 0.85)) for s in stock_actual]
-                                
-                                # Repetir para próximas 52 semanas
-                                stock_actual_future = [max(1, s * np.random.uniform(0.95, 1.05)) for s in stock_actual]
-                                stock_optimizado_future = [max(1, s * np.random.uniform(0.95, 1.05)) for s in stock_optimizado]
-                                
-                                # Combinar
-                                stock_actual_total = stock_actual + stock_actual_future
-                                stock_optimizado_total = stock_optimizado + stock_optimizado_future
-                                
-                                colores = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16']
-                                color = colores[idx % 5]
-                                
-                                # Stock actual
-                                fig_stock.add_trace(go.Scatter(
-                                    x=semanas_indices,
-                                    y=stock_actual_total,
-                                    name=f"📦 {producto} (Actual)",
-                                    mode='lines',
-                                    line=dict(width=2.5, color=color),
-                                    hovertemplate='<b>%{name}</b><br>Semana: %{x}<br>Stock: %{y:.0f}u<extra></extra>'
-                                ))
-                                
-                                # Stock optimizado  
-                                fig_stock.add_trace(go.Scatter(
-                                    x=semanas_indices,
-                                    y=stock_optimizado_total,
-                                    name=f"✨ {producto} (Optimizado)",
-                                    mode='lines',
-                                    line=dict(width=2.5, dash='dash', color=color, opacity=0.7),
-                                    hovertemplate='<b>%{name}</b><br>Semana: %{x}<br>Stock: %{y:.0f}u<extra></extra>'
-                                ))
-                    
-                    except Exception as e:
-                        st.warning(f"⚠️ Error procesando {producto}")
-                        continue
-                
-                # Línea vertical en hoy (semana 0)
-                fig_stock.add_vline(x=0, line_dash="dash", line_color="gray", line_width=2,
-                                   annotation_text="<b>Hoy</b>", annotation_position="top right")
-                
-                fig_stock.update_layout(
-                    title='📊 Comparación de Stock: Gestión Actual vs Sistema Inteligente<br><sub>Últimas 52 semanas + Próximas 52 semanas predichas</sub>',
-                    xaxis_title='Semana (negativo=pasado, positivo=futuro)',
-                    yaxis_title='Nivel de Stock (unidades)',
-                    height=500,
-                    hovermode='x unified',
-                    legend=dict(x=0.01, y=0.99, font=dict(size=9)),
-                    margin=dict(b=80),
-                    showlegend=True
-                )
-                
-                st.plotly_chart(fig_stock, use_container_width=True)
-                
-                st.divider()
-                
-                # Resumen de ahorro
-                st.markdown("#### 💰 Resumen de Oportunidad de Ahorro")
-                
-                ahorro_cols = st.columns(len(top5_productos))
-                
-                for idx, producto in enumerate(top5_productos):
-                    try:
-                        pred_resp = api_call(f"/api/v1/forecasting/52weeks/{producto}")
-                        if not pred_resp.get("error"):
-                            preds = pred_resp.get("predicciones_52_semanas", [])
-                            if len(preds) > 0:
-                                media = float(np.mean(preds))
-                                std = float(np.std(preds))
-                                stock_seg = media + 1.65 * std
-                                
-                                reduccion_pct = 20.0
-                                ahorro_units = stock_seg * 52 * (reduccion_pct / 100)
-                                
-                                with ahorro_cols[idx]:
-                                    st.metric(
-                                        label=f"🎯 {producto}",
-                                        value=f"{reduccion_pct:.0f}%",
-                                        delta=f"-{ahorro_units:.0f} u/año",
-                                        delta_color="inverse"
-                                    )
-                    except:
-                        pass
-            
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+        col_top1, col_top2, col_top3 = st.columns(3)
         
-        except Exception as e:
-            st.warning(f"⚠️ No se pudieron generar gráficos de comparación: {str(e)}")
+        # TOP 1: Mayor demanda
+        with col_top1:
+            top_demanda = df_productos.nlargest(1, 'prediccion_media').iloc[0]
+            demanda_anual = top_demanda['prediccion_media'] * 52
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%); 
+                        padding: 20px; border-radius: 12px; border-left: 5px solid #eab308; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
+                <div style='font-size: 12px; color: #92400e; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;'>
+                    🎯 Mayor Demanda
+                </div>
+                <div style='font-size: 28px; font-weight: 900; color: #78350f; margin-bottom: 8px;'>
+                    {top_demanda['codigo']}
+                </div>
+                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
+                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>📈 Demanda Anual</div>
+                    <div style='font-size: 20px; font-weight: 700; color: #78350f;'>{int(demanda_anual):,} u</div>
+                </div>
+                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px;'>
+                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>Volatilidad</div>
+                    <div style='font-size: 16px; font-weight: 700; color: #ca8a04;'>{top_demanda['prediccion_std']:.2f}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # TOP 2: Mayor ganancia
+        with col_top2:
+            if econ_data:
+                top_ganancia_prod = max(econ_data.values(), key=lambda x: x['ganancia_total_historica'])
+                ganancia_prod = top_ganancia_prod['ganancia_total_historica']
+                codigo_ganancia = top_ganancia_prod['codigo']
+            else:
+                codigo_ganancia = "N/A"
+                ganancia_prod = 0
+            
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #dcfce7 0%, #a7f3d0 100%); 
+                        padding: 20px; border-radius: 12px; border-left: 5px solid #10b981; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
+                <div style='font-size: 12px; color: #065f46; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;'>
+                    💎 Mayor Ganancia
+                </div>
+                <div style='font-size: 28px; font-weight: 900; color: #065f46; margin-bottom: 8px;'>
+                    {codigo_ganancia}
+                </div>
+                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
+                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>💰 Ganancia Total</div>
+                    <div style='font-size: 20px; font-weight: 700; color: #047857;'>${ganancia_prod:,.0f}</div>
+                </div>
+                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px;'>
+                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>Margen</div>
+                    <div style='font-size: 16px; font-weight: 700; color: #10b981;'>{econ_data.get(codigo_ganancia, {}).get('margen_promedio_pct', 0):.1f}%</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # TOP 3: Mayor oportunidad de ahorro
+        with col_top3:
+            if econ_data:
+                top_ahorro_prod = max(econ_data.values(), key=lambda x: x['potencial_ahorro_anual'])
+                ahorro_prod = top_ahorro_prod['potencial_ahorro_anual']
+                codigo_ahorro = top_ahorro_prod['codigo']
+                reduccion_stock = (top_ahorro_prod['costo_almacenamiento_anual'] * 0.15) / top_ahorro_prod['costo_almacenamiento_anual'] * 100 if top_ahorro_prod['costo_almacenamiento_anual'] > 0 else 15
+            else:
+                codigo_ahorro = "N/A"
+                ahorro_prod = 0
+                reduccion_stock = 0
+            
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); 
+                        padding: 20px; border-radius: 12px; border-left: 5px solid #f97316; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
+                <div style='font-size: 12px; color: #92400e; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;'>
+                    🎁 Mayor Oportunidad
+                </div>
+                <div style='font-size: 28px; font-weight: 900; color: #92400e; margin-bottom: 8px;'>
+                    {codigo_ahorro}
+                </div>
+                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
+                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>💵 Ahorro Anual</div>
+                    <div style='font-size: 20px; font-weight: 700; color: #ca8a04;'>${ahorro_prod:,.0f}</div>
+                </div>
+                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px;'>
+                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>Reducción Stock</div>
+                    <div style='font-size: 16px; font-weight: 700; color: #f97316;'>{reduccion_stock:.0f}%</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # ============ TABLA COMPARATIVA RESUMIDA ============
+        st.markdown("#### 📋 TABLA COMPARATIVA - TOP 10 PRODUCTOS")
+        
+        if econ_data:
+            # Merge datos económicos con predicciones
+            df_merged = df_productos.copy()
+            df_merged['ganancia'] = df_merged['codigo'].map(lambda x: econ_data.get(x, {}).get('ganancia_total_historica', 0))
+            df_merged['ahorro_anual'] = df_merged['codigo'].map(lambda x: econ_data.get(x, {}).get('potencial_ahorro_anual', 0))
+            df_merged['roi'] = df_merged['codigo'].map(lambda x: econ_data.get(x, {}).get('roi_proyectado_pct', 0))
+            
+            # Top 10 por demanda
+            df_top10 = df_merged.nlargest(10, 'prediccion_media')[
+                ['codigo', 'prediccion_media', 'prediccion_std', 'ganancia', 'ahorro_anual', 'roi', 'tendencia_52sem']
+            ].copy()
+            
+            df_top10.columns = ['Producto', 'Demanda/Sem', 'Volatilidad', 'Ganancia $', 'Ahorro/Año $', 'ROI %', 'Tendencia']
+            
+            # Formatear columnas
+            df_top10['Demanda/Sem'] = df_top10['Demanda/Sem'].apply(lambda x: f"{x:.0f}u")
+            df_top10['Volatilidad'] = df_top10['Volatilidad'].apply(lambda x: f"{x:.2f}")
+            df_top10['Ganancia $'] = df_top10['Ganancia $'].apply(lambda x: f"${x:,.0f}")
+            df_top10['Ahorro/Año $'] = df_top10['Ahorro/Año $'].apply(lambda x: f"${x:,.0f}")
+            df_top10['ROI %'] = df_top10['ROI %'].apply(lambda x: f"{x:.1f}%")
+            df_top10['Tendencia'] = df_top10['Tendencia'].str.upper()
+            
+            st.dataframe(df_top10, use_container_width=True, hide_index=True)
+        else:
+            df_show = df_productos.nlargest(10, 'prediccion_media')[['codigo', 'prediccion_media', 'prediccion_std', 'tendencia_52sem']].copy()
+            df_show.columns = ['Producto', 'Demanda Media', 'Volatilidad', 'Tendencia']
+            df_show['Demanda Media'] = df_show['Demanda Media'].apply(lambda x: f"{x:.1f}u/sem")
+            df_show['Volatilidad'] = df_show['Volatilidad'].apply(lambda x: f"{x:.2f}")
+            df_show['Tendencia'] = df_show['Tendencia'].str.upper()
+            st.dataframe(df_show, use_container_width=True, hide_index=True)
+        
+        st.divider()
+        
+        # ============ GRÁFICO: DEMANDA VS GANANCIA ============
+        st.markdown("#### 📊 ANÁLISIS: Demanda vs Ganancia (Top 10)")
+        
+        if econ_data:
+            df_scatter = df_merged.nlargest(10, 'prediccion_media').copy()
+            df_scatter['demanda_anual'] = df_scatter['prediccion_media'] * 52
+            
+            fig_scatter = px.scatter(
+                df_scatter,
+                x='demanda_anual',
+                y='ganancia',
+                size='ahorro_anual',
+                color='roi',
+                hover_data={'codigo': True, 'demanda_anual': ':.0f', 'ganancia': ':.0f', 'ahorro_anual': ':.0f'},
+                labels={
+                    'demanda_anual': 'Demanda Anual (unidades)',
+                    'ganancia': 'Ganancia Total ($)',
+                    'roi': 'ROI %'
+                },
+                title='🎯 Portafolio de Productos: Demanda vs Ganancia vs Ahorro',
+                color_continuous_scale='RdYlGn'
+            )
+            
+            fig_scatter.update_traces(marker=dict(line=dict(width=1, color='white')))
+            fig_scatter.update_layout(height=450, hovermode='closest')
+            st.plotly_chart(fig_scatter, use_container_width=True)
     
     with tab2:
         st.markdown("### 📉 Comparativa Retrospectiva: Análisis Económico")
