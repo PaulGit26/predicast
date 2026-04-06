@@ -1615,40 +1615,185 @@ def page_analisis_grupo():
         st.plotly_chart(fig, use_container_width=True)
     
     with tab2:
-        st.markdown("### 📉 Comparativa Retrospectiva: Costos vs Eficiencia")
-        st.info("📌 Análisis de cómo los productos han evolucionado en costo y eficiencia operativa")
+        st.markdown("### 📉 Comparativa Retrospectiva: Análisis Económico")
+        
+        # Llamar al endpoint de impacto económico
+        econ_resp = api_call("/api/v1/benchmarking/economic-impact")
+        
+        if not econ_resp.get("error"):
+            analisis = econ_resp.get("analisis_economico", {})
+            resumen = analisis.get("resumen_total", {})
+            productos_econ = analisis.get("productos", [])
+            
+            # KPIs principales
+            col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+            
+            with col_kpi1:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>💰 Ganancia Total</div>
+                    <div class='metric-value'>${resumen.get('ganancia_total_historica', 0):,.0f}</div>
+                    <small style='color: #64748b;'>Histórico</small>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_kpi2:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>💵 Ahorro Potencial/Año</div>
+                    <div class='metric-value'>${resumen.get('potencial_ahorro_total_anual', 0):,.0f}</div>
+                    <small style='color: #64748b;'>Con este sistema</small>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_kpi3:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>📈 ROI Promedio</div>
+                    <div class='metric-value'>{resumen.get('roi_promedio_proyectado', 0):.1f}%</div>
+                    <small style='color: #64748b;'>Retorno estimado</small>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_kpi4:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>📊 Productos</div>
+                    <div class='metric-value'>{resumen.get('total_productos_analizados', 0)}</div>
+                    <small style='color: #64748b;'>En cartera</small>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.divider()
+            
+            # Gráfico de Ganancia vs Ahorro Potencial (Top 10)
+            df_econ_top = pd.DataFrame(productos_econ[:10])
+            
+            fig_comparison = go.Figure()
+            fig_comparison.add_trace(go.Bar(
+                y=df_econ_top['codigo'],
+                x=df_econ_top['ganancia_total_historica'],
+                name='💰 Ganancia Histórica',
+                orientation='h',
+                marker_color='#3b82f6'
+            ))
+            fig_comparison.add_trace(go.Bar(
+                y=df_econ_top['codigo'],
+                x=df_econ_top['potencial_ahorro_anual'],
+                name='💵 Ahorro Potencial',
+                orientation='h',
+                marker_color='#10b981'
+            ))
+            
+            fig_comparison.update_layout(
+                barmode='group',
+                height=400,
+                title='💰 Top 10: Ganancia vs Ahorro Potencial',
+                xaxis_title='$ USD',
+                yaxis_title='Producto',
+                hovermode='y unified',
+                margin=dict(l=100)
+            )
+            st.plotly_chart(fig_comparison, use_container_width=True)
+            
+            st.divider()
+            
+            # Tabla detallada de productos
+            st.markdown("#### 📊 Tabla de Análisis Económico por Producto")
+            df_display = pd.DataFrame(productos_econ)[['codigo', 'ganancia_total_historica', 
+                                                         'margen_promedio_pct', 'rotacion_inventario',
+                                                         'dias_cobertura', 'costo_almacenamiento_anual',
+                                                         'potencial_ahorro_anual', 'roi_proyectado_pct']]
+            df_display.columns = ['Producto', 'Ganancia $', 'Margen %', 'Rotación', 'Cobertura días', 
+                                 'Costo Almacén $', 'Ahorro Potencial $', 'ROI %']
+            
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
+        else:
+            st.error("❌ No se pudieron cargar datos económicos")
     
     with tab3:
-        st.markdown("### 🎯 Recomendaciones Masivas para Todos los Productos")
+        st.markdown("### 🎯 Recomendación Masiva de Producción")
         
-        for idx, prod in enumerate(productos[:5]):  # Top 5
-            col1, col2, col3 = st.columns(3)
-            media = prod['prediccion_media']
-            std = prod['prediccion_std']
+        if not forecast_resp.get("error"):
+            productos = forecast_resp.get("productos", [])
             
-            with col1:
-                st.markdown(f"""
-                <div class='recommendation-box'>
-                    <strong>{prod['codigo']}</strong><br>
-                    🛡️ Inv. Seguridad: {(media + 1.65*std):.0f}u
-                </div>
-                """, unsafe_allow_html=True)
+            # Crear tabla de recomendaciones
+            recomendaciones = []
+            for prod in productos:
+                media = prod['prediccion_media']
+                std = prod['prediccion_std']
+                
+                stock_seguridad = media + 1.65 * std
+                lote_economico = media * 4
+                punto_reorden = media * 2
+                produccion_promedio = media  # Promedio semanal
+                
+                recomendaciones.append({
+                    'Producto': prod['codigo'],
+                    'Demanda Promedio (u/sem)': round(media, 1),
+                    'Stock Seguridad (u)': round(stock_seguridad, 0),
+                    'Lote Económico (u)': round(lote_economico, 0),
+                    'Punto Reorden (u)': round(punto_reorden, 0),
+                    'Volatilidad': round(prod['prediccion_std'], 2),
+                    'Tendencia': prod['tendencia_52sem'].upper()
+                })
             
-            with col2:
-                st.markdown(f"""
-                <div class='recommendation-box'>
-                    <strong>{prod['codigo']}</strong><br>
-                    📦 Lote Económico: {(media*4):.0f}u
-                </div>
-                """, unsafe_allow_html=True)
+            df_recom = pd.DataFrame(recomendaciones)
             
-            with col3:
-                st.markdown(f"""
-                <div class='recommendation-box'>
-                    <strong>{prod['codigo']}</strong><br>
-                    🔔 Punto Reorden: {(media*2):.0f}u
-                </div>
-                """, unsafe_allow_html=True)
+            # Botón descargar
+            csv_buffer = df_recom.to_csv(index=False).encode()
+            st.download_button(
+                label="📥 Descargar Recomendaciones (CSV)",
+                data=csv_buffer,
+                file_name=f"recomendaciones_produccion_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                help="Descarga todas las recomendaciones en formato CSV"
+            )
+            
+            st.divider()
+            
+            # Mostrar tabla
+            st.markdown("#### 📋 Tabla de Recomendaciones por Producto")
+            st.dataframe(df_recom, use_container_width=True, hide_index=True)
+            
+            st.divider()
+            
+            # Gráfico de producción recomendada
+            fig_prod = px.bar(
+                df_recom.sort_values('Demanda Promedio (u/sem)', ascending=True).tail(15),
+                x='Demanda Promedio (u/sem)',
+                y='Producto',
+                orientation='h',
+                color='Volatilidad',
+                color_continuous_scale='RdYlGn_r',
+                title='📦 Ritmo de Producción Recomendado (Top 15 por Demanda)',
+                labels={'Demanda Promedio (u/sem)': 'Unidades/Semana', 'Producto': 'Producto'}
+            )
+            fig_prod.update_layout(height=500, margin=dict(l=100))
+            st.plotly_chart(fig_prod, use_container_width=True)
+            
+            st.divider()
+            
+            # Alertas críticas
+            st.markdown("#### ⚠️ Alertas de Productos Críticos")
+            
+            df_alertas = df_recom[df_recom['Volatilidad'] > df_recom['Volatilidad'].quantile(0.75)].copy()
+            
+            if len(df_alertas) > 0:
+                for idx, row in df_alertas.iterrows():
+                    col_alert_icon, col_alert_text = st.columns([0.5, 9.5])
+                    
+                    with col_alert_icon:
+                        st.warning("⚠️", icon="⚠️")
+                    
+                    with col_alert_text:
+                        st.markdown(f"""
+                        **{row['Producto']}** - Alto nivel de volatilidad ({row['Volatilidad']:.2f})
+                        - Demanda irregular → Requiere mayor stock seguridad ({row['Stock Seguridad (u)']:.0f}u)
+                        - Tendencia: {row['Tendencia']}
+                        """)
+            else:
+                st.info("✅ Sin alertas críticas - Todos los productos tienen volatilidad bajo control")
 
 # ============================================
 # ANÁLISIS EXTENDIDO

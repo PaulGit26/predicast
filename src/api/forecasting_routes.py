@@ -300,6 +300,133 @@ def get_model_info():
         return jsonify({"error": str(e)}), 500
 
 # ========================================================================
+# ENDPOINT 5: Análisis de Impacto Económico
+# ========================================================================
+@forecasting_bp.route('/benchmarking/economic-impact', methods=['GET'])
+def get_economic_impact():
+    """
+    GET /api/v1/benchmarking/economic-impact
+    
+    Calcula beneficios económicos totales de usar el sistema de planeamiento
+    
+    Response:
+    {
+      "analisis_economico": {
+        "productos": [
+          {
+            "codigo": "CP_01",
+            "ganancia_total_historica": 45000,
+            "margen_promedio": 25.5,
+            "rotacion_inventario": 12.5,
+            "dias_cobertura": 29.2,
+            "costo_almacenamiento_anual": 5000,
+            "potencial_ahorro": 8500,
+            "roi_proyectado": 35.7
+          }
+        ],
+        "resumen_total": {...}
+      }
+    }
+    """
+    
+    try:
+        # Cargar datos históricos
+        base_path = Path(__file__).resolve().parent.parent.parent.parent
+        data_path = base_path / "01_Datos" / "Data.csv"
+        
+        df_data = pd.read_csv(data_path, sep=';', encoding='utf-8')
+        
+        # Limpiar datos
+        df_data['Precio_unitario'] = pd.to_numeric(df_data['Precio_unitario'], errors='coerce')
+        df_data['Costo_unitario'] = pd.to_numeric(df_data['Costo_unitario'], errors='coerce')
+        df_data['Cantidad'] = pd.to_numeric(df_data['Cantidad'], errors='coerce')
+        df_data['Stock_anterior'] = pd.to_numeric(df_data['Stock_anterior'], errors='coerce')
+        df_data['Stock_posterior'] = pd.to_numeric(df_data['Stock_posterior'], errors='coerce')
+        
+        # Cargar predicciones para análisis
+        preds_path = base_path / "01_Datos" / "predicciones_estadisticas.csv"
+        df_stats = pd.read_csv(preds_path, index_col=0)
+        
+        productos_analisis = []
+        
+        # Agrupar por producto
+        for producto in df_data['Producto_codigo'].unique():
+            if pd.isna(producto):
+                continue
+                
+            df_prod = df_data[df_data['Producto_codigo'] == producto].copy()
+            
+            # Calculos económicos
+            df_prod['margen_unitario'] = df_prod['Precio_unitario'] - df_prod['Costo_unitario']
+            df_prod['ganancia_linea'] = df_prod['Cantidad'] * df_prod['margen_unitario']
+            
+            ganancia_total = df_prod['ganancia_linea'].sum()
+            if pd.isna(ganancia_total) or ganancia_total <= 0:
+                continue
+            
+            # Margen promedio %
+            ventas_totales = (df_prod['Precio_unitario'] * df_prod['Cantidad']).sum()
+            margen_pct = (ganancia_total / ventas_totales * 100) if ventas_totales > 0 else 0
+            
+            # Rotación de inventario
+            cantidad_vendida = df_prod['Cantidad'].sum()
+            stock_promedio = df_prod['Stock_anterior'].mean()
+            rotacion = (cantidad_vendida / stock_promedio) if stock_promedio > 0 else 0
+            
+            # Días de cobertura (días que dura el stock promedio)
+            dias_cobertura = (365 / rotacion) if rotacion > 0 else 0
+            
+            # Costo de almacenamiento estimado (5% del valor promedio en stock)
+            valor_stock_promedio = stock_promedio * df_prod['Costo_unitario'].mean()
+            costo_almacen_anual = valor_stock_promedio * 0.05
+            
+            # Potencial de ahorro (reducir 15% de stock muerto)
+            ahorro_potencial = costo_almacen_anual * 0.15
+            
+            # ROI proyectado del sistema (ahorro anual / inversión aprox)
+            # Asumiendo inversión es 1.5x costo almacenamiento anual
+            inversion_sistema = costo_almacen_anual * 1.5
+            roi_proyectado = (ahorro_potencial / inversion_sistema * 100) if inversion_sistema > 0 else 0
+            
+            productos_analisis.append({
+                "codigo": producto,
+                "ganancia_total_historica": round(float(ganancia_total), 2),
+                "margen_promedio_pct": round(float(margen_pct), 2),
+                "rotacion_inventario": round(float(rotacion), 2),
+                "dias_cobertura": round(float(dias_cobertura), 1),
+                "costo_almacenamiento_anual": round(float(costo_almacen_anual), 2),
+                "potencial_ahorro_anual": round(float(ahorro_potencial), 2),
+                "roi_proyectado_pct": round(float(roi_proyectado), 1)
+            })
+        
+        # Resumen total
+        total_ganancia = sum(p['ganancia_total_historica'] for p in productos_analisis)
+        total_ahorro = sum(p['potencial_ahorro_anual'] for p in productos_analisis)
+        promedio_roi = (sum(p['roi_proyectado_pct'] for p in productos_analisis) / len(productos_analisis)) if productos_analisis else 0
+        
+        response = {
+            "success": True,
+            "analisis_economico": {
+                "productos": sorted(productos_analisis, key=lambda x: x['ganancia_total_historica'], reverse=True),
+                "resumen_total": {
+                    "total_productos_analizados": len(productos_analisis),
+                    "ganancia_total_historica": round(total_ganancia, 2),
+                    "potencial_ahorro_total_anual": round(total_ahorro, 2),
+                    "roi_promedio_proyectado": round(promedio_roi, 1),
+                    "beneficio_neto_anual": round(total_ahorro, 2)
+                }
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+# ========================================================================
 # Inicializar datos al importar
 # ========================================================================
 
