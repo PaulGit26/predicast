@@ -1682,9 +1682,9 @@ def page_analisis_grupo():
             try:
                 fig_stock = go.Figure()
                 
-                # Crear semanas de referencia (últimas 52 + próximas 52)
-                fecha_inicio = datetime.now() - timedelta(weeks=52)
-                semanas_refs = [fecha_inicio + timedelta(weeks=i) for i in range(104)]
+                # Usar índices numéricos (semanas)
+                # -52 a 0: últimas 52 semanas, 0+ : próximas 52 semanas
+                semanas_indices = list(range(-52, 52))
                 
                 for idx, producto in enumerate(top5_productos):
                     try:
@@ -1701,67 +1701,64 @@ def page_analisis_grupo():
                                 # Stock de seguridad
                                 stock_seguridad = media_pred + 1.65 * std_pred
                                 
-                                # Generar stock simulado (histórico y actual son parecidos)
-                                np.random.seed(idx)  # Para consistencia
+                                # Generar stock simulado
+                                np.random.seed(idx)
                                 stock_actual = []
                                 for i in range(52):
                                     s = stock_seguridad * 1.2 + np.random.normal(0, stock_seguridad * 0.15)
-                                    stock_actual.append(max(0, s))
+                                    stock_actual.append(max(1, s))
                                 
                                 # Stock optimizado (15-25% más bajo)
-                                stock_optimizado = []
-                                for s in stock_actual:
-                                    s_opt = s * np.random.uniform(0.75, 0.85)
-                                    stock_optimizado.append(max(0, s_opt))
+                                stock_optimizado = [max(1, s * np.random.uniform(0.75, 0.85)) for s in stock_actual]
                                 
-                                # Repetir patrón para próximas 52 semanas
-                                stock_actual_future = [s * np.random.uniform(0.95, 1.05) for s in stock_actual]
-                                stock_optimizado_future = [s * np.random.uniform(0.95, 1.05) for s in stock_optimizado]
+                                # Repetir para próximas 52 semanas
+                                stock_actual_future = [max(1, s * np.random.uniform(0.95, 1.05)) for s in stock_actual]
+                                stock_optimizado_future = [max(1, s * np.random.uniform(0.95, 1.05)) for s in stock_optimizado]
                                 
-                                # Combinar histórico + futuro
+                                # Combinar
                                 stock_actual_total = stock_actual + stock_actual_future
                                 stock_optimizado_total = stock_optimizado + stock_optimizado_future
                                 
-                                # Agregar línea de stock actual
+                                colores = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16']
+                                color = colores[idx % 5]
+                                
+                                # Stock actual
                                 fig_stock.add_trace(go.Scatter(
-                                    x=semanas_refs,
+                                    x=semanas_indices,
                                     y=stock_actual_total,
                                     name=f"📦 {producto} (Actual)",
                                     mode='lines',
-                                    line=dict(width=2.5, color=['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16'][idx % 5]),
-                                    hovertemplate='<b>%{name}</b><br>Semana: %{x|%b %d}<br>Stock: %{y:.0f}u<extra></extra>'
+                                    line=dict(width=2.5, color=color),
+                                    hovertemplate='<b>%{name}</b><br>Semana: %{x}<br>Stock: %{y:.0f}u<extra></extra>'
                                 ))
                                 
-                                # Agregar línea de stock optimizado
+                                # Stock optimizado  
                                 fig_stock.add_trace(go.Scatter(
-                                    x=semanas_refs,
+                                    x=semanas_indices,
                                     y=stock_optimizado_total,
                                     name=f"✨ {producto} (Optimizado)",
                                     mode='lines',
-                                    line=dict(width=2.5, dash='dash', color=['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16'][idx % 5]),
-                                    hovertemplate='<b>%{name}</b><br>Semana: %{x|%b %d}<br>Stock: %{y:.0f}u<extra></extra>'
+                                    line=dict(width=2.5, dash='dash', color=color, opacity=0.7),
+                                    hovertemplate='<b>%{name}</b><br>Semana: %{x}<br>Stock: %{y:.0f}u<extra></extra>'
                                 ))
                     
                     except Exception as e:
-                        st.warning(f"⚠️ Error procesando {producto}: {str(e)}")
+                        st.warning(f"⚠️ Error procesando {producto}")
                         continue
                 
-                fig_stock.add_vline(x=datetime.now(), line_dash="dot", line_color="gray", 
-                                   annotation_text="Hoy", annotation_position="top right")
+                # Línea vertical en hoy (semana 0)
+                fig_stock.add_vline(x=0, line_dash="dash", line_color="gray", line_width=2,
+                                   annotation_text="<b>Hoy</b>", annotation_position="top right")
                 
                 fig_stock.update_layout(
-                    title='📊 Comparación de Stock: Gestión Actual vs Sistema Inteligente (Últimas 52 semanas + Próximas 52)',
-                    xaxis_title='Semana',
+                    title='📊 Comparación de Stock: Gestión Actual vs Sistema Inteligente<br><sub>Últimas 52 semanas + Próximas 52 semanas predichas</sub>',
+                    xaxis_title='Semana (negativo=pasado, positivo=futuro)',
                     yaxis_title='Nivel de Stock (unidades)',
                     height=500,
                     hovermode='x unified',
                     legend=dict(x=0.01, y=0.99, font=dict(size=9)),
                     margin=dict(b=80),
-                    xaxis=dict(rangeselector=dict(buttons=[
-                        dict(count=13, label="3 meses", step="week"),
-                        dict(count=26, label="6 meses", step="week"),
-                        dict(step="all", label="Todo")
-                    ]))
+                    showlegend=True
                 )
                 
                 st.plotly_chart(fig_stock, use_container_width=True)
@@ -1783,7 +1780,7 @@ def page_analisis_grupo():
                                 std = float(np.std(preds))
                                 stock_seg = media + 1.65 * std
                                 
-                                reduccion_pct = 20.0  # Reducción promedio general
+                                reduccion_pct = 20.0
                                 ahorro_units = stock_seg * 52 * (reduccion_pct / 100)
                                 
                                 with ahorro_cols[idx]:
@@ -1797,7 +1794,7 @@ def page_analisis_grupo():
                         pass
             
             except Exception as e:
-                st.error(f"❌ Error generando gráfico de stock: {str(e)}")
+                st.error(f"❌ Error: {str(e)}")
         
         except Exception as e:
             st.warning(f"⚠️ No se pudieron generar gráficos de comparación: {str(e)}")
