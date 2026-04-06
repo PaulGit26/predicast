@@ -1264,14 +1264,16 @@ def page_analisis_individual():
                         'fecha': pd.to_datetime([f + '-1' for f in fechas], format='%Y-W%W-%w'),
                         'prediccion': predicciones,
                         'limite_inferior': lower,
-                        'limite_superior': upper
+                        'limite_superior': upper,
+                        'fecha_str': fechas  # Guardar la fecha como string directamente del API
                     })
                     
                     # Calcular producción recomendada para cada semana con FÓRMULA CLARA
                     df_rec['semana_num'] = range(1, len(df_rec) + 1)
                     df_rec['año'] = df_rec['fecha'].dt.year
                     df_rec['semana_año'] = df_rec['fecha'].dt.isocalendar().week
-                    df_rec['semana_label'] = df_rec['fecha'].apply(lambda x: f"{x.year}-W{x.isocalendar().week:02d}")
+                    # Usar directamente la fecha del API como semana_label (ej: 2026-W01)
+                    df_rec['semana_label'] = df_rec['fecha_str']
                     
                     # ============ ALGORITMO DINÁMICO SEMANA POR SEMANA ============
                     stock_en_semana = stock_actual  # Comenzar con stock actual
