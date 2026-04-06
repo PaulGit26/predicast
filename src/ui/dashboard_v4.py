@@ -1831,83 +1831,32 @@ def page_analisis_grupo():
         if not forecast_resp.get("error"):
             productos = forecast_resp.get("productos", [])
             
-            # Crear tabla de recomendaciones
-            recomendaciones = []
+            # Crear cronograma de producción semanal (52 semanas)
+            cronograma_prod = []
+            num_semanas = 52
+            
             for prod in productos:
                 media = prod['prediccion_media']
-                std = prod['prediccion_std']
                 
-                stock_seguridad = media + 1.65 * std
-                lote_economico = media * 4
-                punto_reorden = media * 2
-                produccion_promedio = media  # Promedio semanal
-                
-                recomendaciones.append({
-                    'Producto': prod['codigo'],
-                    'Demanda Promedio (u/sem)': round(media, 1),
-                    'Stock Seguridad (u)': round(stock_seguridad, 0),
-                    'Lote Económico (u)': round(lote_economico, 0),
-                    'Punto Reorden (u)': round(punto_reorden, 0),
-                    'Volatilidad': round(prod['prediccion_std'], 2),
-                    'Tendencia': prod['tendencia_52sem'].upper()
-                })
+                # Para cada semana, registrar la producción recomendada
+                for semana in range(1, num_semanas + 1):
+                    cronograma_prod.append({
+                        'Semana': semana,
+                        'Producto': prod['codigo'],
+                        'Producción Recomendada (u)': round(media, 1)
+                    })
             
-            df_recom = pd.DataFrame(recomendaciones)
+            df_cronograma = pd.DataFrame(cronograma_prod)
             
-            # Botón descargar
-            csv_buffer = df_recom.to_csv(index=False).encode()
+            # Botón descargar cronograma
+            csv_buffer = df_cronograma.to_csv(index=False).encode()
             st.download_button(
-                label="📥 Descargar Recomendaciones (CSV)",
+                label="📥 Descargar Cronograma de Producción (CSV)",
                 data=csv_buffer,
-                file_name=f"recomendaciones_produccion_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"cronograma_produccion_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
-                help="Descarga todas las recomendaciones en formato CSV"
+                help="Descarga el cronograma de producción recomendado para 52 semanas"
             )
-            
-            st.divider()
-            
-            # Mostrar tabla
-            st.markdown("#### 📋 Tabla de Recomendaciones por Producto")
-            st.dataframe(df_recom, use_container_width=True, hide_index=True)
-            
-            st.divider()
-            
-            # Gráfico de producción recomendada
-            fig_prod = px.bar(
-                df_recom.sort_values('Demanda Promedio (u/sem)', ascending=True).tail(15),
-                x='Demanda Promedio (u/sem)',
-                y='Producto',
-                orientation='h',
-                color='Volatilidad',
-                color_continuous_scale='RdYlGn_r',
-                title='📦 Ritmo de Producción Recomendado (Top 15 por Demanda)',
-                labels={'Demanda Promedio (u/sem)': 'Unidades/Semana', 'Producto': 'Producto'}
-            )
-            fig_prod.update_layout(height=500, margin=dict(l=100))
-            st.plotly_chart(fig_prod, use_container_width=True)
-            
-            st.divider()
-            
-            # Alertas críticas
-            st.markdown("#### ⚠️ Alertas de Productos Críticos")
-            
-            df_alertas = df_recom[df_recom['Volatilidad'] > df_recom['Volatilidad'].quantile(0.75)].copy()
-            
-            if len(df_alertas) > 0:
-                for idx, row in df_alertas.iterrows():
-                    col_alert_icon, col_alert_text = st.columns([0.5, 9.5])
-                    
-                    with col_alert_icon:
-                        st.warning("⚠️", icon="⚠️")
-                    
-                    with col_alert_text:
-                        st.markdown(f"""
-                        **{row['Producto']}** - Alto nivel de volatilidad ({row['Volatilidad']:.2f})
-                        - Demanda irregular → Requiere mayor stock seguridad ({row['Stock Seguridad (u)']:.0f}u)
-                        - Tendencia: {row['Tendencia']}
-                        """)
-            else:
-                st.info("✅ Sin alertas críticas - Todos los productos tienen volatilidad bajo control")
 
 # ============================================
 # ANÁLISIS EXTENDIDO
