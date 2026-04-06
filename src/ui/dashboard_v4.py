@@ -38,13 +38,14 @@ st.markdown("""
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
-    /* Sidebar profesional */
+    /* Sidebar profesional - minimalista blanco */
     [data-testid="stSidebar"] {
-        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        background: #f8f9fa;
+        border-right: 1px solid #e1e4e8;
     }
     
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
-        color: white;
+        color: #1f2937;
     }
     
     /* Headers y títulos */
@@ -141,7 +142,7 @@ st.markdown("""
     
     /* Sidebar info */
     .sidebar-header {
-        color: white;
+        color: #1f2937;
         font-size: 24px;
         font-weight: 700;
         margin: 20px 0 30px 0;
@@ -162,7 +163,7 @@ st.markdown("""
     
     .sidebar-label {
         font-weight: 600;
-        opacity: 0.8;
+        color: #6b7280;
         text-transform: uppercase;
         font-size: 10px;
         letter-spacing: 0.5px;
@@ -172,6 +173,7 @@ st.markdown("""
         font-weight: 700;
         font-size: 13px;
         margin-top: 5px;
+        color: #1f2937;
     }
     
     /* Alertas y estados */
@@ -271,15 +273,15 @@ def api_call(endpoint, method="GET", data=None):
 # SIDEBAR - INFORMACIÓN DE SESIÓN
 # ============================================
 def render_sidebar():
-    """Renderizar sidebar con información profesional y elegante"""
+    """Renderizar sidebar con información profesional y elegante - diseño minimalista blanco"""
     with st.sidebar:
-        # Logo y título principal
+        # Logo y título principal - diseño minimalista
         st.markdown("""
             <div style='text-align: center; margin: 30px 0 20px 0;'>
-                <div style='font-size: 40px; margin-bottom: 8px;'>🚀</div>
-                <h1 style='color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 1px;'>PREDICAST</h1>
-                <p style='color: rgba(255,255,255,0.7); margin: 8px 0 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;'>Demanda Inteligente v4.0</p>
-                <div style='width: 60px; height: 2px; background: linear-gradient(90deg, #3b82f6, #10b981); margin: 12px auto 0 auto; border-radius: 1px;'></div>
+                <div style='font-size: 36px; margin-bottom: 12px; letter-spacing: 2px;'>📊</div>
+                <h1 style='color: #1f2937; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1.5px;'>PREDICAST</h1>
+                <p style='color: #6b7280; margin: 8px 0 0 0; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;'>Planificación Inteligente</p>
+                <div style='width: 50px; height: 1px; background: #d1d5db; margin: 12px auto 0 auto; border-radius: 1px;'></div>
             </div>
         """, unsafe_allow_html=True)
         
@@ -287,25 +289,25 @@ def render_sidebar():
         
         # === INFORMACIÓN DE SESIÓN ===
         st.markdown("""
-            <div style='background: rgba(59, 130, 246, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #3b82f6;'>
-                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;'>👤 Usuario</div>
-                <div style='font-size: 16px; color: #ffffff; font-weight: 700;'>Paulcesar</div>
-                <div style='font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;'>Admin • ProbaEmpresa</div>
+            <div style='background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 12px; border-left: 3px solid #3b82f6;'>
+                <div style='font-size: 10px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;'>👤 Usuario</div>
+                <div style='font-size: 15px; color: #1f2937; font-weight: 700;'>Paulcesar</div>
+                <div style='font-size: 11px; color: #9ca3af; margin-top: 4px;'>Admin • ProbaEmpresa</div>
             </div>
         """, unsafe_allow_html=True)
         
         # === ESTADÍSTICAS DEL SISTEMA ===
         st.markdown("""
-            <div style='background: rgba(16, 185, 129, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #10b981;'>
-                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>📊 Estadísticas</div>
-                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 12px;'>
-                    <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px; text-align: center;'>
+            <div style='background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 12px; border-left: 3px solid #10b981;'>
+                <div style='font-size: 10px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>📊 Estadísticas</div>
+                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px;'>
+                    <div style='background: #f3f4f6; padding: 10px; border-radius: 6px; text-align: center;'>
                         <div style='font-size: 18px; color: #10b981; font-weight: 800;'>20</div>
-                        <div style='font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px;'>Productos</div>
+                        <div style='font-size: 9px; color: #6b7280; margin-top: 4px; font-weight: 600;'>Productos</div>
                     </div>
-                    <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px; text-align: center;'>
+                    <div style='background: #f3f4f6; padding: 10px; border-radius: 6px; text-align: center;'>
                         <div style='font-size: 18px; color: #3b82f6; font-weight: 800;'>52</div>
-                        <div style='font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px;'>Semanas</div>
+                        <div style='font-size: 9px; color: #6b7280; margin-top: 4px; font-weight: 600;'>Semanas</div>
                     </div>
                 </div>
             </div>
@@ -313,61 +315,56 @@ def render_sidebar():
         
         # === CALIDAD DEL MODELO ===
         st.markdown("""
-            <div style='background: rgba(168, 85, 247, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #a855f7;'>
-                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>🤖 Modelo XGBoost</div>
-                <div style='font-size: 10px; color: rgba(255,255,255,0.8); line-height: 1.8;'>
-                    <div><strong style='color: #a855f7;'>R² Score:</strong> 0.9939</div>
-                    <div><strong style='color: #a855f7;'>MAE:</strong> 17.34 u</div>
-                    <div><strong style='color: #a855f7;'>Confianza:</strong> 95%</div>
+            <div style='background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 12px; border-left: 3px solid #8b5cf6;'>
+                <div style='font-size: 10px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>🤖 Modelo XGBoost</div>
+                <div style='font-size: 10px; color: #1f2937; line-height: 1.8;'>
+                    <div><strong style='color: #8b5cf6;'>R² Score:</strong> <span style='color: #059669;'>0.9939</span></div>
+                    <div><strong style='color: #8b5cf6;'>MAE:</strong> <span style='color: #059669;'>17.34 u</span></div>
+                    <div><strong style='color: #8b5cf6;'>Confianza:</strong> <span style='color: #059669;'>95%</span></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
         
         # === ESTADO DE DATOS ===
         st.markdown("""
-            <div style='background: rgba(34, 197, 94, 0.1); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #22c55e;'>
-                <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>✅ Estado</div>
-                <div style='font-size: 10px; color: rgba(255,255,255,0.8); line-height: 1.8;'>
-                    <div style='display: flex; align-items: center; gap: 8px;'><span style='width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> Datos cacheados</div>
-                    <div style='display: flex; align-items: center; gap: 8px; margin-top: 4px;'><span style='width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> API conectada</div>
-                    <div style='display: flex; align-items: center; gap: 8px; margin-top: 4px;'><span style='width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> Sistema listo</div>
+            <div style='background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 12px; border-left: 3px solid #22c55e;'>
+                <div style='font-size: 10px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;'>✅ Estado del Sistema</div>
+                <div style='font-size: 10px; color: #1f2937; line-height: 1.8;'>
+                    <div style='display: flex; align-items: center; gap: 8px;'><span style='width: 6px; height: 6px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> <span style='color: #6b7280;'>Datos cacheados</span></div>
+                    <div style='display: flex; align-items: center; gap: 8px; margin-top: 6px;'><span style='width: 6px; height: 6px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> <span style='color: #6b7280;'>API conectada</span></div>
+                    <div style='display: flex; align-items: center; gap: 8px; margin-top: 6px;'><span style='width: 6px; height: 6px; background: #22c55e; border-radius: 50%; display: inline-block;'></span> <span style='color: #6b7280;'>Sistema listo</span></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
         
         # === INFORMACIÓN DE ACTUALIZACIÓN ===
         st.markdown("""
-            <div style='background: rgba(59, 130, 246, 0.05); border-radius: 10px; padding: 14px; margin-bottom: 16px; text-align: center; border: 1px solid rgba(59, 130, 246, 0.2);'>
-                <div style='font-size: 10px; color: rgba(255,255,255,0.6); margin-bottom: 6px;'>⏱️ Última actualización</div>
-                <div style='font-size: 13px; color: #3b82f6; font-weight: 700;'>2026-04-02 14:32</div>
-                <div style='font-size: 9px; color: rgba(255,255,255,0.5); margin-top: 4px;'>Sincronizado automáticamente</div>
+            <div style='background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 16px; text-align: center;'>
+                <div style='font-size: 9px; color: #6b7280; margin-bottom: 4px; font-weight: 600; text-transform: uppercase;'>⏱️ Última Actualización</div>
+                <div style='font-size: 12px; color: #3b82f6; font-weight: 700;'>2026-04-02 14:32</div>
+                <div style='font-size: 8px; color: #9ca3af; margin-top: 2px;'>Sincronizado automáticamente</div>
             </div>
         """, unsafe_allow_html=True)
         
         st.divider()
         
         # === ACCIONES ===
-        st.markdown("""
-            <div style='font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 12px 0;'>Acciones</div>
-        """, unsafe_allow_html=True)
-        
         col1, col2 = st.columns(2, gap="small")
         with col1:
             if st.button("🔄 Refrescar", use_container_width=True, key="btn_refresh_sidebar"):
                 st.rerun()
         with col2:
-            if st.button("⚙️ Configurar", use_container_width=True, key="btn_config_sidebar"):
+            if st.button("⚙️ Config", use_container_width=True, key="btn_config_sidebar"):
                 st.info("Configuración en desarrollo")
         
         st.divider()
         
-        # === INFORMACIÓN ADICIONAL ===
+        # === FOOTER ===
         st.markdown("""
-            <div style='text-align: center; padding: 12px 0;'>
-                <div style='font-size: 10px; color: rgba(255,255,255,0.5); line-height: 1.6;'>
-                    <strong>PREDICAST v4.0</strong><br>
-                    Forecasting Inteligente<br>
-                    <span style='font-size: 9px;'>© 2026 Todos los derechos reservados</span>
+            <div style='text-align: center; padding: 12px 0; color: #9ca3af;'>
+                <div style='font-size: 9px; line-height: 1.6;'>
+                    <strong style='color: #1f2937;'>PREDICAST v4.0</strong><br>
+                    <span style='font-size: 8px;'>© 2026 • Forecasting Inteligente</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
