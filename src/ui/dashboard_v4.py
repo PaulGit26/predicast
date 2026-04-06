@@ -1569,14 +1569,8 @@ def page_analisis_individual():
 # ============================================
 def page_analisis_grupo():
     """Análisis comparativo de todos los productos"""
-    st.markdown("# 📈 Análisis de Grupo (Múltiples Productos)")
+  
     
-    st.markdown("""
-    <div class='section-description'>
-        <strong>📊 Resumen comparativo:</strong> Compara el desempeño de todos tus productos, 
-        identifica tendencias y oportunidades de optimización global.
-    </div>
-    """, unsafe_allow_html=True)
     
     forecast_resp = api_call("/api/v1/forecasting/all-products")
     if forecast_resp.get("error"):
@@ -1869,6 +1863,9 @@ def page_analisis_grupo():
                             # Calcular producción semana por semana usando algoritmo dinámico
                             stock_en_semana = stock_actual
                             
+                            # Obtener año actual para el formato de semanas
+                            año_actual = datetime.now().year
+                            
                             for semana_num, (fecha_str, demanda_predicha) in enumerate(zip(fechas, predicciones), 1):
                                 # Algoritmo dinámico igual a Recomendación Individual
                                 stock_inicio_semana = stock_en_semana
@@ -1882,10 +1879,13 @@ def page_analisis_grupo():
                                     produccion_semana = deficit_semana
                                     stock_final_semana = stock_inicio_semana + produccion_semana - demanda_predicha
                                 
+                                # Formatear semana como W01, W02, W03... en lugar de usar fechas del API
+                                semana_label = f"{año_actual}-W{semana_num:02d}"
+                                
                                 cronograma_prod.append({
                                     'Producto': codigo,
                                     'Semana': semana_num,
-                                    'Fecha': fecha_str,
+                                    'Fecha': semana_label,
                                     'Demanda Predicha (u)': round(demanda_predicha, 1),
                                     'Stock Inicio (u)': round(stock_inicio_semana, 1),
                                     'Producción Recomendada (u)': round(produccion_semana, 0),
