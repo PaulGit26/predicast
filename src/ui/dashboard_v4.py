@@ -1585,181 +1585,159 @@ def page_analisis_grupo():
     
     tab1, tab2, tab3 = st.tabs([
         "📊 Resumen Comparativo",
-        "📉 Comparativa Retrospectiva",
+        "📉 Análisis Económico",
         "🎯 Recomendación Masiva"
     ])
     
     with tab1:
         st.markdown("### 🎯 Indicadores Globales y Gestión de Portafolio")
+        st.markdown("""
+        <div class='section-description'>
+            <strong>💰 Datos reales:</strong> Todos los indicadores se calculan directamente desde transacciones históricas (Data.csv). 
+            No son estimaciones sino valores comprobados.
+        </div>
+        """, unsafe_allow_html=True)
         
-        productos = forecast_resp.get("productos", [])
-        df_productos = pd.DataFrame(productos)
-        
-        # Obtener datos económicos
-        econ_resp = api_call("/api/v1/benchmarking/economic-impact")
-        econ_data = {}
-        if not econ_resp.get("error"):
-            productos_econ = econ_resp.get("analisis_economico", {}).get("productos", [])
-            resumen_econ = econ_resp.get("analisis_economico", {}).get("resumen_total", {})
-            econ_data = {p['codigo']: p for p in productos_econ}
-        
-        # ============ KPIS GENERALES ============
-        st.markdown("#### 📊 INDICADORES GENERALES DEL PORTAFOLIO")
-        
-        col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
-        
-        # KPI 1: Total de productos
-        with col_kpi1:
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #3b82f6; text-align: center;'>
-                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📦 Productos</div>
-                <div style='font-size: 32px; font-weight: 900; color: #1e3a8a;'>{len(df_productos)}</div>
-                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>En cartera</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # KPI 2: Demanda total agregada
-        with col_kpi2:
-            demanda_total = df_productos['prediccion_media'].sum()
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #ec4899; text-align: center;'>
-                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📈 Demanda/Año</div>
-                <div style='font-size: 32px; font-weight: 900; color: #831843;'>{int(demanda_total*52):,}</div>
-                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Unidades anuales</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # KPI 3: Ganancia total
-        with col_kpi3:
-            ganancia_total = resumen_econ.get('ganancia_total_historica', 0) if econ_data else 0
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #22c55e; text-align: center;'>
-                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>💰 Ganancia</div>
-                <div style='font-size: 28px; font-weight: 900; color: #15803d;'>${ganancia_total/1e6:.1f}M</div>
-                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Histórico acumulado</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # KPI 4: Ahorro potencial
-        with col_kpi4:
-            ahorro_total = resumen_econ.get('potencial_ahorro_total_anual', 0) if econ_data else 0
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #f97316; text-align: center;'>
-                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>💵 Ahorro/Año</div>
-                <div style='font-size: 28px; font-weight: 900; color: #92400e;'>${ahorro_total/1e3:.0f}K</div>
-                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Con optimización</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # KPI 5: ROI promedio
-        with col_kpi5:
-            roi_promedio = resumen_econ.get('roi_promedio_proyectado', 0) if econ_data else 0
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #7c3aed; text-align: center;'>
-                <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📊 ROI Prom.</div>
-                <div style='font-size: 32px; font-weight: 900; color: #5b21b6;'>{roi_promedio:.0f}%</div>
-                <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Retorno estimado</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.divider()
-        
-        # ============ TOP 3 LÍDERES ============
-        st.markdown("#### 🏆 PRODUCTOS LÍDERES POR CATEGORÍA")
-        
-        col_top1, col_top2, col_top3 = st.columns(3)
-        
-        # TOP 1: Mayor demanda
-        with col_top1:
-            top_demanda = df_productos.nlargest(1, 'prediccion_media').iloc[0]
-            demanda_anual = top_demanda['prediccion_media'] * 52
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%); 
-                        padding: 20px; border-radius: 12px; border-left: 5px solid #eab308; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
-                <div style='font-size: 12px; color: #92400e; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;'>
-                    🎯 Mayor Demanda
-                </div>
-                <div style='font-size: 28px; font-weight: 900; color: #78350f; margin-bottom: 8px;'>
-                    {top_demanda['codigo']}
-                </div>
-                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
-                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>📈 Demanda Anual</div>
-                    <div style='font-size: 20px; font-weight: 700; color: #78350f;'>{int(demanda_anual):,} u</div>
-                </div>
-                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px;'>
-                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>Volatilidad</div>
-                    <div style='font-size: 16px; font-weight: 700; color: #ca8a04;'>{top_demanda['prediccion_std']:.2f}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # TOP 2: Mayor ganancia
-        with col_top2:
-            if econ_data:
-                top_ganancia_prod = max(econ_data.values(), key=lambda x: x['ganancia_total_historica'])
-                ganancia_prod = top_ganancia_prod['ganancia_total_historica']
-                codigo_ganancia = top_ganancia_prod['codigo']
-            else:
-                codigo_ganancia = "N/A"
-                ganancia_prod = 0
+        try:
+            # Cargar datos REALES del CSV
+            base_path = Path(__file__).resolve().parent.parent.parent.parent
+            data_csv = base_path / "01_Datos" / "Data.csv"
             
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #dcfce7 0%, #a7f3d0 100%); 
-                        padding: 20px; border-radius: 12px; border-left: 5px solid #10b981; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
-                <div style='font-size: 12px; color: #065f46; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;'>
-                    💎 Mayor Ganancia
-                </div>
-                <div style='font-size: 28px; font-weight: 900; color: #065f46; margin-bottom: 8px;'>
-                    {codigo_ganancia}
-                </div>
-                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
-                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>💰 Ganancia Total</div>
-                    <div style='font-size: 20px; font-weight: 700; color: #047857;'>${ganancia_prod:,.0f}</div>
-                </div>
-                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px;'>
-                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>Margen</div>
-                    <div style='font-size: 16px; font-weight: 700; color: #10b981;'>{econ_data.get(codigo_ganancia, {}).get('margen_promedio_pct', 0):.1f}%</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # TOP 3: Mayor oportunidad de ahorro
-        with col_top3:
-            if econ_data:
-                top_ahorro_prod = max(econ_data.values(), key=lambda x: x['potencial_ahorro_anual'])
-                ahorro_prod = top_ahorro_prod['potencial_ahorro_anual']
-                codigo_ahorro = top_ahorro_prod['codigo']
-                reduccion_stock = (top_ahorro_prod['costo_almacenamiento_anual'] * 0.15) / top_ahorro_prod['costo_almacenamiento_anual'] * 100 if top_ahorro_prod['costo_almacenamiento_anual'] > 0 else 15
+            if data_csv.exists():
+                # Leer CSV con separador correcto
+                df_data = pd.read_csv(data_csv, sep=';', decimal='.')
+                
+                # Filtrar solo ventas
+                df_ventas = df_data[df_data['Tipo_movimiento'].str.strip() == 'Venta'].copy()
+                
+                if len(df_ventas) > 0:
+                    # Convertir a numérico
+                    df_ventas['Valor_total'] = pd.to_numeric(df_ventas['Valor_total'], errors='coerce')
+                    df_ventas['Precio_unitario'] = pd.to_numeric(df_ventas['Precio_unitario'], errors='coerce')
+                    df_ventas['Cantidad'] = pd.to_numeric(df_ventas['Cantidad'], errors='coerce')
+                    
+                    # Eliminar filas con NaN
+                    df_ventas = df_ventas.dropna(subset=['Valor_total', 'Producto_codigo'])
+                    
+                    # Calcular métricas REALES del portafolio
+                    ingresos_totales = df_ventas['Valor_total'].sum()
+                    unidades_totales = df_ventas['Cantidad'].sum()
+                    precio_promedio_general = ingresos_totales / unidades_totales if unidades_totales > 0 else 0
+                    num_productos = len(df_ventas['Producto_codigo'].unique())
+                    unidades_anuales_proyectadas = unidades_totales  # Dato histórico real
+                    
+                    # Agrupar por producto para encontrar top
+                    df_ingresos_por_prod = df_ventas.groupby('Producto_codigo').agg({
+                        'Valor_total': 'sum',
+                        'Cantidad': 'sum',
+                        'Precio_unitario': 'mean'
+                    }).reset_index()
+                    df_ingresos_por_prod.columns = ['Producto', 'Ingresos', 'Unidades', 'Precio_Promedio']
+                    
+                    # ============ KPIS GENERALES - DATOS REALES ============
+                    st.markdown("#### 📊 INDICADORES GENERALES DEL PORTAFOLIO (DATOS REALES)")
+                    
+                    col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
+                    
+                    # KPI 1: Total de productos
+                    with col_kpi1:
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #3b82f6; text-align: center;'>
+                            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📦 Productos</div>
+                            <div style='font-size: 32px; font-weight: 900; color: #1e3a8a;'>{num_productos}</div>
+                            <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Con ventas registradas</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # KPI 2: Ingresos totales REALES
+                    with col_kpi2:
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #ec4899; text-align: center;'>
+                            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>💰 Ingresos</div>
+                            <div style='font-size: 32px; font-weight: 900; color: #831843;'>${ingresos_totales/1e6:.2f}M</div>
+                            <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Histórico acumulado</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # KPI 3: Unidades vendidas REALES
+                    with col_kpi3:
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #22c55e; text-align: center;'>
+                            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>📊 Unidades</div>
+                            <div style='font-size: 28px; font-weight: 900; color: #15803d;'>{unidades_totales:,.0f}</div>
+                            <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Vendidas</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # KPI 4: Precio promedio REAL
+                    with col_kpi4:
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #f97316; text-align: center;'>
+                            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>💵 Precio Promedio</div>
+                            <div style='font-size: 28px; font-weight: 900; color: #92400e;'>${precio_promedio_general:,.0f}</div>
+                            <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Por unidad</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # KPI 5: Ticket promedio REAL
+                    with col_kpi5:
+                        ticket_promedio = ingresos_totales / len(df_ventas) if len(df_ventas) > 0 else 0
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%); padding: 20px; border-radius: 12px; border-left: 5px solid #7c3aed; text-align: center;'>
+                            <div style='font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;'>🎫 Ticket Promedio</div>
+                            <div style='font-size: 28px; font-weight: 900; color: #5b21b6;'>${ticket_promedio:,.0f}</div>
+                            <div style='font-size: 11px; color: #64748b; margin-top: 6px;'>Por transacción</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    st.divider()
+                    
+                    # ============ TOP 3 LÍDERES - DATOS REALES ============
+                    st.markdown("#### 🏆 PRODUCTOS LÍDERES POR INGRESOS REALES")
+                    
+                    df_top3 = df_ingresos_por_prod.nlargest(3, 'Ingresos')
+                    
+                    col_top1, col_top2, col_top3 = st.columns(3)
+                    
+                    for idx, (col, row) in enumerate(zip([col_top1, col_top2, col_top3], df_top3.itertuples())):
+                        with col:
+                            medal = ['🥇', '🥈', '🥉'][idx]
+                            
+                            st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%); 
+                                        padding: 20px; border-radius: 12px; border-left: 5px solid #eab308; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
+                                <div style='font-size: 12px; color: #92400e; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;'>
+                                    {medal} Puesto #{idx+1}
+                                </div>
+                                <div style='font-size: 28px; font-weight: 900; color: #78350f; margin-bottom: 8px;'>
+                                    {row.Producto}
+                                </div>
+                                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
+                                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>💰 Ingresos Totales</div>
+                                    <div style='font-size: 20px; font-weight: 700; color: #78350f;'>${row.Ingresos:,.0f}</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
+                                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>📊 Unidades Vendidas</div>
+                                    <div style='font-size: 16px; font-weight: 700; color: #ca8a04;'>{row.Unidades:,.0f}</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px;'>
+                                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>💵 Precio Promedio</div>
+                                    <div style='font-size: 16px; font-weight: 700; color: #10b981;'>${row.Precio_Promedio:,.0f}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                else:
+                    st.warning("⚠️ No hay registro de ventas en Data.csv")
             else:
-                codigo_ahorro = "N/A"
-                ahorro_prod = 0
-                reduccion_stock = 0
-            
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); 
-                        padding: 20px; border-radius: 12px; border-left: 5px solid #f97316; box-shadow: 0 4px 12px rgba(0,0,0,0.1);'>
-                <div style='font-size: 12px; color: #92400e; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;'>
-                    🎁 Mayor Oportunidad
-                </div>
-                <div style='font-size: 28px; font-weight: 900; color: #92400e; margin-bottom: 8px;'>
-                    {codigo_ahorro}
-                </div>
-                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px; margin-bottom: 8px;'>
-                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>💵 Ahorro Anual</div>
-                    <div style='font-size: 20px; font-weight: 700; color: #ca8a04;'>${ahorro_prod:,.0f}</div>
-                </div>
-                <div style='background: rgba(255,255,255,0.6); padding: 12px; border-radius: 8px;'>
-                    <div style='font-size: 11px; color: #64748b; margin-bottom: 4px;'>Reducción Stock</div>
-                    <div style='font-size: 16px; font-weight: 700; color: #f97316;'>{reduccion_stock:.0f}%</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                st.error("❌ No se encontró Data.csv")
         
-        st.divider()
+        except Exception as e:
+            st.error(f"❌ Error procesando datos reales: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     with tab2:
-        st.markdown("### 📉 Comparativa Retrospectiva: Análisis de Ingresos Reales")
-        
+   
         st.markdown("""
         <div class='section-description'>
             <strong>💰 Análisis de ingresos:</strong> Datos calculados directamente desde transacciones reales (Data.csv).
