@@ -1271,8 +1271,7 @@ def page_analisis_individual():
                     df_rec['semana_num'] = range(1, len(df_rec) + 1)
                     df_rec['año'] = df_rec['fecha'].dt.year
                     df_rec['semana_año'] = df_rec['fecha'].dt.isocalendar().week
-                    # Normalizar: usar W01, W02, ... W52 en lugar de fechas reales del API
-                    df_rec['semana_label'] = df_rec['semana_num'].apply(lambda x: f"{datetime.now().year}-W{x:02d}")
+                    df_rec['semana_label'] = df_rec['fecha'].apply(lambda x: f"{x.year}-W{x.isocalendar().week:02d}")
                     
                     # ============ ALGORITMO DINÁMICO SEMANA POR SEMANA ============
                     stock_en_semana = stock_actual  # Comenzar con stock actual
@@ -1864,9 +1863,6 @@ def page_analisis_grupo():
                             # Calcular producción semana por semana usando algoritmo dinámico
                             stock_en_semana = stock_actual
                             
-                            # Obtener año actual para el formato de semanas
-                            año_actual = datetime.now().year
-                            
                             for semana_num, (fecha_str, demanda_predicha) in enumerate(zip(fechas, predicciones), 1):
                                 # Algoritmo dinámico igual a Recomendación Individual
                                 stock_inicio_semana = stock_en_semana
@@ -1880,13 +1876,10 @@ def page_analisis_grupo():
                                     produccion_semana = deficit_semana
                                     stock_final_semana = stock_inicio_semana + produccion_semana - demanda_predicha
                                 
-                                # Formatear semana como W01, W02, W03... en lugar de usar fechas del API
-                                semana_label = f"{año_actual}-W{semana_num:02d}"
-                                
                                 cronograma_prod.append({
                                     'Producto': codigo,
                                     'Semana': semana_num,
-                                    'Fecha': semana_label,
+                                    'Fecha': fecha_str,
                                     'Demanda Predicha (u)': round(demanda_predicha, 1),
                                     'Stock Inicio (u)': round(stock_inicio_semana, 1),
                                     'Producción Recomendada (u)': round(produccion_semana, 0),
