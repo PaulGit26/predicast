@@ -1755,172 +1755,174 @@ def page_analisis_grupo():
             """, unsafe_allow_html=True)
         
         st.divider()
-        
-        # ============ TABLA COMPARATIVA RESUMIDA ============
-        st.markdown("#### 📋 TABLA COMPARATIVA - TOP 10 PRODUCTOS")
-        
-        if econ_data:
-            # Merge datos económicos con predicciones
-            df_merged = df_productos.copy()
-            df_merged['ganancia'] = df_merged['codigo'].map(lambda x: econ_data.get(x, {}).get('ganancia_total_historica', 0))
-            df_merged['ahorro_anual'] = df_merged['codigo'].map(lambda x: econ_data.get(x, {}).get('potencial_ahorro_anual', 0))
-            df_merged['roi'] = df_merged['codigo'].map(lambda x: econ_data.get(x, {}).get('roi_proyectado_pct', 0))
-            
-            # Top 10 por demanda
-            df_top10 = df_merged.nlargest(10, 'prediccion_media')[
-                ['codigo', 'prediccion_media', 'prediccion_std', 'ganancia', 'ahorro_anual', 'roi', 'tendencia_52sem']
-            ].copy()
-            
-            df_top10.columns = ['Producto', 'Demanda/Sem', 'Volatilidad', 'Ganancia $', 'Ahorro/Año $', 'ROI %', 'Tendencia']
-            
-            # Formatear columnas
-            df_top10['Demanda/Sem'] = df_top10['Demanda/Sem'].apply(lambda x: f"{x:.0f}u")
-            df_top10['Volatilidad'] = df_top10['Volatilidad'].apply(lambda x: f"{x:.2f}")
-            df_top10['Ganancia $'] = df_top10['Ganancia $'].apply(lambda x: f"${x:,.0f}")
-            df_top10['Ahorro/Año $'] = df_top10['Ahorro/Año $'].apply(lambda x: f"${x:,.0f}")
-            df_top10['ROI %'] = df_top10['ROI %'].apply(lambda x: f"{x:.1f}%")
-            df_top10['Tendencia'] = df_top10['Tendencia'].str.upper()
-            
-            st.dataframe(df_top10, use_container_width=True, hide_index=True)
-        else:
-            df_show = df_productos.nlargest(10, 'prediccion_media')[['codigo', 'prediccion_media', 'prediccion_std', 'tendencia_52sem']].copy()
-            df_show.columns = ['Producto', 'Demanda Media', 'Volatilidad', 'Tendencia']
-            df_show['Demanda Media'] = df_show['Demanda Media'].apply(lambda x: f"{x:.1f}u/sem")
-            df_show['Volatilidad'] = df_show['Volatilidad'].apply(lambda x: f"{x:.2f}")
-            df_show['Tendencia'] = df_show['Tendencia'].str.upper()
-            st.dataframe(df_show, use_container_width=True, hide_index=True)
-        
-        st.divider()
-        
-        # ============ GRÁFICO: DEMANDA VS GANANCIA ============
-        st.markdown("#### 📊 ANÁLISIS: Demanda vs Ganancia (Top 10)")
-        
-        if econ_data:
-            df_scatter = df_merged.nlargest(10, 'prediccion_media').copy()
-            df_scatter['demanda_anual'] = df_scatter['prediccion_media'] * 52
-            
-            fig_scatter = px.scatter(
-                df_scatter,
-                x='demanda_anual',
-                y='ganancia',
-                size='ahorro_anual',
-                color='roi',
-                hover_data={'codigo': True, 'demanda_anual': ':.0f', 'ganancia': ':.0f', 'ahorro_anual': ':.0f'},
-                labels={
-                    'demanda_anual': 'Demanda Anual (unidades)',
-                    'ganancia': 'Ganancia Total ($)',
-                    'roi': 'ROI %'
-                },
-                title='🎯 Portafolio de Productos: Demanda vs Ganancia vs Ahorro',
-                color_continuous_scale='RdYlGn'
-            )
-            
-            fig_scatter.update_traces(marker=dict(line=dict(width=1, color='white')))
-            fig_scatter.update_layout(height=450, hovermode='closest')
-            st.plotly_chart(fig_scatter, use_container_width=True)
     
     with tab2:
-        st.markdown("### 📉 Comparativa Retrospectiva: Análisis Económico")
+        st.markdown("### 📉 Comparativa Retrospectiva: Análisis de Ingresos Reales")
         
-        # Llamar al endpoint de impacto económico
-        econ_resp = api_call("/api/v1/benchmarking/economic-impact")
+        st.markdown("""
+        <div class='section-description'>
+            <strong>💰 Análisis de ingresos:</strong> Datos calculados directamente desde transacciones reales (Data.csv).
+            Muestra los productos con mayor generación de ingresos, precio promedio y volumen vendido.
+        </div>
+        """, unsafe_allow_html=True)
         
-        if not econ_resp.get("error"):
-            analisis = econ_resp.get("analisis_economico", {})
-            resumen = analisis.get("resumen_total", {})
-            productos_econ = analisis.get("productos", [])
+        try:
+            # Cargar datos reales del CSV
+            base_path = Path(__file__).resolve().parent.parent.parent.parent
+            data_csv = base_path / "01_Datos" / "Data.csv"
             
-            if len(productos_econ) == 0:
-                st.warning("⚠️ No hay datos económicos disponibles en este momento. Verifique la carga de datos.")
-            else:
-                # KPIs principales
-                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+            if data_csv.exists():
+                # Leer CSV con separador correcto
+                df_data = pd.read_csv(data_csv, sep=';', decimal='.')
                 
-                with col_kpi1:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>💰 Ganancia Total</div>
-                        <div class='metric-value'>${resumen.get('ganancia_total_historica', 0):,.0f}</div>
-                        <small style='color: #64748b;'>Histórico</small>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # Filtrar solo ventas
+                df_ventas = df_data[df_data['Tipo_movimiento'].str.strip() == 'Venta'].copy()
                 
-                with col_kpi2:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>💵 Ahorro Potencial/Año</div>
-                        <div class='metric-value'>${resumen.get('potencial_ahorro_total_anual', 0):,.0f}</div>
-                        <small style='color: #64748b;'>Con este sistema</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_kpi3:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>📈 ROI Promedio</div>
-                        <div class='metric-value'>{resumen.get('roi_promedio_proyectado', 0):.1f}%</div>
-                        <small style='color: #64748b;'>Retorno estimado</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_kpi4:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>📊 Productos</div>
-                        <div class='metric-value'>{resumen.get('total_productos_analizados', 0)}</div>
-                        <small style='color: #64748b;'>En cartera</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                st.divider()
-                
-                # Gráfico de Ganancia vs Ahorro Potencial (Top 10)
-                df_econ_top = pd.DataFrame(productos_econ[:10]).copy()
-                
-                if len(df_econ_top) > 0 and 'codigo' in df_econ_top.columns:
-                    fig_comparison = go.Figure()
-                    fig_comparison.add_trace(go.Bar(
-                        y=df_econ_top['codigo'],
-                        x=df_econ_top['ganancia_total_historica'],
-                        name='💰 Ganancia Histórica',
-                        orientation='h',
-                        marker_color='#3b82f6'
-                    ))
-                    fig_comparison.add_trace(go.Bar(
-                        y=df_econ_top['codigo'],
-                        x=df_econ_top['potencial_ahorro_anual'],
-                        name='💵 Ahorro Potencial',
-                        orientation='h',
-                        marker_color='#10b981'
-                    ))
+                if len(df_ventas) > 0:
+                    # Convertir Valor_total a numérico (en caso de que tenga símbolos)
+                    df_ventas['Valor_total'] = pd.to_numeric(df_ventas['Valor_total'], errors='coerce')
+                    df_ventas['Precio_unitario'] = pd.to_numeric(df_ventas['Precio_unitario'], errors='coerce')
+                    df_ventas['Cantidad'] = pd.to_numeric(df_ventas['Cantidad'], errors='coerce')
                     
-                    fig_comparison.update_layout(
-                        barmode='group',
-                        height=400,
-                        title='💰 Top 10: Ganancia vs Ahorro Potencial',
-                        xaxis_title='$ USD',
-                        yaxis_title='Producto',
-                        hovermode='y unified',
-                        margin=dict(l=100)
-                    )
-                    st.plotly_chart(fig_comparison, use_container_width=True)
+                    # Eliminar filas con NaN
+                    df_ventas = df_ventas.dropna(subset=['Valor_total', 'Producto_codigo'])
+                    
+                    # Agrupar por producto
+                    df_ingresos = df_ventas.groupby('Producto_codigo').agg({
+                        'Valor_total': 'sum',
+                        'Cantidad': 'sum',
+                        'Precio_unitario': 'mean'
+                    }).reset_index()
+                    
+                    df_ingresos.columns = ['Producto', 'Ingresos_Total', 'Unidades_Vendidas', 'Precio_Promedio']
+                    
+                    # Ordenar por ingresos descendente y tomar top 10
+                    df_ingresos = df_ingresos.sort_values('Ingresos_Total', ascending=False).head(10)
+                    
+                    # Calcular métricas agregadas
+                    ingresos_totales = df_ventas['Valor_total'].sum()
+                    unidades_totales = df_ventas['Cantidad'].sum()
+                    precio_promedio_general = ingresos_totales / unidades_totales if unidades_totales > 0 else 0
+                    num_productos = len(df_ventas['Producto_codigo'].unique())
+                    
+                    # KPIs principales con datos REALES
+                    col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+                    
+                    with col_kpi1:
+                        st.markdown(f"""
+                        <div class='metric-card'>
+                            <div class='metric-label'>💰 Ingresos Totales</div>
+                            <div class='metric-value'>${ingresos_totales:,.0f}</div>
+                            <small style='color: #64748b;'>Histórico real</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col_kpi2:
+                        st.markdown(f"""
+                        <div class='metric-card'>
+                            <div class='metric-label'>📊 Unidades Vendidas</div>
+                            <div class='metric-value'>{unidades_totales:,.0f}</div>
+                            <small style='color: #64748b;'>Total histórico</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col_kpi3:
+                        st.markdown(f"""
+                        <div class='metric-card'>
+                            <div class='metric-label'>💵 Precio Promedio</div>
+                            <div class='metric-value'>${precio_promedio_general:,.0f}</div>
+                            <small style='color: #64748b;'>Por unidad</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col_kpi4:
+                        st.markdown(f"""
+                        <div class='metric-card'>
+                            <div class='metric-label'>📦 Productos</div>
+                            <div class='metric-value'>{num_productos}</div>
+                            <small style='color: #64748b;'>Con ventas registradas</small>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
                     st.divider()
                     
-                    # Tabla detallada de productos
-                    st.markdown("#### 📊 Tabla de Análisis Económico por Producto")
-                    df_display = pd.DataFrame(productos_econ)[['codigo', 'ganancia_total_historica', 
-                                                                 'margen_promedio_pct', 'rotacion_inventario',
-                                                                 'dias_cobertura', 'costo_almacenamiento_anual',
-                                                                 'potencial_ahorro_anual', 'roi_proyectado_pct']]
-                    df_display.columns = ['Producto', 'Ganancia $', 'Margen %', 'Rotación', 'Cobertura días', 
-                                         'Costo Almacén $', 'Ahorro Potencial $', 'ROI %']
+                    # Gráfico: Top 10 por ingresos
+                    st.markdown("#### 💹 Top 10 Productos por Ingresos")
                     
-                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                    fig_ingresos = go.Figure()
+                    fig_ingresos.add_trace(go.Bar(
+                        y=df_ingresos['Producto'],
+                        x=df_ingresos['Ingresos_Total'],
+                        orientation='h',
+                        marker=dict(
+                            color=df_ingresos['Ingresos_Total'],
+                            colorscale='Greens',
+                            showscale=True,
+                            colorbar=dict(title="Ingresos ($)")
+                        ),
+                        text=df_ingresos['Ingresos_Total'].apply(lambda x: f'${x:,.0f}'),
+                        textposition='outside',
+                        hovertemplate='<b>%{y}</b><br>Ingresos: $%{x:,.0f}<extra></extra>'
+                    ))
+                    
+                    fig_ingresos.update_layout(
+                        title='🏆 Top 10 Productos por Ingresos Totales',
+                        xaxis_title='Ingresos ($)',
+                        yaxis_title='Producto',
+                        height=450,
+                        margin=dict(l=150),
+                        showlegend=False
+                    )
+                    
+                    st.plotly_chart(fig_ingresos, use_container_width=True)
+                    
+                    st.divider()
+                    
+                    # Tabla detallada con datos reales
+                    st.markdown("#### 📊 Tabla Detallada - Top 10 Productos")
+                    
+                    df_tabla = df_ingresos.copy()
+                    df_tabla['Ingresos_Total'] = df_tabla['Ingresos_Total'].apply(lambda x: f'${x:,.2f}')
+                    df_tabla['Unidades_Vendidas'] = df_tabla['Unidades_Vendidas'].apply(lambda x: f'{x:,.0f}')
+                    df_tabla['Precio_Promedio'] = df_tabla['Precio_Promedio'].apply(lambda x: f'${x:,.2f}')
+                    df_tabla.columns = ['Producto', 'Ingresos Totales', 'Unidades Vendidas', 'Precio Promedio']
+                    
+                    st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+                    
+                    st.divider()
+                    
+                    # Análisis adicional: Volumen vs Margen
+                    st.markdown("#### 📈 Análisis: Unidades Vendidas vs Ingresos")
+                    
+                    fig_scatter = px.scatter(
+                        df_ingresos,
+                        x='Unidades_Vendidas',
+                        y='Ingresos_Total',
+                        size='Unidades_Vendidas',
+                        hover_data={'Producto': True, 'Precio_Promedio': ':.2f'},
+                        labels={
+                            'Unidades_Vendidas': 'Unidades Vendidas',
+                            'Ingresos_Total': 'Ingresos Totales ($)',
+                            'Precio_Promedio': 'Precio Promedio'
+                        },
+                        title='📊 Relación: Volumen de Unidades vs Ingresos Generados',
+                        color='Precio_Promedio',
+                        color_continuous_scale='Blues',
+                        size_max=30
+                    )
+                    
+                    fig_scatter.update_layout(height=400, hovermode='closest')
+                    st.plotly_chart(fig_scatter, use_container_width=True)
+                    
                 else:
-                    st.warning("⚠️ No hay datos suficientes para mostrar gráfico")
-        else:
-            st.error("❌ No se pudieron cargar datos económicos")
+                    st.warning("⚠️ No hay registros de ventas en Data.csv")
+            else:
+                st.error("❌ No se encontró Data.csv")
+        
+        except Exception as e:
+            st.error(f"❌ Error procesando ingresos: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     with tab3:
         st.markdown("### 🎯 Recomendación Masiva de Producción")
