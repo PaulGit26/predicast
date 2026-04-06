@@ -511,16 +511,58 @@ def page_analisis_individual():
     productos = forecast_resp.get("productos", [])
     productos_names = sorted([p['codigo'] for p in productos])
     
-    # Selector de producto
-    col1, col2 = st.columns([3, 1])
-    with col1:
+    # === SELECTOR FLOTANTE COMPACTO ===
+    st.markdown("""
+        <style>
+            [data-testid="stWidgetLabel"] {
+                display: none !important;
+            }
+            
+            .producto-selector-floating {
+                position: fixed;
+                top: 75px;
+                right: 20px;
+                width: 200px;
+                z-index: 999;
+                background: white;
+                padding: 8px 12px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+                border: 1px solid #e5e7eb;
+            }
+            
+            .producto-selector-floating label {
+                font-size: 10px !important;
+                font-weight: 600 !important;
+                color: #6b7280 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.5px !important;
+                display: block !important;
+                margin-bottom: 4px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    col_select = st.columns([1])[0]
+    with col_select:
         selected_producto = st.selectbox(
-            "🏷️ Selecciona Producto",
+            "📦 Producto",
             productos_names,
-            index=0
+            index=0,
+            key="producto_selector"
         )
-    with col2:
-        st.write("")  # Espaciador
+    
+    # Aplicar CSS de posición flotante al selectbox
+    st.markdown("""
+        <script>
+            // Buscar el selectbox más reciente y aplicar clase flotante
+            const selectElements = document.querySelectorAll('[data-testid="stSelectbox"]');
+            if (selectElements.length > 0) {
+                const lastSelect = selectElements[selectElements.length - 1];
+                lastSelect.parentElement.parentElement.classList.add('producto-selector-floating');
+            }
+        </script>
+    """, unsafe_allow_html=True)
     
     # Obtener datos del producto seleccionado
     producto_info = next((p for p in productos if p['codigo'] == selected_producto), None)
@@ -750,7 +792,7 @@ def page_analisis_individual():
     
     # ============ TAB 2: STOCK Y DIAGNÓSTICO ============
     with tab2:
-        st.markdown("### 📦 Análisis de Inventario")
+
         
         st.markdown("""
         <div class='section-description'>
@@ -770,42 +812,8 @@ def page_analisis_individual():
                 stock_min = df_prod['Stock_anterior'].min()
                 rotacion = (producto_info['prediccion_media'] / stock_medio) if stock_medio > 0 else 0
                 
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>📊 Stock Promedio</div>
-                        <div class='metric-value'>{stock_medio:.0f}</div>
-                        <small>Unidades</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>⬆️ Stock Máximo</div>
-                        <div class='metric-value'>{stock_max:.0f}</div>
-                        <small>Unidades</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>⬇️ Stock Mínimo</div>
-                        <div class='metric-value'>{stock_min:.0f}</div>
-                        <small>Unidades</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col4:
-                    st.markdown(f"""
-                    <div class='metric-card'>
-                        <div class='metric-label'>🔄 Índice Rotación</div>
-                        <div class='metric-value'>{rotacion:.2f}x</div>
-                        <small>Demanda/Stock</small>
-                    </div>
-                    """, unsafe_allow_html=True)
+
+ 
                 
                 # Gráficos de stock temporal con indicadores
                 st.markdown("#### 📊 Análisis Temporal del Stock")
