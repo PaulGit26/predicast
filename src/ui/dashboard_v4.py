@@ -1831,32 +1831,87 @@ def page_analisis_grupo():
         if not forecast_resp.get("error"):
             productos = forecast_resp.get("productos", [])
             
-            # Crear cronograma de producción semanal (52 semanas)
+            # Cargar datos reales para stock actual
+            df_original = load_original_data()
+            
+            # Crear cronograma de producción con lógica dinámica
             cronograma_prod = []
-            num_semanas = 52
             
             for prod in productos:
+                codigo = prod['codigo']
                 media = prod['prediccion_media']
+                std = prod['prediccion_std']
                 
-                # Para cada semana, registrar la producción recomendada
-                for semana in range(1, num_semanas + 1):
-                    cronograma_prod.append({
-                        'Semana': semana,
-                        'Producto': prod['codigo'],
-                        'Producción Recomendada (u)': round(media, 1)
-                    })
+                # Parámetros de seguridad
+                inventario_seguridad = media + 1.65 * std
+                
+                # Obtener stock actual real del producto
+                if df_original is not None:
+                    df_prod = df_original[df_original['Producto_codigo'] == codigo].copy()
+                    if len(df_prod) > 0:
+                        df_prod['Fecha_dt'] = pd.to_datetime(df_prod['Fecha'], format='%d/%m/%Y')
+                        df_prod = df_prod.sort_values('Fecha_dt')
+                        stock_actual = df_prod.iloc[-1]['Stock_anterior']  # Último stock registrado
+                    else:
+                        stock_actual = media * 2
+                else:
+                    stock_actual = media * 2
+                
+                # Obtener pronóstico de 52 semanas para este producto
+                forecast_detail = api_call(f"/api/v1/forecasting/52weeks/{codigo}")
+                
+                if forecast_detail.get("success") and 'predicciones' in forecast_detail:
+                    try:
+                        predicciones = forecast_detail.get('predicciones', [])
+                        fechas = forecast_detail.get('fechas_prediccion', [])
+                        
+                        if predicciones and fechas:
+                            # Calcular producción semana por semana usando algoritmo dinámico
+                            stock_en_semana = stock_actual
+                            
+                            for semana_num, (fecha_str, demanda_predicha) in enumerate(zip(fechas, predicciones), 1):
+                                # Algoritmo dinámico igual a Recomendación Individual
+                                stock_inicio_semana = stock_en_semana
+                                stock_si_sin_produccion = stock_inicio_semana - demanda_predicha
+                                
+                                if stock_si_sin_produccion >= inventario_seguridad:
+                                    produccion_semana = 0
+                                    stock_final_semana = stock_si_sin_produccion
+                                else:
+                                    deficit_semana = inventario_seguridad - stock_si_sin_produccion
+                                    produccion_semana = deficit_semana
+                                    stock_final_semana = stock_inicio_semana + produccion_semana - demanda_predicha
+                                
+                                cronograma_prod.append({
+                                    'Producto': codigo,
+                                    'Semana': semana_num,
+                                    'Fecha': fecha_str,
+                                    'Demanda Predicha (u)': round(demanda_predicha, 1),
+                                    'Stock Inicio (u)': round(stock_inicio_semana, 1),
+                                    'Producción Recomendada (u)': round(produccion_semana, 0),
+                                    'Stock Final (u)': round(stock_final_semana, 1)
+                                })
+                                
+                                # Actualizar stock para la siguiente semana
+                                stock_en_semana = stock_final_semana
+                    
+                    except Exception as e:
+                        st.warning(f"⚠️ Error calculando cronograma para {codigo}: {str(e)}")
             
-            df_cronograma = pd.DataFrame(cronograma_prod)
-            
-            # Botón descargar cronograma
-            csv_buffer = df_cronograma.to_csv(index=False).encode()
-            st.download_button(
-                label="📥 Descargar Cronograma de Producción (CSV)",
-                data=csv_buffer,
-                file_name=f"cronograma_produccion_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                help="Descarga el cronograma de producción recomendado para 52 semanas"
-            )
+            if cronograma_prod:
+                df_cronograma = pd.DataFrame(cronograma_prod)
+                
+                # Botón descargar cronograma
+                csv_buffer = df_cronograma.to_csv(index=False).encode()
+                st.download_button(
+                    label="📥 Descargar Cronograma de Producción (CSV)",
+                    data=csv_buffer,
+                    file_name=f"cronograma_produccion_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    help="Descarga el cronograma de producción recomendado para 52 semanas con lógica dinámica"
+                )
+            else:
+                st.error("❌ No se pudieron calcular los cronogramas de producción")
 
 # ============================================
 # ANÁLISIS EXTENDIDO
