@@ -698,7 +698,7 @@ def page_analisis_individual():
                         # Insights resume
                         st.markdown("##### 🔍 Hallazgos Clave del Análisis Histórico")
                         
-                        col_insight_a, col_insight_b, col_insight_c = st.columns(3)
+                        col_insight_a, col_insight_b = st.columns(2)
                         
                         with col_insight_a:
                             st.markdown(f"""
@@ -719,19 +719,6 @@ def page_analisis_individual():
                                 <tiny style='color: #64748b;'>Demanda trimestral: <strong style='color: #7c3aed;'>{demanda_por_trimestre[trim_max]:,.0f} u</strong></tiny><br>
                                 <tiny style='color: #64748b;'>Variabilidad mensual: <strong>{coef_variacion_meses:.2f}</strong></tiny><br>
                                 <tiny style='color: #64748b;'>Patrón: {'📈 Clara estacionalidad' if coef_variacion_meses > 0.4 else '➡️ Relativamente uniforme'}</tiny>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with col_insight_c:
-                            tendencia_label = "📈 Crecimiento" if crecimiento_anual > 5 else "📉 Contracción" if crecimiento_anual < -5 else "➡️ Estable"
-                            tendencia_color = "#10b981" if crecimiento_anual > 5 else "#ef4444" if crecimiento_anual < -5 else "#3b82f6"
-                            st.markdown(f"""
-                            <div style='background: linear-gradient(135deg, {tendencia_color}15, {tendencia_color}05); 
-                                        padding: 14px; border-radius: 8px; border-left: 4px solid {tendencia_color};'>
-                                <strong style='font-size: 14px; color: {tendencia_color};'>🚀 Tendencia General</strong><br>
-                                <small style='color: #64748b;'>{tendencia_label}</small><br>
-                                <tiny style='color: #64748b;'><strong style='color: {tendencia_color};'>{crecimiento_anual:+.1f}%</strong> año a año</tiny><br>
-                                <tiny style='color: #64748b;'>Comportamiento en el tiempo</tiny>
                             </div>
                             """, unsafe_allow_html=True)
                         
