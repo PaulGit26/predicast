@@ -1271,7 +1271,8 @@ def page_analisis_individual():
                     df_rec['semana_num'] = range(1, len(df_rec) + 1)
                     df_rec['año'] = df_rec['fecha'].dt.year
                     df_rec['semana_año'] = df_rec['fecha'].dt.isocalendar().week
-                    df_rec['semana_label'] = df_rec['fecha'].apply(lambda x: f"{x.year}-W{x.isocalendar().week:02d}")
+                    # Normalizar: usar W01, W02, ... W52 en lugar de fechas reales del API
+                    df_rec['semana_label'] = df_rec['semana_num'].apply(lambda x: f"{datetime.now().year}-W{x:02d}")
                     
                     # ============ ALGORITMO DINÁMICO SEMANA POR SEMANA ============
                     stock_en_semana = stock_actual  # Comenzar con stock actual
