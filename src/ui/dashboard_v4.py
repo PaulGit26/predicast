@@ -1625,89 +1625,95 @@ def page_analisis_grupo():
             resumen = analisis.get("resumen_total", {})
             productos_econ = analisis.get("productos", [])
             
-            # KPIs principales
-            col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-            
-            with col_kpi1:
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-label'>💰 Ganancia Total</div>
-                    <div class='metric-value'>${resumen.get('ganancia_total_historica', 0):,.0f}</div>
-                    <small style='color: #64748b;'>Histórico</small>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_kpi2:
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-label'>💵 Ahorro Potencial/Año</div>
-                    <div class='metric-value'>${resumen.get('potencial_ahorro_total_anual', 0):,.0f}</div>
-                    <small style='color: #64748b;'>Con este sistema</small>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_kpi3:
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-label'>📈 ROI Promedio</div>
-                    <div class='metric-value'>{resumen.get('roi_promedio_proyectado', 0):.1f}%</div>
-                    <small style='color: #64748b;'>Retorno estimado</small>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_kpi4:
-                st.markdown(f"""
-                <div class='metric-card'>
-                    <div class='metric-label'>📊 Productos</div>
-                    <div class='metric-value'>{resumen.get('total_productos_analizados', 0)}</div>
-                    <small style='color: #64748b;'>En cartera</small>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.divider()
-            
-            # Gráfico de Ganancia vs Ahorro Potencial (Top 10)
-            df_econ_top = pd.DataFrame(productos_econ[:10])
-            
-            fig_comparison = go.Figure()
-            fig_comparison.add_trace(go.Bar(
-                y=df_econ_top['codigo'],
-                x=df_econ_top['ganancia_total_historica'],
-                name='💰 Ganancia Histórica',
-                orientation='h',
-                marker_color='#3b82f6'
-            ))
-            fig_comparison.add_trace(go.Bar(
-                y=df_econ_top['codigo'],
-                x=df_econ_top['potencial_ahorro_anual'],
-                name='💵 Ahorro Potencial',
-                orientation='h',
-                marker_color='#10b981'
-            ))
-            
-            fig_comparison.update_layout(
-                barmode='group',
-                height=400,
-                title='💰 Top 10: Ganancia vs Ahorro Potencial',
-                xaxis_title='$ USD',
-                yaxis_title='Producto',
-                hovermode='y unified',
-                margin=dict(l=100)
-            )
-            st.plotly_chart(fig_comparison, use_container_width=True)
-            
-            st.divider()
-            
-            # Tabla detallada de productos
-            st.markdown("#### 📊 Tabla de Análisis Económico por Producto")
-            df_display = pd.DataFrame(productos_econ)[['codigo', 'ganancia_total_historica', 
-                                                         'margen_promedio_pct', 'rotacion_inventario',
-                                                         'dias_cobertura', 'costo_almacenamiento_anual',
-                                                         'potencial_ahorro_anual', 'roi_proyectado_pct']]
-            df_display.columns = ['Producto', 'Ganancia $', 'Margen %', 'Rotación', 'Cobertura días', 
-                                 'Costo Almacén $', 'Ahorro Potencial $', 'ROI %']
-            
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
+            if len(productos_econ) == 0:
+                st.warning("⚠️ No hay datos económicos disponibles en este momento. Verifique la carga de datos.")
+            else:
+                # KPIs principales
+                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+                
+                with col_kpi1:
+                    st.markdown(f"""
+                    <div class='metric-card'>
+                        <div class='metric-label'>💰 Ganancia Total</div>
+                        <div class='metric-value'>${resumen.get('ganancia_total_historica', 0):,.0f}</div>
+                        <small style='color: #64748b;'>Histórico</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_kpi2:
+                    st.markdown(f"""
+                    <div class='metric-card'>
+                        <div class='metric-label'>💵 Ahorro Potencial/Año</div>
+                        <div class='metric-value'>${resumen.get('potencial_ahorro_total_anual', 0):,.0f}</div>
+                        <small style='color: #64748b;'>Con este sistema</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_kpi3:
+                    st.markdown(f"""
+                    <div class='metric-card'>
+                        <div class='metric-label'>📈 ROI Promedio</div>
+                        <div class='metric-value'>{resumen.get('roi_promedio_proyectado', 0):.1f}%</div>
+                        <small style='color: #64748b;'>Retorno estimado</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_kpi4:
+                    st.markdown(f"""
+                    <div class='metric-card'>
+                        <div class='metric-label'>📊 Productos</div>
+                        <div class='metric-value'>{resumen.get('total_productos_analizados', 0)}</div>
+                        <small style='color: #64748b;'>En cartera</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                st.divider()
+                
+                # Gráfico de Ganancia vs Ahorro Potencial (Top 10)
+                df_econ_top = pd.DataFrame(productos_econ[:10]).copy()
+                
+                if len(df_econ_top) > 0 and 'codigo' in df_econ_top.columns:
+                    fig_comparison = go.Figure()
+                    fig_comparison.add_trace(go.Bar(
+                        y=df_econ_top['codigo'],
+                        x=df_econ_top['ganancia_total_historica'],
+                        name='💰 Ganancia Histórica',
+                        orientation='h',
+                        marker_color='#3b82f6'
+                    ))
+                    fig_comparison.add_trace(go.Bar(
+                        y=df_econ_top['codigo'],
+                        x=df_econ_top['potencial_ahorro_anual'],
+                        name='💵 Ahorro Potencial',
+                        orientation='h',
+                        marker_color='#10b981'
+                    ))
+                    
+                    fig_comparison.update_layout(
+                        barmode='group',
+                        height=400,
+                        title='💰 Top 10: Ganancia vs Ahorro Potencial',
+                        xaxis_title='$ USD',
+                        yaxis_title='Producto',
+                        hovermode='y unified',
+                        margin=dict(l=100)
+                    )
+                    st.plotly_chart(fig_comparison, use_container_width=True)
+                    
+                    st.divider()
+                    
+                    # Tabla detallada de productos
+                    st.markdown("#### 📊 Tabla de Análisis Económico por Producto")
+                    df_display = pd.DataFrame(productos_econ)[['codigo', 'ganancia_total_historica', 
+                                                                 'margen_promedio_pct', 'rotacion_inventario',
+                                                                 'dias_cobertura', 'costo_almacenamiento_anual',
+                                                                 'potencial_ahorro_anual', 'roi_proyectado_pct']]
+                    df_display.columns = ['Producto', 'Ganancia $', 'Margen %', 'Rotación', 'Cobertura días', 
+                                         'Costo Almacén $', 'Ahorro Potencial $', 'ROI %']
+                    
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                else:
+                    st.warning("⚠️ No hay datos suficientes para mostrar gráfico")
         else:
             st.error("❌ No se pudieron cargar datos económicos")
     
