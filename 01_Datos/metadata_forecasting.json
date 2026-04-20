@@ -1,0 +1,36 @@
+{
+  "fecha_inicio": "2021-W02",
+  "fecha_fin": "2026-W01",
+  "semanas_totales": 222,
+  "productos": [
+    "CP_01",
+    "CP_02",
+    "CP_03",
+    "CP_04",
+    "CP_05",
+    "CP_06",
+    "CP_07",
+    "CP_08",
+    "CP_09",
+    "CP_10",
+    "CP_11",
+    "CP_12",
+    "CP_13",
+    "CP_14",
+    "CR_01",
+    "CR_02",
+    "CR_03",
+    "CT_01",
+    "MECO_01",
+    "MZ_01"
+  ],
+  "num_productos": 20,
+  "productos_validos_52sem": 20,
+  "sparcidad_pct": 2.2072072072072073,
+  "features_adicionales": {
+    "Descuento_promedio": "Promedio de descuento % por semana/producto",
+    "Precio_promedio": "Precio unitario promedio por semana/producto",
+    "Pct_Online": "Porcentaje de ventas online por semana/producto",
+    "Hay_Campana": "Indicador binario: 1 si hay campa\u00f1a esa semana, 0 si no"
+  }
+}

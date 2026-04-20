@@ -1,0 +1,15 @@
+{
+  "fecha": "2026-04-20T01:05:19.988946",
+  "productos_evaluados": 20,
+  "muestras_test": 52,
+  "ranking": {
+    "LIGHTGBM": 20.260862853079473,
+    "XGBOOST": 22.427789421143626,
+    "SARIMA": 26.69150804809603,
+    "EXPONENTIAL_SMOOTHING": 38.8296934279053
+  },
+  "mejor_modelo": "LIGHTGBM",
+  "mae_promedio_mejor": 20.260862853079473,
+  "modelo_hibrido": null,
+  "nota": "\ud83c\udfaf El modelo HIBRIDO combina 60% XGBoost + 40% ARIMA para capturar patrones lineales y no-lineales"
+}

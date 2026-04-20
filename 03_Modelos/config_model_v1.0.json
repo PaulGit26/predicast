@@ -1,0 +1,26 @@
+{
+  "VERSION_MODELO": "1.0",
+  "NOMBRE_MODELO": "HYBRID_XGB_ARIMA_V1.0",
+  "FECHA_ENTRENAMIENTO": "2026-04-18T12:13:06.794683",
+  "MODELO_XGBOOST": "..\\03_Modelos\\modelo_hybrid_xgboost_final.joblib",
+  "MODELO_ARIMA": "..\\03_Modelos\\modelo_hybrid_arima_params_final.json",
+  "METADATA": "..\\03_Modelos\\modelo_hybrid_metadata_v1.0.json",
+  "PREDICCIONES_ENTRADA": "../01_Datos/predicciones_52semanas_pivot.csv",
+  "PREDICCIONES_ENTRADA_LARGO": "../01_Datos/predicciones_52semanas_largo.csv",
+  "ARCHIVO_PIVOT_ESTRUCTURA": "Semanas (\u00edndice) \u00d7 Productos (columnas)",
+  "ARCHIVO_LARGO_COLUMNAS": [
+    "Producto_codigo",
+    "Semana",
+    "Prediccion",
+    "Lower_Bound_95",
+    "Upper_Bound_95"
+  ],
+  "PESO_XGBOOST": 0.6,
+  "PESO_ARIMA": 0.4,
+  "HORIZONTE_PREDICCION": 52,
+  "FRECUENCIA": "Semanal",
+  "STATUS": "PRODUCCI\u00d3N",
+  "DESCRIPCION": "Modelo ganador tras comparativa contra 5 algoritmos. Combina XGBoost y ARIMA.",
+  "ULTIMA_ACTUALIZACION": "2026-04-18T12:13:06.794683",
+  "NOTAS": "Archivos compatibles con forecasting_routes.py - Opci\u00f3n A (sin cambios en API)"
+}

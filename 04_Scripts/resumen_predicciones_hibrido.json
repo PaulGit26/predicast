@@ -1,0 +1,56 @@
+{
+  "fecha_generacion": "2026-04-18T13:01:22.019088",
+  "modelo": "HYBRID_XGBoost_ARIMA",
+  "pesos": {
+    "xgboost": 0.6,
+    "arima": 0.4
+  },
+  "productos_totales": 20,
+  "productos_predichos": 20,
+  "horizonte_semanas": 52,
+  "ultima_semana_datos": "2026-W01",
+  "primera_semana_prediccion": "2026-01-12",
+  "ultima_semana_prediccion": "2027-01-04",
+  "estadisticas": {
+    "predicciones_promedio": 204.22688388955373,
+    "predicciones_std": 313.96663650517576,
+    "predicciones_min": 0.0,
+    "predicciones_max": 1707.3559595654478
+  },
+  "tiempos_entrenamiento_segundos": {
+    "CP_01": 8.524436950683594,
+    "CP_02": 9.32677936553955,
+    "CP_03": 9.29352879524231,
+    "CP_04": 8.834925413131714,
+    "CP_05": 8.84470272064209,
+    "CP_06": 7.653450012207031,
+    "CP_07": 7.8642494678497314,
+    "CP_08": 9.714534997940063,
+    "CP_09": 7.284634828567505,
+    "CP_10": 6.952287197113037,
+    "CP_11": 6.4828691482543945,
+    "CP_12": 7.6064980030059814,
+    "CP_13": 6.3063271045684814,
+    "CP_14": 5.99089789390564,
+    "CR_01": 6.165942192077637,
+    "CR_02": 6.7913432121276855,
+    "CR_03": 6.540108919143677,
+    "CT_01": 7.28715968132019,
+    "MECO_01": 7.860693454742432,
+    "MZ_01": 8.444210529327393
+  },
+  "archivos_generados": {
+    "predicciones_pivot_csv": "../01_Datos/predicciones_52semanas_pivot.csv",
+    "predicciones_largo_csv": "../01_Datos/predicciones_52semanas_largo.csv",
+    "archivo_pivot_estructura": "Semanas (\u00edndice) \u00d7 Productos (columnas)",
+    "archivo_largo_columnas": [
+      "Producto_codigo",
+      "Semana",
+      "Prediccion",
+      "Lower_Bound_95",
+      "Upper_Bound_95"
+    ],
+    "intervalo_confianza_tipo": "95% (z=1.96)",
+    "uso_forecasting_routes": "Lee desde estos 2 archivos (compatible)"
+  }
+}
