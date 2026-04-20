@@ -1,0 +1,66 @@
+{
+  "CP_03": {
+    "order": [
+      1,
+      1,
+      1
+    ],
+    "seasonal_order": [
+      1,
+      1,
+      1,
+      52
+    ],
+    "parametros": "SARIMAX(p=1, d=1, q=1, P=1, D=1, Q=1, s=52)",
+    "producto": "CP_03",
+    "estado": "Par\u00e1metros guardados - Reestructurar en predicci\u00f3n"
+  },
+  "CP_07": {
+    "order": [
+      1,
+      1,
+      1
+    ],
+    "seasonal_order": [
+      1,
+      1,
+      1,
+      52
+    ],
+    "parametros": "SARIMAX(p=1, d=1, q=1, P=1, D=1, Q=1, s=52)",
+    "producto": "CP_07",
+    "estado": "Par\u00e1metros guardados - Reestructurar en predicci\u00f3n"
+  },
+  "CT_01": {
+    "order": [
+      1,
+      1,
+      1
+    ],
+    "seasonal_order": [
+      1,
+      1,
+      1,
+      52
+    ],
+    "parametros": "SARIMAX(p=1, d=1, q=1, P=1, D=1, Q=1, s=52)",
+    "producto": "CT_01",
+    "estado": "Par\u00e1metros guardados - Reestructurar en predicci\u00f3n"
+  },
+  "MECO_01": {
+    "order": [
+      1,
+      1,
+      1
+    ],
+    "seasonal_order": [
+      1,
+      1,
+      1,
+      52
+    ],
+    "parametros": "SARIMAX(p=1, d=1, q=1, P=1, D=1, Q=1, s=52)",
+    "producto": "MECO_01",
+    "estado": "Par\u00e1metros guardados - Reestructurar en predicci\u00f3n"
+  }
+}

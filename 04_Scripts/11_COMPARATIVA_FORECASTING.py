@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ═══════════════════════════════════════════════════════════════════════════════
-    COMPARATIVA ALGORITMOS DE FORECASTING + MODELO HIBRIDO [V2.0 CON FEATURES EXOGENOS]
+    COMPARATIVA ALGORITMOS DE FORECASTING [V3.0 CON MODELO POR PRODUCTO]
 ═══════════════════════════════════════════════════════════════════════════════
 
 Objetivo: Comparar algoritmos de forecasting para predecir ventas semanales
@@ -13,7 +13,6 @@ Algoritmos evaluados:
   4. XGBoost con lags (52 sem) + features exogenos - MEJORADO con Descuento, Precio, Online%
   5. LightGBM con lags (52 sem) + features exogenos - MEJORADO con mismos features que XGBoost
   6. LSTM (Deep Learning) - Red neuronal recurrente
-  7. HIBRIDO XGBoost + ARIMA - Combinacion inteligente (60% XGB + 40% ARIMA)
 
 MEJORAS EN V2.0:
   - Lags aumentados: 12 -> 52 semanas (ciclo anual completo)
@@ -67,10 +66,10 @@ df_pct_online = pd.read_csv('../01_Datos/datos_semanales_pct_online.csv', index_
 df_campana = pd.read_csv('../01_Datos/datos_semanales_campana.csv', index_col=0)
 print(f"✓ Features adicionales cargados: Descuento, Precio, % Online, Campaña")
 
-# Seleccionar top 10 productos por volumen total (para reducir tiempo cómputo)
+# Seleccionar TODOS los 20 productos para comparativa completa
 volumes = df_pivot.sum().sort_values(ascending=False)
-productos_test = volumes.head(10).index.tolist()
-print(f"✓ Evaluando top 10 productos por volumen total")
+productos_test = volumes.index.tolist()
+print(f"✓ Evaluando TODOS los {len(productos_test)} productos")
 print(f"  Productos: {productos_test}")
 
 df_test = df_pivot[productos_test].copy()
@@ -298,11 +297,12 @@ for pid, producto in enumerate(productos_test, 1):
         train_series = pd.Series(train_data) if isinstance(train_data, np.ndarray) else train_data
         
         # Auto ARIMA simple (p,d,q = 1,1,1 como default)
+        # Reducido maxiter a 50 para optimizar velocidad
         model_sarima = SARIMAX(train_series, order=(1, 1, 1), 
                               seasonal_order=(1, 1, 1, 52))
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            result_sarima = model_sarima.fit(disp=False, maxiter=100)
+            result_sarima = model_sarima.fit(disp=False, maxiter=50)
         
         # Predecir
         pred_sarima = result_sarima.get_forecast(steps=len(test_data)).predicted_mean.values
@@ -323,7 +323,7 @@ for pid, producto in enumerate(productos_test, 1):
         
         print(f"✓ MAE={mae_sarima:.2f}, RMSE={rmse_sarima:.2f}, MAPE={mape_sarima:.2f}%, R²={r2_sarima:.4f} ({tiempo_sarima:.1f}s)")
         
-    except Exception as e:
+    except (Exception, KeyboardInterrupt) as e:
         print(f"✗ Error: {str(e)[:50]}")
         metricas_producto['sarima'] = None
     
@@ -484,49 +484,7 @@ for pid, producto in enumerate(productos_test, 1):
         metricas_producto['lightgbm'] = None
     
     # ════════════════════════════════════════════════════════════════════════════
-    # 6. MODELO HÍBRIDO: XGBoost + ARIMA (COMBINACIÓN)
-    # ════════════════════════════════════════════════════════════════════════════
-    try:
-        print(f"  → Entrenando HÍBRIDO (XGBoost + ARIMA)...", end=" ")
-        inicio = time.time()
-        
-        # Necesitamos XGBoost y ARIMA disponibles
-        if 'xgboost' not in predicciones_producto or predicciones_producto['xgboost'] is None or \
-           'sarima' not in predicciones_producto or predicciones_producto['sarima'] is None:
-            print("✗ XGBoost o ARIMA no disponibles")
-        else:
-            pred_xgb_hybrid = predicciones_producto['xgboost']
-            pred_arima_hybrid = predicciones_producto['sarima']
-            
-            # ENFOQUE 1: Ponderado (60% XGBoost, 40% ARIMA)
-            w_xgb = 0.6
-            w_arima = 0.4
-            pred_hybrid = (w_xgb * pred_xgb_hybrid + w_arima * pred_arima_hybrid)
-            pred_hybrid = np.maximum(pred_hybrid, 0)
-            
-            tiempo_hybrid = time.time() - inicio
-            
-            mae_hybrid = mean_absolute_error(test_data, pred_hybrid)
-            rmse_hybrid = np.sqrt(mean_squared_error(test_data, pred_hybrid))
-            mape_hybrid = mape(test_data, pred_hybrid)
-            r2_hybrid = r2_score(test_data, pred_hybrid)
-            
-            predicciones_producto['hybrid_xgb_arima'] = pred_hybrid
-            metricas_producto['hybrid_xgb_arima'] = {
-                'mae': mae_hybrid, 'rmse': rmse_hybrid, 'mape': mape_hybrid,
-                'r2': r2_hybrid, 'tiempo': tiempo_hybrid, 
-                'peso_xgb': w_xgb, 'peso_arima': w_arima
-            }
-            
-            print(f"✓ MAE={mae_hybrid:.2f}, RMSE={rmse_hybrid:.2f}, MAPE={mape_hybrid:.2f}%, R²={r2_hybrid:.4f} ({tiempo_hybrid:.1f}s)")
-            print(f"     └─ Pesos: {w_xgb*100:.0f}% XGBoost + {w_arima*100:.0f}% ARIMA")
-            
-    except Exception as e:
-        print(f"✗ Error: {str(e)[:50]}")
-        metricas_producto['hybrid_xgb_arima'] = None
-    
-    # ════════════════════════════════════════════════════════════════════════════
-    # 7. LSTM (Si está disponible)
+    # 6. LSTM (Si está disponible)
     # ════════════════════════════════════════════════════════════════════════════
     if LSTM_DISPONIBLE:
         try:
@@ -591,7 +549,7 @@ resultados_consolidados = []
 for producto in productos_test:
     metrica = next((m for m in all_metrics if m['producto'] == producto), {})
     
-    for modelo in ['prophet', 'sarima', 'exponential_smoothing', 'xgboost', 'lightgbm', 'hybrid_xgb_arima', 'lstm']:
+    for modelo in ['prophet', 'sarima', 'exponential_smoothing', 'xgboost', 'lightgbm', 'lstm']:
         if modelo in metrica and metrica[modelo] is not None:
             resultados_consolidados.append({
                 'Producto': producto,
@@ -606,7 +564,7 @@ for producto in productos_test:
 df_resultados = pd.DataFrame(resultados_consolidados)
 
 # Resumen por modelo
-print("\n📊 RESUMEN POR MODELO (Promedio en 10 productos):\n")
+print(f"\n📊 RESUMEN POR MODELO (Promedio en {len(productos_test)} productos):\n")
 resumen_modelo = df_resultados.groupby('Modelo').agg({
     'MAE': ['mean', 'std'],
     'RMSE': ['mean', 'std'],
@@ -623,72 +581,88 @@ ranking = df_resultados.groupby('Modelo')['MAE'].mean().sort_values()
 for idx, (modelo, mae) in enumerate(ranking.items(), 1):
     print(f"  {idx}. {modelo:20s} → MAE: {mae:6.2f}")
 
-# Análisis del modelo híbrido
+# Selección del mejor modelo por producto
 print("\n" + "=" * 100)
-print("ANÁLISIS DEL MODELO HÍBRIDO")
+print("SELECCIÓN DE MEJOR MODELO POR PRODUCTO")
 print("-" * 100)
 
-if 'HYBRID_XGB_ARIMA' in df_resultados['Modelo'].values and \
-   'XGBOOST' in df_resultados['Modelo'].values and \
-   'SARIMA' in df_resultados['Modelo'].values:
+# Crear una matriz de mejor modelo por producto considerando todos los indicadores
+producto_mejor_modelo = {}
+
+for producto in productos_test:
+    df_prod = df_resultados[df_resultados['Producto'] == producto].copy()
     
-    df_hybrid_analysis = df_resultados[
-        df_resultados['Modelo'].isin(['HYBRID_XGB_ARIMA', 'XGBOOST', 'SARIMA'])
-    ].copy()
+    # Calcular score normalizado (0-100) para cada métrica
+    # Normalizamos: MAE, RMSE, MAPE (menor es mejor) y R² (mayor es mejor)
     
-    print("\n📊 Comparativa: HÍBRIDO vs Componentes Individuales")
-    print("-" * 100)
+    df_prod['score_mae'] = 100 - ((df_prod['MAE'] - df_prod['MAE'].min()) / (df_prod['MAE'].max() - df_prod['MAE'].min() + 1e-6) * 100)
+    df_prod['score_rmse'] = 100 - ((df_prod['RMSE'] - df_prod['RMSE'].min()) / (df_prod['RMSE'].max() - df_prod['RMSE'].min() + 1e-6) * 100)
+    df_prod['score_mape'] = 100 - ((df_prod['MAPE'] - df_prod['MAPE'].min()) / (df_prod['MAPE'].max() - df_prod['MAPE'].min() + 1e-6) * 100)
+    df_prod['score_r2'] = (df_prod['R²'] - df_prod['R²'].min()) / (df_prod['R²'].max() - df_prod['R²'].min() + 1e-6) * 100
     
-    for metrica in ['MAE', 'RMSE', 'MAPE', 'R²']:
-        print(f"\n{metrica}:")
-        resumen_metrica = df_hybrid_analysis.groupby('Modelo')[metrica].mean().round(2)
-        
-        for modelo, valor in resumen_metrica.items():
-            if modelo == 'HYBRID_XGB_ARIMA':
-                # Verificar mejora
-                xgb_val = resumen_metrica.get('XGBOOST', float('inf'))
-                arima_val = resumen_metrica.get('SARIMA', float('inf'))
-                
-                mejora_xgb = ((xgb_val - valor) / xgb_val * 100) if xgb_val != float('inf') else 0
-                mejora_arima = ((arima_val - valor) / arima_val * 100) if arima_val != float('inf') else 0
-                
-                print(f"  🎯 {modelo:20s}: {valor:8.2f}  (vs XGB:{mejora_xgb:+.1f}%, vs ARIMA:{mejora_arima:+.1f}%)")
-            else:
-                print(f"  ├─ {modelo:20s}: {valor:8.2f}")
+    # Score ponderado: MAE (40%), RMSE (20%), MAPE (20%), R² (20%)
+    df_prod['score_final'] = (df_prod['score_mae'] * 0.4 + 
+                              df_prod['score_rmse'] * 0.2 + 
+                              df_prod['score_mape'] * 0.2 + 
+                              df_prod['score_r2'] * 0.2)
+    
+    mejor = df_prod.loc[df_prod['score_final'].idxmax()]
+    producto_mejor_modelo[producto] = {
+        'modelo': mejor['Modelo'],
+        'score_final': mejor['score_final'],
+        'mae': mejor['MAE'],
+        'rmse': mejor['RMSE'],
+        'mape': mejor['MAPE'],
+        'r2': mejor['R²']
+    }
+
+# Mostrar selección
+print("\n🏆 MEJOR MODELO POR PRODUCTO:\n")
+for idx, (producto, info) in enumerate(producto_mejor_modelo.items(), 1):
+    print(f"{idx:2d}. {producto:15s} → {info['modelo']:15s} (Puntuación: {info['score_final']:5.1f}/100, MAE: {info['mae']:6.2f}, R²: {info['r2']:6.4f})")
+
+# Resumen de modelos ganadores
+modelos_ganadores = {}
+for info in producto_mejor_modelo.values():
+    modelo = info['modelo']
+    modelos_ganadores[modelo] = modelos_ganadores.get(modelo, 0) + 1
+
+print("\n📊 RESUMEN DE GANADORES:")
+for modelo, count in sorted(modelos_ganadores.items(), key=lambda x: x[1], reverse=True):
+    pct = (count / len(productos_test)) * 100
+    print(f"  {modelo:15s}: {count:2d} productos ({pct:5.1f}%)")
 
 # Guardar resultados
 df_resultados.to_csv('../04_Scripts/comparativa_resultados.csv', index=False)
 print(f"\n✓ Guardado: comparativa_resultados.csv")
 
+# Guardar selección de modelos por producto
+seleccion_por_producto = {}
+for producto, info in producto_mejor_modelo.items():
+    seleccion_por_producto[producto] = {
+        'modelo_recomendado': info['modelo'],
+        'puntuacion': float(info['score_final']),
+        'metricas': {
+            'mae': float(info['mae']),
+            'rmse': float(info['rmse']),
+            'mape': float(info['mape']),
+            'r2': float(info['r2'])
+        }
+    }
+
 # Guardar resumen JSON
 with open('../04_Scripts/comparativa_resumen.json', 'w') as f:
-    
-    # Calcular info del híbrido si existe
-    hybrid_info = {}
-    if 'HYBRID_XGB_ARIMA' in df_resultados['Modelo'].values:
-        hybrid_mae = df_resultados[df_resultados['Modelo'] == 'HYBRID_XGB_ARIMA']['MAE'].mean()
-        xgb_mae = df_resultados[df_resultados['Modelo'] == 'XGBOOST']['MAE'].mean() if 'XGBOOST' in df_resultados['Modelo'].values else None
-        arima_mae = df_resultados[df_resultados['Modelo'] == 'SARIMA']['MAE'].mean() if 'SARIMA' in df_resultados['Modelo'].values else None
-        
-        hybrid_info = {
-            'mae_promedio': float(hybrid_mae),
-            'componentes': {
-                'xgboost': {'mae_promedio': float(xgb_mae) if xgb_mae else None, 'peso': 0.6},
-                'sarima': {'mae_promedio': float(arima_mae) if arima_mae else None, 'peso': 0.4}
-            },
-            'mejora_vs_xgboost': float(((xgb_mae - hybrid_mae) / xgb_mae * 100)) if xgb_mae else None,
-            'mejora_vs_arima': float(((arima_mae - hybrid_mae) / arima_mae * 100)) if arima_mae else None
-        }
     
     resumen_dict = {
         'fecha': datetime.now().isoformat(),
         'productos_evaluados': len(productos_test),
         'muestras_test': test_size,
-        'ranking': ranking.to_dict(),
-        'mejor_modelo': ranking.index[0],
-        'mae_promedio_mejor': float(ranking.iloc[0]),
-        'modelo_hibrido': hybrid_info if hybrid_info else None,
-        'nota': '🎯 El modelo HIBRIDO combina 60% XGBoost + 40% ARIMA para capturar patrones lineales y no-lineales'
+        'ranking_global': ranking.to_dict(),
+        'mejor_modelo_global': ranking.index[0],
+        'mae_promedio_mejor_global': float(ranking.iloc[0]),
+        'modelos_por_producto': seleccion_por_producto,
+        'resumen_ganadores': modelos_ganadores,
+        'nota': '✅ Evaluación completa de 5 algoritmos en 20 productos. Recomendación: usar modelo específico por producto para máxima precisión.'
     }
     json.dump(resumen_dict, f, indent=2)
 
@@ -739,38 +713,44 @@ plt.savefig('../05_Visualizaciones/04_Comparativa_Modelos_BoxPlot.png', dpi=300,
 print("✓ Gráfico guardado: 04_Comparativa_Modelos_BoxPlot.png")
 plt.close()
 
-# Gráfico de predicciones reales vs predichas para el mejor modelo
-mejor_modelo = ranking.index[0].lower()
-fig, axes = plt.subplots(2, 5, figsize=(20, 10))
+# Gráfico de predicciones reales vs predichas para el MEJOR MODELO DE CADA PRODUCTO
+fig, axes = plt.subplots(4, 5, figsize=(20, 16))
 axes = axes.flatten()
 
 for idx, producto in enumerate(productos_test):
     ax = axes[idx]
     preds = all_predictions[producto]
     
+    # Obtener el mejor modelo para este producto
+    modelo_ganador = producto_mejor_modelo[producto]['modelo'].lower()
+    
     y_true = preds['y_true']
-    if mejor_modelo in preds:
-        y_pred = preds[mejor_modelo]
+    if modelo_ganador in preds:
+        y_pred = preds[modelo_ganador]
         
         ax.plot(range(len(y_true)), y_true, 'b-o', label='Real', linewidth=2, markersize=4)
-        ax.plot(range(len(y_pred)), y_pred, 'r--s', label=f'{mejor_modelo.upper()}', linewidth=2, markersize=4)
+        ax.plot(range(len(y_pred)), y_pred, 'r--s', label=f'{modelo_ganador.upper()}', linewidth=2, markersize=4)
         
         mae = mean_absolute_error(y_true, y_pred)
         rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+        r2 = r2_score(y_true, y_pred)
         
-        ax.set_title(f'{producto}\nMAE: {mae:.2f}, RMSE: {rmse:.2f}', fontweight='bold', fontsize=9)
+        ax.set_title(f'{producto}\n{modelo_ganador.upper()} | MAE: {mae:.2f}, R²: {r2:.3f}', fontweight='bold', fontsize=9)
         ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
 
-plt.suptitle(f'Predicciones del Mejor Modelo: {mejor_modelo.upper()}', fontsize=14, fontweight='bold', y=1.00)
+plt.suptitle(f'Predicciones Reales vs Modelo Ganador por Producto (20 productos)', fontsize=14, fontweight='bold', y=0.995)
 plt.tight_layout()
-plt.savefig(f'../05_Visualizaciones/05_Predicciones_{mejor_modelo.upper()}.png', dpi=300, bbox_inches='tight')
-print(f"✓ Gráfico guardado: 05_Predicciones_{mejor_modelo.upper()}.png")
+plt.savefig(f'../05_Visualizaciones/05_Predicciones_Modelos_Por_Producto.png', dpi=300, bbox_inches='tight')
+print(f"✓ Gráfico guardado: 05_Predicciones_Modelos_Por_Producto.png")
 plt.close()
 
 print("\n" + "=" * 100)
 print("✅ COMPARATIVA COMPLETADA")
 print("=" * 100)
+
+# Obtener el mejor modelo global
+mejor_modelo = ranking.index[0].lower()
 
 mejor_modelo_nombres = {
     'prophet': 'Maneja bien estacionalidad, robusto',
@@ -778,7 +758,6 @@ mejor_modelo_nombres = {
     'exponential_smoothing': 'Rapido, simple',
     'xgboost': 'Flexible, accurate, maneja no-linearidades',
     'lightgbm': 'Muy rapido, eficiente en memoria',
-    'hybrid_xgb_arima': '🎯 HÍBRIDO - Combina fortalezas de XGBoost + ARIMA',
     'lstm': 'Deep learning, captura patrones complejos'
 }
 
@@ -788,7 +767,7 @@ print(f"""
 
 [+] RESUMEN EJECUTIVO:
 
-  [+] Modelos evaluados: 7 (Prophet, SARIMA, Exp.Smoothing, XGBoost, LightGBM, HÍBRIDO XGB+ARIMA, LSTM)
+  [+] Modelos evaluados: 6 (Prophet, SARIMA, Exp.Smoothing, XGBoost, LightGBM, LSTM)
   [+] Productos probados: {len(productos_test)}
   [+] Semanas test por producto: {test_size}
   

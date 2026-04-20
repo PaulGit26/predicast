@@ -1,0 +1,446 @@
+{
+  "nombre_proyecto": "Predicast - Forecasting Multi-Modelo por Producto",
+  "descripcion": "Modelos espec\u00edficos por producto, identificados mediante comparativa de 5 algoritmos",
+  "tipo": "Forecasting - Serie Temporal Multivariable",
+  "version": "2.0",
+  "enfoque": "Modelo espec\u00edfico por producto (NO h\u00edbrido)",
+  "fecha_entrenamiento": "2026-04-20T02:20:17.643243",
+  "datos_usados": {
+    "semanas_historicas": 222,
+    "productos": 20,
+    "fecha_inicio": "2021-W02",
+    "fecha_fin": "2026-W01",
+    "volumen_total": 822289.0,
+    "volumen_promedio": 185.20022522522524
+  },
+  "modelos_entrenados": {
+    "xgboost": {
+      "cantidad": 9,
+      "productos": [
+        "CP_01",
+        "CP_02",
+        "CP_05",
+        "CP_09",
+        "CP_10",
+        "CP_12",
+        "CP_14",
+        "CR_01",
+        "MZ_01"
+      ],
+      "configuracion": {
+        "algoritmo": "XGBRegressor",
+        "n_estimators": 100,
+        "max_depth": 5,
+        "learning_rate": 0.1,
+        "lags": 52
+      },
+      "directorio": "..\\03_Modelos\\xgboost_modelos"
+    },
+    "lightgbm": {
+      "cantidad": 7,
+      "productos": [
+        "CP_04",
+        "CP_06",
+        "CP_08",
+        "CP_11",
+        "CP_13",
+        "CR_02",
+        "CR_03"
+      ],
+      "configuracion": {
+        "algoritmo": "LGBMRegressor",
+        "n_estimators": 100,
+        "max_depth": 5,
+        "learning_rate": 0.1,
+        "lags": 52
+      },
+      "directorio": "..\\03_Modelos\\lightgbm_modelos"
+    },
+    "sarima": {
+      "cantidad": 4,
+      "productos": [
+        "CP_03",
+        "CP_07",
+        "CT_01",
+        "MECO_01"
+      ],
+      "configuracion": {
+        "algoritmo": "SARIMAX",
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "seasonal_order": [
+          1,
+          1,
+          1,
+          52
+        ]
+      },
+      "directorio": "..\\03_Modelos\\sarima_modelos"
+    }
+  },
+  "mejor_modelo_global": "LIGHTGBM",
+  "mae_promedio_global": 28.172032239619416,
+  "ranking_global": {
+    "LIGHTGBM": 28.172032239619416,
+    "XGBOOST": 30.039630482219103,
+    "SARIMA": 31.656432141337568,
+    "EXPONENTIAL_SMOOTHING": 38.8296934279053
+  },
+  "modelos_por_producto_detalle": {
+    "CP_01": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 181.11711711711712,
+      "volumen_std": 81.19099257043153,
+      "volumen_min": 2.0,
+      "volumen_max": 335.0,
+      "tendencia": 35.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.17687582969665527,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 28.532929053673378,
+        "rmse": 36.35182097989781,
+        "mape": 16.821258296096644,
+        "r2": 0.7533526282453984
+      }
+    },
+    "CP_02": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 31.89189189189189,
+      "volumen_std": 21.034870812877333,
+      "volumen_min": 0.0,
+      "volumen_max": 72.0,
+      "tendencia": 6.5,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.11739540100097656,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 6.898087574885442,
+        "rmse": 8.446214894380091,
+        "mape": 32.999447617817175,
+        "r2": 0.8106638773309338
+      }
+    },
+    "CP_03": {
+      "modelo": "SARIMA",
+      "volumen_promedio": 66.65765765765765,
+      "volumen_std": 35.0008997298758,
+      "volumen_min": 1.0,
+      "volumen_max": 134.0,
+      "tendencia": 13.5,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 19.642797470092773,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 10.711050852023439,
+        "rmse": 15.431633376054466,
+        "mape": 16.360138696352706,
+        "r2": 0.7796325504394055
+      }
+    },
+    "CP_04": {
+      "modelo": "LIGHTGBM",
+      "volumen_promedio": 214.32432432432432,
+      "volumen_std": 99.50568476332967,
+      "volumen_min": 2.0,
+      "volumen_max": 479.0,
+      "tendencia": 28.5,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.190460205078125,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 35.84378256001271,
+        "rmse": 44.07144706357261,
+        "mape": 19.404009199116608,
+        "r2": 0.7501063900070619
+      }
+    },
+    "CP_05": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 57.909909909909906,
+      "volumen_std": 31.0824389310394,
+      "volumen_min": 0.0,
+      "volumen_max": 129.0,
+      "tendencia": 9.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.18178176879882812,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 12.83767028955313,
+        "rmse": 17.44730505271804,
+        "mape": 24.423400110177955,
+        "r2": 0.678130608020675
+      }
+    },
+    "CP_06": {
+      "modelo": "LIGHTGBM",
+      "volumen_promedio": 22.28828828828829,
+      "volumen_std": 17.569623349338215,
+      "volumen_min": 0.0,
+      "volumen_max": 57.0,
+      "tendencia": 1.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.021934986114501953,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 4.737950809110443,
+        "rmse": 6.498310807067558,
+        "mape": 55.329717841728545,
+        "r2": 0.8673739892519459
+      }
+    },
+    "CP_07": {
+      "modelo": "SARIMA",
+      "volumen_promedio": 4.288288288288288,
+      "volumen_std": 4.61565566850726,
+      "volumen_min": 0.0,
+      "volumen_max": 18.0,
+      "tendencia": -1.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 21.20823836326599,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 1.6507798400274016,
+        "rmse": 2.536672441274583,
+        "mape": 39.2451922420757,
+        "r2": 0.7312245438555585
+      }
+    },
+    "CP_08": {
+      "modelo": "LIGHTGBM",
+      "volumen_promedio": 62.58108108108108,
+      "volumen_std": 31.99465330758727,
+      "volumen_min": 0.0,
+      "volumen_max": 134.0,
+      "tendencia": 9.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.01833200454711914,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 9.715507285496646,
+        "rmse": 12.147260816473008,
+        "mape": 16.827309861791573,
+        "r2": 0.8265257583539635
+      }
+    },
+    "CP_09": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 665.3738738738739,
+      "volumen_std": 282.89276267391745,
+      "volumen_min": 2.0,
+      "volumen_max": 1292.0,
+      "tendencia": 159.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.23969006538391113,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 80.86511876032903,
+        "rmse": 106.5794364266754,
+        "mape": 11.69298795614951,
+        "r2": 0.829442785572501
+      }
+    },
+    "CP_10": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 113.83333333333333,
+      "volumen_std": 55.4837381148314,
+      "volumen_min": 2.0,
+      "volumen_max": 220.0,
+      "tendencia": 17.5,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.18741226196289062,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 16.316310002253605,
+        "rmse": 22.72915493360118,
+        "mape": 14.805282669842363,
+        "r2": 0.7816714317984247
+      }
+    },
+    "CP_11": {
+      "modelo": "LIGHTGBM",
+      "volumen_promedio": 199.04504504504504,
+      "volumen_std": 87.74804095627798,
+      "volumen_min": 2.0,
+      "volumen_max": 363.0,
+      "tendencia": 39.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.029392719268798828,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 24.8036030255626,
+        "rmse": 31.81173370557582,
+        "mape": 13.089807082841286,
+        "r2": 0.8175803071494985
+      }
+    },
+    "CP_12": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 75.63063063063063,
+      "volumen_std": 38.7240009677933,
+      "volumen_min": 0.0,
+      "volumen_max": 173.0,
+      "tendencia": 10.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.1619260311126709,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 12.54099779862624,
+        "rmse": 16.10688260028178,
+        "mape": 17.862055159360917,
+        "r2": 0.7885333998619373
+      }
+    },
+    "CP_13": {
+      "modelo": "LIGHTGBM",
+      "volumen_promedio": 447.15315315315314,
+      "volumen_std": 190.8893457212252,
+      "volumen_min": 2.0,
+      "volumen_max": 902.0,
+      "tendencia": 81.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.03128838539123535,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 57.31045497226163,
+        "rmse": 77.57923167313902,
+        "mape": 13.237059935710091,
+        "r2": 0.7904462269660222
+      }
+    },
+    "CP_14": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 118.52702702702703,
+      "volumen_std": 56.85540922223758,
+      "volumen_min": 2.0,
+      "volumen_max": 242.0,
+      "tendencia": 25.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.1874377727508545,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 13.421633940476637,
+        "rmse": 17.094452828256667,
+        "mape": 12.694365047332465,
+        "r2": 0.8854888766057445
+      }
+    },
+    "CR_01": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 66.43693693693693,
+      "volumen_std": 33.42213062991152,
+      "volumen_min": 1.0,
+      "volumen_max": 138.0,
+      "tendencia": 13.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.13982033729553223,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 13.546490852649395,
+        "rmse": 16.574608634236903,
+        "mape": 19.84301799310898,
+        "r2": 0.7194008704920261
+      }
+    },
+    "CR_02": {
+      "modelo": "LIGHTGBM",
+      "volumen_promedio": 33.085585585585584,
+      "volumen_std": 21.7907094297061,
+      "volumen_min": 0.0,
+      "volumen_max": 83.0,
+      "tendencia": 2.5,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.024476289749145508,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 6.552630144521974,
+        "rmse": 8.480408871786969,
+        "mape": 28.89632396444381,
+        "r2": 0.8297963547475141
+      }
+    },
+    "CR_03": {
+      "modelo": "LIGHTGBM",
+      "volumen_promedio": 57.25675675675676,
+      "volumen_std": 32.091814009468365,
+      "volumen_min": 0.0,
+      "volumen_max": 122.0,
+      "tendencia": 6.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.023516178131103516,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 8.914615765734492,
+        "rmse": 12.458752512206875,
+        "mape": 17.69345300168913,
+        "r2": 0.8347424746995777
+      }
+    },
+    "CT_01": {
+      "modelo": "SARIMA",
+      "volumen_promedio": 1163.3648648648648,
+      "volumen_std": 484.7884067364471,
+      "volumen_min": 2.0,
+      "volumen_max": 2045.0,
+      "tendencia": 211.5,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 28.20378875732422,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 170.42047179861356,
+        "rmse": 220.14147416275793,
+        "mape": 15.783684417049408,
+        "r2": 0.7358790830328401
+      }
+    },
+    "MECO_01": {
+      "modelo": "SARIMA",
+      "volumen_promedio": 91.40990990990991,
+      "volumen_std": 45.50515752366038,
+      "volumen_min": 2.0,
+      "volumen_max": 211.0,
+      "tendencia": 14.5,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 21.28216314315796,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 13.799059071303038,
+        "rmse": 17.454575732500963,
+        "mape": 16.113658076750838,
+        "r2": 0.8224356837474439
+      }
+    },
+    "MZ_01": {
+      "modelo": "XGBOOST",
+      "volumen_promedio": 31.82882882882883,
+      "volumen_std": 21.607837197602354,
+      "volumen_min": 0.0,
+      "volumen_max": 86.0,
+      "tendencia": 4.0,
+      "entrenado": true,
+      "tiempo_entrenamiento_segundos": 0.1524333953857422,
+      "datos_disponibles": 222,
+      "metricas_comparativa": {
+        "mae": 7.936131403996394,
+        "rmse": 10.618743138792423,
+        "mape": 29.297117692732815,
+        "r2": 0.7785227798388634
+      }
+    }
+  },
+  "estadisticas": {
+    "modelos_entrenados_totales": 20,
+    "tiempo_total_entrenamiento_segundos": 93.9634039402008,
+    "promedio_tiempo_por_producto": 4.6981701970100405
+  },
+  "status": "LISTO PARA PREDICCI\u00d3N",
+  "proximos_pasos": [
+    "Ejecutar 12_MODELO_GANADOR_52SEMANAS.py para generar predicciones",
+    "Actualizar API con endpoints de predicci\u00f3n",
+    "Integrar con dashboard",
+    "Monitorear rendimiento semanal"
+  ]
+}

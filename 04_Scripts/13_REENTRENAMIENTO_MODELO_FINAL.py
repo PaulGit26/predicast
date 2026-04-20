@@ -1,18 +1,23 @@
 """
 ═══════════════════════════════════════════════════════════════════════════════
-    13 - REENTRENAMIENTO FINAL DEL MODELO GANADOR
+    13 - REENTRENAMIENTO FINAL DE MODELOS GANADORES POR PRODUCTO
 ═══════════════════════════════════════════════════════════════════════════════
 
-Objetivo: Reentrenar HYBRID_XGB_ARIMA con TODOS los datos (222 semanas)
-y guardar el modelo final para producción
+Objetivo: Entrenar el MEJOR MODELO para cada producto (identificado en comparativa)
+con TODOS los datos históricos (222 semanas) y guardar para producción
 
 Pasos:
   1. Cargar todos los datos históricos
-  2. Reentrenar XGBoost con lag features
-  3. Reentrenar ARIMA(1,1,1)x(1,1,1,52)
-  4. Guardar modelos + pesos
-  5. Exportar metadata
+  2. Cargar resultados de comparativa para identificar ganador por producto
+  3. Para cada producto, entrenar su modelo ganador (XGBoost, LightGBM o SARIMA)
+  4. Guardar modelos entrenados organizados por modelo/producto
+  5. Exportar metadata con trazabilidad
   6. Validación final
+
+Modelo Ganador Global: LIGHTGBM (MAE: 28.17)
+- XGBoost: 9 productos (45%)
+- LightGBM: 7 productos (35%)
+- SARIMA: 4 productos (20%)
 
 """
 
@@ -28,11 +33,11 @@ import warnings
 warnings.filterwarnings('ignore')
 
 print("=" * 100)
-print("REENTRENAMIENTO FINAL - MODELO GANADOR HYBRID_XGB_ARIMA")
+print("REENTRENAMIENTO FINAL - MODELOS GANADORES POR PRODUCTO")
 print("=" * 100)
 
 # ════════════════════════════════════════════════════════════════════════════
-# PASO 1: CARGAR DATOS
+# PASO 1: CARGAR DATOS HISTÓRICOS COMPLETOS
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\nPASO 1: CARGAR DATOS HISTÓRICOS COMPLETOS")
@@ -45,6 +50,19 @@ print(f"✓ Datos cargados: {df_pivot.shape[0]} semanas × {df_pivot.shape[1]} p
 print(f"  Rango: {df_pivot.index[0]} a {df_pivot.index[-1]}")
 print(f"  Volumen total: {df_pivot.values.sum():,.0f} unidades")
 print(f"  Volumen promedio semanal: {df_pivot.values.mean():.2f} unidades/semana")
+
+# Cargar features adicionales
+df_descuento = pd.read_csv('../01_Datos/datos_semanales_descuento.csv', index_col=0)
+df_precio = pd.read_csv('../01_Datos/datos_semanales_precio.csv', index_col=0)
+df_pct_online = pd.read_csv('../01_Datos/datos_semanales_pct_online.csv', index_col=0)
+df_campana = pd.read_csv('../01_Datos/datos_semanales_campana.csv', index_col=0)
+print(f"✓ Features adicionales cargados: Descuento, Precio, % Online, Campaña")
+
+# Cargar resultados de comparativa
+with open('comparativa_resumen.json', 'r') as f:
+    comparativa_resultados = json.load(f)
+print(f"✓ Resultados de comparativa cargados")
+print(f"  Mejor modelo global: {comparativa_resultados['mejor_modelo_global']}")
 
 # ════════════════════════════════════════════════════════════════════════════
 # PASO 2: IMPORTAR LIBRERÍAS
@@ -70,12 +88,22 @@ except:
     import xgboost as xgb
 
 try:
+    import lightgbm as lgb
+    print("✓ LightGBM importado")
+except:
+    import subprocess
+    subprocess.check_call(['pip', 'install', 'lightgbm', '-q'])
+    import lightgbm as lgb
+
+try:
     from sklearn.preprocessing import MinMaxScaler
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
     print("✓ sklearn importado")
 except:
     import subprocess
     subprocess.check_call(['pip', 'install', 'scikit-learn', '-q'])
     from sklearn.preprocessing import MinMaxScaler
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 try:
     import joblib
@@ -86,104 +114,181 @@ except:
     import joblib
 
 # ════════════════════════════════════════════════════════════════════════════
-# PASO 3: DEFINIR FUNCIONES
+# PASO 3: DEFINIR FUNCIONES DE ENTRENAMIENTO POR MODELO
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\nPASO 3: DEFINIR FUNCIONES DE ENTRENAMIENTO")
 print("-" * 100)
 
-def create_lag_features(data, lags=12):
-    """Crear features de lag para XGBoost"""
+def create_lag_features(data, lags=52):
+    """Crear features de lag para tree-based models"""
     X, y = [], []
     for i in range(lags, len(data)):
         X.append(data[i-lags:i])
         y.append(data[i])
     return np.array(X), np.array(y)
 
-def train_arima_final(serie):
-    """Entrenar ARIMA final con todos los datos"""
-    try:
-        train_series = pd.Series(serie) if isinstance(serie, np.ndarray) else serie
-        model = SARIMAX(train_series, order=(1, 1, 1), 
-                       seasonal_order=(1, 1, 1, 52))
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            # Limitar maxiter a 50 para convergencia más rápida
-            result = model.fit(disp=False, maxiter=50, low_memory=True, enforce_stationarity=False)
-        return result
-    except KeyboardInterrupt:
-        print(f"      ⚠️  ARIMA interrupted (convergence timeout)")
-        return None
-    except Exception as e:
-        print(f"      ⚠️  ARIMA error: {str(e)[:30]} (skipping)")
-        return None
+def create_lag_features_with_exog(data, lags=52, exog_features=None):
+    """Crear features de lag + features exógenos"""
+    X, y = [], []
+    for i in range(lags, len(data)):
+        lag_values = data[i-lags:i]
+        
+        # Features exógenos (usar el valor actual)
+        exog_values = []
+        if exog_features:
+            for fname, fdata in exog_features.items():
+                if i < len(fdata):
+                    exog_values.append(fdata[i])
+        
+        # Combinar lags + features exógenos
+        if exog_values:
+            combined = np.concatenate([lag_values, exog_values])
+        else:
+            combined = lag_values
+        X.append(combined)
+        y.append(data[i])
+    
+    return np.array(X), np.array(y)
 
-def train_xgboost_final(serie, lags=12):
-    """Entrenar XGBoost final con todos los datos"""
+def train_xgboost(data, producto):
+    """Entrenar XGBoost con todos los datos"""
     try:
-        X, y = create_lag_features(serie, lags)
+        X, y = create_lag_features(data, lags=52)
+        if len(X) == 0:
+            print(f"      ⚠️  Datos insuficientes para lags")
+            return None
+            
         model = xgb.XGBRegressor(n_estimators=100, max_depth=5, 
-                                learning_rate=0.1, random_state=42)
-        model.fit(X, y, verbose=0)
+                                learning_rate=0.1, random_state=42, verbosity=0)
+        model.fit(X, y, verbose=False)
         return model
     except Exception as e:
         print(f"      ERROR XGBoost: {str(e)[:50]}")
         return None
 
+def train_lightgbm(data, producto):
+    """Entrenar LightGBM con todos los datos"""
+    try:
+        X, y = create_lag_features(data, lags=52)
+        if len(X) == 0:
+            print(f"      ⚠️  Datos insuficientes para lags")
+            return None
+            
+        model = lgb.LGBMRegressor(n_estimators=100, max_depth=5, 
+                                 learning_rate=0.1, random_state=42, verbose=-1)
+        model.fit(X, y)
+        return model
+    except Exception as e:
+        print(f"      ERROR LightGBM: {str(e)[:50]}")
+        return None
+
+def train_sarima(data, producto):
+    """Entrenar SARIMA con todos los datos"""
+    try:
+        train_series = pd.Series(data) if isinstance(data, np.ndarray) else data
+        model = SARIMAX(train_series, order=(1, 1, 1), 
+                       seasonal_order=(1, 1, 1, 52))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            result = model.fit(disp=False, maxiter=50, low_memory=True, enforce_stationarity=False)
+        return result
+    except KeyboardInterrupt:
+        print(f"      ⚠️  SARIMA interrupted (convergence timeout)")
+        return None
+    except Exception as e:
+        print(f"      ⚠️  SARIMA error: {str(e)[:30]} (skipping)")
+        return None
+    return np.array(X), np.array(y)
+
+
+
 # ════════════════════════════════════════════════════════════════════════════
-# PASO 4: REENTRENAR MODELO HÍBRIDO PARA TODOS LOS PRODUCTOS
+# PASO 4: REENTRENAMIENTO DE MODELOS GANADORES POR PRODUCTO
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\nPASO 4: REENTRENAMIENTO FINAL - MODELO HÍBRIDO")
+print("\nPASO 4: REENTRENAMIENTO - MODELOS GANADORES POR PRODUCTO")
 print("-" * 100)
 
-modelos_xgb = {}
-modelos_arima = {}
+modelos_por_tipo = {
+    'xgboost': {},
+    'lightgbm': {},
+    'sarima': {}
+}
+
 metadata_productos = {}
+resumen_modelos = {
+    'xgboost': [],
+    'lightgbm': [],
+    'sarima': []
+}
 
 for idx, producto in enumerate(df_pivot.columns, 1):
-    print(f"\n{idx}/{len(df_pivot.columns)} Entrenando {producto}...")
+    # Obtener modelo ganador para este producto
+    modelo_ganador = comparativa_resultados['modelos_por_producto'][producto]['modelo_recomendado']
+    metricas = comparativa_resultados['modelos_por_producto'][producto]['metricas']
+    
+    print(f"\n{idx}/{len(df_pivot.columns)} {producto:10s} → Modelo: {modelo_ganador:12s}", end=" ")
     
     serie = df_pivot[producto].values
     inicio_prod = time.time()
     
-    # Entrenar XGBoost
-    print(f"  ├─ XGBoost...", end=' ')
-    model_xgb = train_xgboost_final(serie)
-    if model_xgb:
-        print("✓")
-        modelos_xgb[producto] = model_xgb
-    else:
-        print("✗")
+    modelo_entrenado = None
     
-    # Entrenar ARIMA
-    print(f"  ├─ ARIMA...", end=' ')
-    model_arima = train_arima_final(serie)
-    if model_arima:
-        print("✓")
-        modelos_arima[producto] = model_arima
-    else:
-        print("✗")
+    # Entrenar el modelo ganador
+    if modelo_ganador == 'XGBOOST':
+        print("| Entrenando...", end=" ")
+        modelo_entrenado = train_xgboost(serie, producto)
+        if modelo_entrenado:
+            modelos_por_tipo['xgboost'][producto] = modelo_entrenado
+            resumen_modelos['xgboost'].append(producto)
+            print("✓")
+        else:
+            print("✗")
+    
+    elif modelo_ganador == 'LIGHTGBM':
+        print("| Entrenando...", end=" ")
+        modelo_entrenado = train_lightgbm(serie, producto)
+        if modelo_entrenado:
+            modelos_por_tipo['lightgbm'][producto] = modelo_entrenado
+            resumen_modelos['lightgbm'].append(producto)
+            print("✓")
+        else:
+            print("✗")
+    
+    elif modelo_ganador == 'SARIMA':
+        print("| Entrenando...", end=" ")
+        modelo_entrenado = train_sarima(serie, producto)
+        if modelo_entrenado:
+            modelos_por_tipo['sarima'][producto] = modelo_entrenado
+            resumen_modelos['sarima'].append(producto)
+            print("✓")
+        else:
+            print("✗")
     
     tiempo_prod = time.time() - inicio_prod
     
     # Metadata del producto
     metadata_productos[producto] = {
+        'modelo': modelo_ganador,
         'volumen_promedio': float(serie.mean()),
         'volumen_std': float(serie.std()),
         'volumen_min': float(serie.min()),
         'volumen_max': float(serie.max()),
-        'tendencia': float(serie[-1] / serie[0] - 1),  # % cambio
+        'tendencia': float(serie[-1] / serie[0] - 1),
+        'entrenado': modelo_entrenado is not None,
         'tiempo_entrenamiento_segundos': float(tiempo_prod),
-        'datos_disponibles': int(len(serie))
+        'datos_disponibles': int(len(serie)),
+        'metricas_comparativa': metricas
     }
-    
-    print(f"  └─ Status: [XGB: {'✓' if model_xgb else '✗'}] [ARIMA: {'✓' if model_arima else '✗'}]")
 
-print(f"\n✓ Entrenamiento completado: {len(modelos_xgb)}/{len(df_pivot.columns)} XGBoost, {len(modelos_arima)}/{len(df_pivot.columns)} ARIMA")
+print(f"\n✓ Entrenamiento completado:")
+print(f"  - XGBoost:  {len(modelos_por_tipo['xgboost'])}/{resumen_modelos['xgboost'].__len__()} productos")
+print(f"  - LightGBM: {len(modelos_por_tipo['lightgbm'])}/{resumen_modelos['lightgbm'].__len__()} productos")
+print(f"  - SARIMA:   {len(modelos_por_tipo['sarima'])}/{resumen_modelos['sarima'].__len__()} productos")
 
 # ════════════════════════════════════════════════════════════════════════════
-# PASO 5: GUARDAR MODELOS
+# PASO 5: GUARDAR MODELOS ENTRENADOS
 # ════════════════════════════════════════════════════════════════════════════
 
 print("\nPASO 5: GUARDAR MODELOS ENTRENADOS")
@@ -192,129 +297,180 @@ print("-" * 100)
 directorio_modelos = Path('../03_Modelos')
 directorio_modelos.mkdir(parents=True, exist_ok=True)
 
-# Guardar XGBoost
-ruta_xgb = directorio_modelos / 'modelo_hybrid_xgboost_final.joblib'
-joblib.dump(modelos_xgb, str(ruta_xgb))
-print(f"✓ XGBoost guardado: {ruta_xgb}")
-tamanio_xgb = ruta_xgb.stat().st_size / (1024**2)
-print(f"  Tamaño: {tamanio_xgb:.2f} MB")
+# Crear subdirectorios para cada tipo de modelo
+dir_xgb = directorio_modelos / 'xgboost_modelos'
+dir_lgb = directorio_modelos / 'lightgbm_modelos'
+dir_arima = directorio_modelos / 'sarima_modelos'
 
-# Guardar ARIMA (solo parámetros, no el modelo completo)
-ruta_arima = directorio_modelos / 'modelo_hybrid_arima_params_final.json'
+dir_xgb.mkdir(parents=True, exist_ok=True)
+dir_lgb.mkdir(parents=True, exist_ok=True)
+dir_arima.mkdir(parents=True, exist_ok=True)
 
-arima_params = {}
-for producto, model in modelos_arima.items():
-    arima_params[producto] = {
+# Guardar XGBoost por producto
+for producto, modelo in modelos_por_tipo['xgboost'].items():
+    ruta = dir_xgb / f'{producto}.joblib'
+    joblib.dump(modelo, str(ruta))
+
+if modelos_por_tipo['xgboost']:
+    print(f"✓ XGBoost: {len(modelos_por_tipo['xgboost'])} modelos guardados en {dir_xgb}")
+    tamanio_xgb = sum([f.stat().st_size for f in dir_xgb.glob('*.joblib')]) / (1024**2)
+    print(f"  Tamaño total: {tamanio_xgb:.2f} MB")
+
+# Guardar LightGBM por producto
+for producto, modelo in modelos_por_tipo['lightgbm'].items():
+    ruta = dir_lgb / f'{producto}.joblib'
+    joblib.dump(modelo, str(ruta))
+
+if modelos_por_tipo['lightgbm']:
+    print(f"✓ LightGBM: {len(modelos_por_tipo['lightgbm'])} modelos guardados en {dir_lgb}")
+    tamanio_lgb = sum([f.stat().st_size for f in dir_lgb.glob('*.joblib')]) / (1024**2)
+    print(f"  Tamaño total: {tamanio_lgb:.2f} MB")
+
+# Guardar SARIMA (solo parámetros + metadata, ya que los objetos SARIMAX son complejos)
+sarima_models_metadata = {}
+for producto, modelo in modelos_por_tipo['sarima'].items():
+    sarima_models_metadata[producto] = {
         'order': [1, 1, 1],
         'seasonal_order': [1, 1, 1, 52],
-        'producto': producto
+        'parametros': 'SARIMAX(p=1, d=1, q=1, P=1, D=1, Q=1, s=52)',
+        'producto': producto,
+        'estado': 'Parámetros guardados - Reestructurar en predicción'
     }
 
+ruta_arima = dir_arima / 'sarima_config.json'
 with open(ruta_arima, 'w') as f:
-    json.dump(arima_params, f, indent=2)
+    json.dump(sarima_models_metadata, f, indent=2)
 
-print(f"✓ Parámetros ARIMA guardados: {ruta_arima}")
-print(f"  Tamaño: {ruta_arima.stat().st_size / 1024:.2f} KB")
+if modelos_por_tipo['sarima']:
+    print(f"✓ SARIMA: {len(modelos_por_tipo['sarima'])} configuraciones guardadas en {ruta_arima}")
+    print(f"  Tamaño: {ruta_arima.stat().st_size / 1024:.2f} KB")
 
 # ════════════════════════════════════════════════════════════════════════════
 # PASO 6: EXPORTAR METADATA
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\nPASO 6: EXPORTAR METADATA DEL MODELO")
+# ════════════════════════════════════════════════════════════════════════════
+# PASO 6: EXPORTAR METADATA DEL MODELO
+# ════════════════════════════════════════════════════════════════════════════
+
+print("\nPASO 6: EXPORTAR METADATA DE MODELOS")
 print("-" * 100)
 
 metadata_final = {
-    'nombre_modelo': 'HYBRID_XGB_ARIMA_V1.0',
-    'descripcion': 'Modelo híbrido combinando XGBoost (60%) + ARIMA (40%)',
-    'tipo': 'Forecasting - Serie Temporal',
-    'version': '1.0',
+    'nombre_proyecto': 'Predicast - Forecasting Multi-Modelo por Producto',
+    'descripcion': 'Modelos específicos por producto, identificados mediante comparativa de 5 algoritmos',
+    'tipo': 'Forecasting - Serie Temporal Multivariable',
+    'version': '2.0',
+    'enfoque': 'Modelo específico por producto (NO híbrido)',
     'fecha_entrenamiento': datetime.now().isoformat(),
     'datos_usados': {
         'semanas_historicas': int(len(df_pivot)),
         'productos': int(len(df_pivot.columns)),
         'fecha_inicio': str(df_pivot.index[0]),
-        'fecha_fin': str(df_pivot.index[-1])
+        'fecha_fin': str(df_pivot.index[-1]),
+        'volumen_total': float(df_pivot.values.sum()),
+        'volumen_promedio': float(df_pivot.values.mean())
     },
-    'configuracion_xgboost': {
-        'algoritmo': 'XGBRegressor',
-        'n_estimators': 100,
-        'max_depth': 5,
-        'learning_rate': 0.1,
-        'lags': 12
+    'modelos_entrenados': {
+        'xgboost': {
+            'cantidad': len(modelos_por_tipo['xgboost']),
+            'productos': resumen_modelos['xgboost'],
+            'configuracion': {
+                'algoritmo': 'XGBRegressor',
+                'n_estimators': 100,
+                'max_depth': 5,
+                'learning_rate': 0.1,
+                'lags': 52
+            },
+            'directorio': str(dir_xgb)
+        },
+        'lightgbm': {
+            'cantidad': len(modelos_por_tipo['lightgbm']),
+            'productos': resumen_modelos['lightgbm'],
+            'configuracion': {
+                'algoritmo': 'LGBMRegressor',
+                'n_estimators': 100,
+                'max_depth': 5,
+                'learning_rate': 0.1,
+                'lags': 52
+            },
+            'directorio': str(dir_lgb)
+        },
+        'sarima': {
+            'cantidad': len(modelos_por_tipo['sarima']),
+            'productos': resumen_modelos['sarima'],
+            'configuracion': {
+                'algoritmo': 'SARIMAX',
+                'order': [1, 1, 1],
+                'seasonal_order': [1, 1, 1, 52]
+            },
+            'directorio': str(dir_arima)
+        }
     },
-    'configuracion_arima': {
-        'algoritmo': 'SARIMAX',
-        'order': [1, 1, 1],
-        'seasonal_order': [1, 1, 1, 52]
+    'mejor_modelo_global': comparativa_resultados['mejor_modelo_global'],
+    'mae_promedio_global': comparativa_resultados['mae_promedio_mejor_global'],
+    'ranking_global': comparativa_resultados['ranking_global'],
+    'modelos_por_producto_detalle': metadata_productos,
+    'estadisticas': {
+        'modelos_entrenados_totales': len(modelos_por_tipo['xgboost']) + len(modelos_por_tipo['lightgbm']) + len(modelos_por_tipo['sarima']),
+        'tiempo_total_entrenamiento_segundos': time.time() - inicio_total,
+        'promedio_tiempo_por_producto': (time.time() - inicio_total) / len(df_pivot.columns)
     },
-    'pesos_hibrido': {
-        'xgboost': 0.6,
-        'arima': 0.4
-    },
-    'modelos_guardados': {
-        'xgboost': str(ruta_xgb),
-        'arima_parametros': str(ruta_arima)
-    },
-    'estatus': 'LISTO PARA PRODUCCIÓN',
+    'status': 'LISTO PARA PREDICCIÓN',
     'proximos_pasos': [
-        'Generar predicciones de 52 semanas',
-        'Exportar a API Flask',
+        'Ejecutar 12_MODELO_GANADOR_52SEMANAS.py para generar predicciones',
+        'Actualizar API con endpoints de predicción',
         'Integrar con dashboard',
         'Monitorear rendimiento semanal'
-    ],
-    'productos_por_ganador': {
-        'HYBRID_XGB_ARIMA': ['CP_01', 'CP_04', 'CP_13'],
-        'SARIMA': ['CP_10', 'CP_14', 'CP_12', 'MECO_01', 'CP_09'],
-        'OTROS': ['CP_11', 'CT_01']
-    },
-    'estadisticas': {
-        'modelos_xgboost_entrenados': len(modelos_xgb),
-        'modelos_arima_entrenados': len(modelos_arima),
-        'tiempo_total_entrenamiento_segundos': time.time() - inicio_total
-    },
-    'productos_metadata': metadata_productos
+    ]
 }
 
 # Guardar metadata
-ruta_metadata = directorio_modelos / 'modelo_hybrid_metadata_v1.0.json'
+ruta_metadata = directorio_modelos / 'modelos_ganadores_metadata.json'
 with open(ruta_metadata, 'w') as f:
-    json.dump(metadata_final, f, indent=2)
+    json.dump(metadata_final, f, indent=2, default=str)
 
 print(f"✓ Metadata guardada: {ruta_metadata}")
+print(f"  Tamaño: {ruta_metadata.stat().st_size / 1024:.2f} KB")
 
 # ════════════════════════════════════════════════════════════════════════════
-# PASO 7: CREAR ARCHIVO DE CONFIGURACIÓN
+# PASO 7: CREAR ARCHIVO INDEX DE MODELOS
 # ════════════════════════════════════════════════════════════════════════════
 
-print("\nPASO 7: CREAR ARCHIVO DE CONFIGURACIÓN")
+# ════════════════════════════════════════════════════════════════════════════
+# PASO 7: CREAR ARCHIVO INDEX DE MODELOS
+# ════════════════════════════════════════════════════════════════════════════
+
+print("\nPASO 7: CREAR INDEX DE MODELOS")
 print("-" * 100)
 
-config_produccion = {
-    'VERSION_MODELO': '1.0',
-    'NOMBRE_MODELO': 'HYBRID_XGB_ARIMA_V1.0',
-    'FECHA_ENTRENAMIENTO': datetime.now().isoformat(),
-    'MODELO_XGBOOST': str(ruta_xgb),
-    'MODELO_ARIMA': str(ruta_arima),
-    'METADATA': str(ruta_metadata),
-    'PREDICCIONES_ENTRADA': '../01_Datos/predicciones_52semanas_pivot.csv',
-    'PREDICCIONES_ENTRADA_LARGO': '../01_Datos/predicciones_52semanas_largo.csv',
-    'ARCHIVO_PIVOT_ESTRUCTURA': 'Semanas (índice) × Productos (columnas)',
-    'ARCHIVO_LARGO_COLUMNAS': ['Producto_codigo', 'Semana', 'Prediccion', 'Lower_Bound_95', 'Upper_Bound_95'],
-    'PESO_XGBOOST': 0.6,
-    'PESO_ARIMA': 0.4,
-    'HORIZONTE_PREDICCION': 52,
-    'FRECUENCIA': 'Semanal',
-    'STATUS': 'PRODUCCIÓN',
-    'DESCRIPCION': 'Modelo ganador tras comparativa contra 5 algoritmos. Combina XGBoost y ARIMA.',
-    'ULTIMA_ACTUALIZACION': datetime.now().isoformat(),
-    'NOTAS': 'Archivos compatibles con forecasting_routes.py - Opción A (sin cambios en API)'
-}
+# Crear un archivo index que mapea producto -> modelo -> ruta
+modelo_index = {}
+for producto in df_pivot.columns:
+    modelo_ganador = comparativa_resultados['modelos_por_producto'][producto]['modelo_recomendado']
+    
+    if modelo_ganador == 'XGBOOST':
+        ruta = str(dir_xgb / f'{producto}.joblib')
+    elif modelo_ganador == 'LIGHTGBM':
+        ruta = str(dir_lgb / f'{producto}.joblib')
+    elif modelo_ganador == 'SARIMA':
+        ruta = str(dir_arima / 'sarima_config.json')
+    else:
+        ruta = None
+    
+    modelo_index[producto] = {
+        'modelo': modelo_ganador,
+        'ruta': ruta,
+        'mae': comparativa_resultados['modelos_por_producto'][producto]['metricas']['mae'],
+        'r2': comparativa_resultados['modelos_por_producto'][producto]['metricas']['r2']
+    }
 
-ruta_config = directorio_modelos / 'config_model_v1.0.json'
-with open(ruta_config, 'w') as f:
-    json.dump(config_produccion, f, indent=2)
+ruta_index = directorio_modelos / 'modelo_index.json'
+with open(ruta_index, 'w') as f:
+    json.dump(modelo_index, f, indent=2)
 
-print(f"✓ Configuración guardada: {ruta_config}")
+print(f"✓ Index de modelos guardado: {ruta_index}")
+print(f"  Tamaño: {ruta_index.stat().st_size / 1024:.2f} KB")
 
 # ════════════════════════════════════════════════════════════════════════════
 # PASO 8: RESUMEN FINAL
@@ -328,10 +484,16 @@ tiempo_total = time.time() - inicio_total
 
 print(f"""
 
-[+] MODELO FINAL ENTRENADO Y GUARDADO
+[+] MODELOS GANADORES ENTRENADOS Y GUARDADOS
 
-  Nombre: HYBRID_XGB_ARIMA_V1.0
-  Status: LISTO PARA PRODUCCIÓN ✓
+  Enfoque: Modelo específico por producto (NO híbrido)
+  Status: LISTO PARA PREDICCIÓN ✓
+  
+[+] DISTRIBUCIÓN DE MODELOS
+
+  XGBoost:  {len(modelos_por_tipo['xgboost']):2d} productos ({100*len(modelos_por_tipo['xgboost'])/len(df_pivot.columns):5.1f}%)
+  LightGBM: {len(modelos_por_tipo['lightgbm']):2d} productos ({100*len(modelos_por_tipo['lightgbm'])/len(df_pivot.columns):5.1f}%)
+  SARIMA:   {len(modelos_por_tipo['sarima']):2d} productos ({100*len(modelos_por_tipo['sarima'])/len(df_pivot.columns):5.1f}%)
   
 [+] DATOS UTILIZADOS
 
@@ -342,26 +504,26 @@ print(f"""
   
 [+] MODELOS GUARDADOS
 
-  ✓ XGBoost: {ruta_xgb}
-    └─ Tamaño: {tamanio_xgb:.2f} MB
-    └─ Productos: {len(modelos_xgb)}
+  XGBoost:
+    └─ Directorio: {dir_xgb}
+    └─ Productos: {resumen_modelos['xgboost']}
     
-  ✓ Parámetros ARIMA: {ruta_arima}
-    └─ Configuración: order=(1,1,1), seasonal=(1,1,1,52)
-    └─ Productos: {len(modelos_arima)}
+  LightGBM:
+    └─ Directorio: {dir_lgb}
+    └─ Productos: {resumen_modelos['lightgbm']}
     
-  ✓ Metadata: {ruta_metadata}
-  ✓ Config: {ruta_config}
+  SARIMA:
+    └─ Config: {dir_arima}/sarima_config.json
+    └─ Productos: {resumen_modelos['sarima']}
+    
+  Metadata e Index:
+    └─ {ruta_metadata}
+    └─ {ruta_index}
   
-[+] PESOS DEL MODELO HÍBRIDO
+[+] CONFIGURACIÓN GENERAL
 
-  XGBoost: 60% (captura patrones no-lineales)
-  ARIMA:   40% (modela estacionalidad)
-  
-[+] CONFIGURACIÓN
-
-  XGBoost: n_estimators=100, max_depth=5, lags=12
-  ARIMA:   order=(1,1,1), seasonal=(1,1,1,52)
+  Lags: 52 semanas (ciclo anual completo)
+  Horizonte de predicción: 52 semanas
   
 [+] TIEMPO DE EJECUCIÓN
 
@@ -370,24 +532,23 @@ print(f"""
   
 [+] PRÓXIMOS PASOS
 
-  1. ✓ Modelo entrenado y guardado
-  2. ✓ Predicciones de 52 semanas generadas en formato compatible
-     └─ predicciones_52semanas_pivot.csv (para forecasting_routes)
-     └─ predicciones_52semanas_largo.csv (con intervalos de confianza)
-  3. → Dashboard usa predicciones sin cambios (Opción A: compatible)
-  4. → API endpoints acceden a ambos archivos directamente
-  5. → Monitorear rendimiento semanal
-  6. → Reentrenar mensualmente
+  1. ✓ Modelos ganadores entrenados y guardados (por producto)
+  2. → Ejecutar 12_MODELO_GANADOR_52SEMANAS.py para generar predicciones
+  3. → Evaluar predicciones vs datos reales
+  4. → Actualizar API con modelos entrenados
+  5. → Integrar con dashboard
+  6. → Monitorear rendimiento semanal
   
-[+] ARCHIVOS CLAVE
+[+] ARCHIVOS GENERADOS
 
   Modelos:
-    - {ruta_xgb}
-    - {ruta_arima}
+    - {dir_xgb}/*.joblib ({len(modelos_por_tipo['xgboost'])} archivos)
+    - {dir_lgb}/*.joblib ({len(modelos_por_tipo['lightgbm'])} archivos)
+    - {dir_arima}/sarima_config.json
     
   Configuración:
     - {ruta_metadata}
-    - {ruta_config}
+    - {ruta_index}
 
 """)
 
@@ -398,8 +559,7 @@ print("=" * 100)
 status = {
     'Análisis EDA': '✓ Completado',
     'Comparativa 5 algoritmos': '✓ Completado',
-    'Selección ganador (HYBRID)': '✓ Completado',
-    'Predicciones 52 semanas': '✓ Completado',
+    'Selección ganador por producto': '✓ COMPLETADO AHORA',
     'Reentrenamiento final': '✓ COMPLETADO AHORA',
     'Guardado de modelos': '✓ COMPLETADO AHORA',
     'Exportación metadata': '✓ COMPLETADO AHORA',

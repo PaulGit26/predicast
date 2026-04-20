@@ -1,0 +1,74 @@
+{
+  "tipo_modelo": "Per-Product Model Selection (Ensemble)",
+  "version": "2.0",
+  "fecha_entrenamiento": "2026-04-20T02:30:58.116452",
+  "fecha_actualizacion": "2026-04-20T02:38:53.034317",
+  "proposito": "Predecir ventas semanales de 20 productos para 52 semanas",
+  "modelos": {
+    "xgboost": {
+      "cantidad": 9,
+      "porcentaje": 45.0,
+      "productos": []
+    },
+    "lightgbm": {
+      "cantidad": 7,
+      "porcentaje": 35.0,
+      "productos": []
+    },
+    "sarima": {
+      "cantidad": 4,
+      "porcentaje": 20.0,
+      "productos": []
+    }
+  },
+  "datos_entrenamiento": {
+    "fecha_inicio": "2021-W02",
+    "fecha_fin": "2026-W01",
+    "semanas_historico": 222,
+    "productos_totales": 20
+  },
+  "predicciones": {
+    "horizonte_semanas": 52,
+    "fecha_inicio_prediccion": "2026-01-12",
+    "fecha_fin_prediccion": "2027-01-04",
+    "total_predicciones": 1040,
+    "productos": [
+      "CP_01",
+      "CP_02",
+      "CP_03",
+      "CP_04",
+      "CP_05",
+      "CP_06",
+      "CP_07",
+      "CP_08",
+      "CP_09",
+      "CP_10",
+      "CP_11",
+      "CP_12",
+      "CP_13",
+      "CP_14",
+      "CR_01",
+      "CR_02",
+      "CR_03",
+      "CT_01",
+      "MECO_01",
+      "MZ_01"
+    ]
+  },
+  "performance": {
+    "mae_promedio": 26.867763790055555,
+    "rmse_promedio": 0.0,
+    "mape_promedio": 0.0,
+    "mejor_modelo": "Ensemble"
+  },
+  "features": {
+    "Descuento_promedio": "Promedio de descuento % por semana/producto",
+    "Precio_promedio": "Precio unitario promedio por semana/producto",
+    "Pct_Online": "Porcentaje de ventas online por semana/producto",
+    "Hay_Campana": "Indicador binario: 1 si hay campaña esa semana, 0 si no"
+  },
+  "tiempo_ejecucion": {
+    "tiempo_total_segundos": 145.4875500202179,
+    "tiempo_promedio_por_producto_segundos": 7.2727473974227905
+  }
+}
