@@ -35,9 +35,11 @@ def cargar_datos_forecasting():
         # Obtener ruta base relativa desde donde se ejecuta
         base_path = Path(__file__).resolve().parent.parent.parent.parent
         
-        # Datos pivot (semanas x productos)
-        pred_pivot = base_path / "01_Datos" / "predicciones_52semanas_pivot.csv"
-        PREDICCIONES = pd.read_csv(pred_pivot, index_col=0)
+        # Datos pivot (semanas x productos) - NOTA: El CSV tiene semanas en filas, productos en columnas
+        pred_pivot_path = base_path / "01_Datos" / "predicciones_52semanas_pivot.csv"
+        pred_pivot_raw = pd.read_csv(pred_pivot_path, index_col=0)
+        # IMPORTANTE: Transponer para tener productos en filas y semanas en columnas
+        PREDICCIONES = pred_pivot_raw.T
         
         # Datos largo (tidy format)
         pred_largo = base_path / "01_Datos" / "predicciones_52semanas_largo.csv"
@@ -45,14 +47,29 @@ def cargar_datos_forecasting():
         
         # Estadisticas
         stats_csv = base_path / "01_Datos" / "predicciones_estadisticas.csv"
-        ESTADISTICAS = pd.read_csv(stats_csv, index_col=0)
+        if stats_csv.exists():
+            ESTADISTICAS = pd.read_csv(stats_csv, index_col=0)
+        else:
+            ESTADISTICAS = None
+            print("[⚠️]  predicciones_estadisticas.csv no encontrado")
         
         # Metadata
         metadata_json = base_path / "03_Modelos" / "forecasting_metadata.json"
-        with open(metadata_json, 'r') as f:
-            METADATA = json.load(f)
+        if metadata_json.exists():
+            with open(metadata_json, 'r', encoding='utf-8') as f:
+                METADATA = json.load(f)
+        else:
+            metadata_json_old = base_path / "01_Datos" / "metadata_forecasting.json"
+            if metadata_json_old.exists():
+                with open(metadata_json_old, 'r', encoding='utf-8') as f:
+                    METADATA = json.load(f)
+            else:
+                METADATA = None
+                print("[⚠️]  Metadata del modelo no encontrada")
         
         print("[✅] Datos de forecasting cargados en memoria")
+        print(f"    • Productos: {len(PREDICCIONES)} (índice/filas)")
+        print(f"    • Semanas: {len(PREDICCIONES.columns)} (columnas)")
         return True
         
     except Exception as e:
@@ -94,15 +111,15 @@ def get_52weeks_forecast(producto):
         return jsonify({"error": "Datos de forecasting no disponibles"}), 503
     
     # Validar que producto existe
-    if producto not in PREDICCIONES.columns:
+    if producto not in PREDICCIONES.index:
         return jsonify({
             "error": f"Producto '{producto}' no encontrado",
-            "productos_disponibles": list(PREDICCIONES.columns)
+            "productos_disponibles": list(PREDICCIONES.index)
         }), 404
     
     try:
         # Extraer predicciones
-        preds = PREDICCIONES[producto].values.tolist()
+        preds = PREDICCIONES.loc[producto].values.tolist()
         
         # Extraer intervalo de confianza
         preds_largo = PREDICCIONES_LARGO[PREDICCIONES_LARGO['Producto_codigo'] == producto]
@@ -117,7 +134,7 @@ def get_52weeks_forecast(producto):
             "producto": producto,
             "semanas": len(preds),
             "predicciones": [round(p, 2) for p in preds],
-            "fechas_prediccion": PREDICCIONES.index.tolist(),
+            "fechas_prediccion": PREDICCIONES.columns.tolist(),
             "intervalo_confianza_95_pct": {
                 "lower": [round(l, 2) for l in lower],
                 "upper": [round(u, 2) for u in upper]
@@ -170,8 +187,8 @@ def get_all_forecasts():
     try:
         productos_resumen = []
         
-        for producto in PREDICCIONES.columns:
-            preds = PREDICCIONES[producto].values
+        for producto in PREDICCIONES.index:
+            preds = PREDICCIONES.loc[producto].values
             media = float(preds.mean())
             std = float(preds.std())
             
@@ -234,18 +251,18 @@ def get_detailed_forecast(producto):
     if PREDICCIONES is None:
         return jsonify({"error": "Datos de forecasting no disponibles"}), 503
     
-    if producto not in PREDICCIONES.columns:
+    if producto not in PREDICCIONES.index:
         return jsonify({"error": f"Producto '{producto}' no encontrado"}), 404
     
     try:
-        preds = PREDICCIONES[producto].values.tolist()
+        preds = PREDICCIONES.loc[producto].values.tolist()
         preds_largo = PREDICCIONES_LARGO[PREDICCIONES_LARGO['Producto_codigo'] == producto]
         
         response = {
             "success": True,
             "producto": producto,
             "predicciones_52_semanas": [round(p, 2) for p in preds],
-            "fechas": PREDICCIONES.index.tolist(),
+            "fechas": PREDICCIONES.columns.tolist(),
             "intervalos_confianza_95": {
                 "lower_bounds": [round(float(x), 2) for x in preds_largo['Lower_Bound_95'].values],
                 "upper_bounds": [round(float(x), 2) for x in preds_largo['Upper_Bound_95'].values]
@@ -337,9 +354,9 @@ def get_economic_impact():
         productos_analisis = []
         
         # Generar análisis para cada producto usando datos de predicciones
-        for producto in PREDICCIONES.columns:
+        for producto in PREDICCIONES.index:
             try:
-                preds = PREDICCIONES[producto].values
+                preds = PREDICCIONES.loc[producto].values
                 
                 # Datos del producto
                 media_demanda = float(preds.mean())

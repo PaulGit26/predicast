@@ -41,17 +41,23 @@ app.config['JSON_SORT_KEYS'] = False
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # ============================================
-# Cargar modelo ML
+# Cargar modelo ML (OPCIONAL - Usamos CSVs con predicciones precalculadas)
 # ============================================
 try:
     model_path = os.getenv("MODEL_PATH", "../../03_Modelos/xgboost_forecasting_modelo.joblib")
     metadata_path = os.getenv("METADATA_PATH", "../../03_Modelos/forecasting_metadata.json")
     
-    loader = ModelLoader(model_path, metadata_path)
-    predictor = XGBoostPredictor(loader)
-    logger.info("✅ Modelo ML cargado exitosamente")
+    if os.path.exists(model_path):
+        loader = ModelLoader(model_path, metadata_path)
+        predictor = XGBoostPredictor(loader)
+        logger.info("✅ Modelo ML cargado exitosamente")
+    else:
+        logger.warning(f"⚠️  Modelo ML no encontrado en {model_path}")
+        logger.info("📊 Usando predicciones precalculadas desde CSVs")
+        predictor = None
 except Exception as e:
-    logger.error(f"❌ Error cargando modelo: {e}")
+    logger.warning(f"⚠️  No se pudo cargar modelo ML: {e}")
+    logger.info("📊 Usando predicciones precalculadas desde CSVs")
     predictor = None
 
 # ============================================
@@ -142,10 +148,14 @@ def health():
 create_routes(app)
 app.register_blueprint(forecasting_bp)
 
+# ============================================
+# Inicializar datos al crear la app
+# ============================================
+init_db()
+init_forecasting_data()
 
 if __name__ == "__main__":
-    init_db()
-    init_forecasting_data()
+    app.run(host="0.0.0.0", port=5000, debug=False)
     app.run(
         host=os.getenv("API_HOST", "0.0.0.0"),
         port=int(os.getenv("API_PORT", 5000)),
