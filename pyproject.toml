@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["tests", "07_Sistema_Produccion/tests"]
+norecursedirs = [".venv", "venv", "07_Sistema_Produccion/venv", "__pycache__", ".git"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = [".venv", "venv", "07_Sistema_Produccion/venv"]
+
+[tool.ruff.lint]
+ignore = ["E501"]

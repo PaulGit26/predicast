@@ -1,0 +1,4 @@
+[submodule "07_Sistema_Produccion"]
+	path = 07_Sistema_Produccion
+	url = https://github.com/PaulGit26/predicast.git
+	branch = main
