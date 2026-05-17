@@ -1,20 +1,25 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from typing import List
 from datetime import datetime
+from pathlib import Path
 import uuid
 import json
+import logging
 
 from src.shared.contracts.schemas import (
     ForecastRequestInput,
     ForecastResponse,
     ForecastPoint,
+    ConfidenceInterval,
     RecommendationResponse,
     ProductionRecommendation,
     RecommendationLevel,
+    PipelineRunResponse,
 )
 from src.config import settings
 
 from src.ml.inference.mlflow_loader import MLFlowLoader
+from src.services.forecast_service.pipeline import run_forecast_training_pipeline
 
 router = APIRouter()
 
@@ -45,25 +50,48 @@ async def predict(req: ForecastRequestInput):
             r = None
 
     # Load model (MLflow loader has internal fallback)
+    model = None
+    metadata = {"model_version": "unknown", "performance": {}}
     try:
         loader = MLFlowLoader()
-        model = loader.load()
-    except Exception:
-        model = None
+        model, metadata = loader.load()
+    except Exception as exc:
+        logging.warning("MLFlowLoader failed, using fallback model: %s", exc)
 
-    # Create simple deterministic forecasts for tests
-    forecasts: List[ForecastPoint] = []
+    # Attempt to predict a base value from the loaded model
     base_value = 100.0
+    try:
+        if model is not None and hasattr(model, "predict"):
+            prediction = model.predict([[req.periods]])
+            if isinstance(prediction, (list, tuple)) and len(prediction) > 0:
+                base_value = float(prediction[0])
+            else:
+                base_value = float(prediction)
+    except Exception as exc:
+        logging.warning("Model prediction failed, falling back to deterministic forecast: %s", exc)
+
+    # Build forecast series
+    forecasts: List[ForecastPoint] = []
     for p in range(1, req.periods + 1):
-        forecasts.append(ForecastPoint(period=p, forecast=base_value + p * 1.0))
+        forecasts.append(
+            ForecastPoint(
+                period=p,
+                forecast=base_value + p * 1.0,
+                confidence_interval=ConfidenceInterval(
+                    lower=base_value + p * 0.9,
+                    upper=base_value + p * 1.1,
+                    confidence_level=0.95,
+                ) if req.include_confidence else None,
+            )
+        )
 
     resp = ForecastResponse(
         request_id=str(uuid.uuid4()),
         product_id=req.product_id,
         forecast_date=datetime.utcnow(),
         forecasts=forecasts,
-        model_version="stub",
-        model_accuracy=0.0,
+        model_version=str(metadata.get("model_version", "stub")),
+        model_accuracy=float(metadata.get("performance", {}).get("accuracy", 0.0)) if metadata else 0.0,
         cache_hit=False,
     )
 
@@ -74,6 +102,18 @@ async def predict(req: ForecastRequestInput):
             pass
 
     return resp
+
+
+@router.post("/forecast/pipeline/run", response_model=PipelineRunResponse)
+async def run_pipeline(background_tasks: BackgroundTasks):
+    """Trigger the forecast training pipeline in the background."""
+    background_tasks.add_task(run_forecast_training_pipeline)
+    return PipelineRunResponse(
+        status="scheduled",
+        message="Pipeline execution has been scheduled.",
+        started_at=datetime.utcnow(),
+        details={"pipeline": "prefect", "base_dir": str(Path(__file__).resolve().parents[3])},
+    )
 
 
 @router.post("/forecast/recommend", response_model=RecommendationResponse)

@@ -81,6 +81,14 @@ class ForecastResponse(BaseModel):
     cache_hit: bool
 
 
+class PipelineRunResponse(BaseModel):
+    """Respuesta de ejecución de pipeline."""
+    status: str
+    message: str
+    started_at: datetime
+    details: Optional[Dict[str, Any]] = None
+
+
 class RecommendationLevel(str, Enum):
     """Niveles de recomendación."""
     PESSIMISTIC = "pessimistic"
