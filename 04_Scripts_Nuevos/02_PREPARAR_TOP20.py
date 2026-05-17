@@ -30,39 +30,15 @@ print("\n" + "="*80)
 print("PREPARAR TOP 20 - LIMPIEZA Y FILTRADO")
 print("="*80)
 
-# ============================================================================
-# PASO 1: CARGAR DATOS
-# ============================================================================
+from lib.preparar_top20 import run_preparar_top20
 
-print("\n[PASO 1] CARGANDO DATOS ...")
-
+OUTPUT_DIR = r"d:\Desktop\Predicast\04_Scripts_Nuevos\EDA_Outputs"
 DATA_DIR = r"d:\Desktop\Predicast\01_Datos_Nuevos"
-archivos = sorted([f for f in os.listdir(DATA_DIR) 
-                   if f.startswith("Movimientos_") and f.endswith(".csv") and "backup" not in f])
 
-dfs = []
-for arch in archivos:
-    ruta = os.path.join(DATA_DIR, arch)
-    df = pd.read_csv(ruta, sep=";", encoding="latin-1")
-    df.columns = df.columns.str.strip()
-    
-    # Normalizar nombres de columnas
-    if "salida" in df.columns and "Salida" not in df.columns:
-        df.rename(columns={"salida": "Salida"}, inplace=True)
-    if "entrada" in df.columns and "Entrada" not in df.columns:
-        df.rename(columns={"entrada": "Entrada"}, inplace=True)
-    if "documento" in df.columns and "Documento" not in df.columns:
-        df.rename(columns={"documento": "Documento"}, inplace=True)
-    if "número" in df.columns and "Número" not in df.columns:
-        df.rename(columns={"número": "Número"}, inplace=True)
-    if "código" in df.columns and "Código" not in df.columns:
-        df.rename(columns={"código": "Código"}, inplace=True)
-    
-    dfs.append(df)
-    print(f"  {arch}: {len(df):,} registros")
-
-df_raw = pd.concat(dfs, ignore_index=True)
-print(f"  TOTAL RAW: {len(df_raw):,} registros")
+if __name__ == "__main__":
+    print("Running preparar_top20 wrapper...")
+    res = run_preparar_top20(DATA_DIR, OUTPUT_DIR)
+    print("Result:", res)
 
 # ============================================================================
 # PASO 2: LIMPIEZA - REGLAS ESPECÍFICAS

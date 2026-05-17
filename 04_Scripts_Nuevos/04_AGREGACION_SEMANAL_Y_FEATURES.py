@@ -24,6 +24,15 @@ print("="*80)
 OUTPUT_DIR = r"d:\Desktop\Predicast\04_Scripts_Nuevos\EDA_Outputs"
 PARETO_RESULT = os.path.join(OUTPUT_DIR, "PARETO_RESULTADO.json")
 
+from lib.agregacion_features import run_agregacion_features
+
+if __name__ == "__main__":
+    print("Running agregacion y features wrapper...")
+    res = run_agregacion_features(OUTPUT_DIR)
+    print("Result:", res)
+    # exit after wrapper; original script logic is now inside the module
+    raise SystemExit(0)
+
 # Cargar resultado Pareto
 with open(PARETO_RESULT, "r", encoding="utf-8") as f:
     pareto = json.load(f)
