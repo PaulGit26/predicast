@@ -64,17 +64,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
           context: ./07_Sistema_Produccion
           file: ./07_Sistema_Produccion/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/predicast-backend:latest
+          tags: ghcr.io/${{ env.OWNER }}/predicast-backend:latest
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./07_Sistema_Produccion/frontend/nextjs
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/predicast-frontend:latest
+          tags: ghcr.io/${{ env.OWNER }}/predicast-frontend:latest

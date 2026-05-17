@@ -1,7 +1,6 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
-import os
 import json
 from scipy.stats import pearsonr
 from statsmodels.stats.outliers_influence import variance_inflation_factor
@@ -82,7 +81,6 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
 
     pares_altos_095 = find_highly_correlated_pairs(corr_matrix, threshold=0.95)
     pares_altos_090 = find_highly_correlated_pairs(corr_matrix, threshold=0.90)
-    pares_altos_085 = find_highly_correlated_pairs(corr_matrix, threshold=0.85)
 
     # VIF
     def calculate_vif(df_f):

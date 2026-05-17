@@ -3,7 +3,6 @@ from pathlib import Path
 
 
 def test_run_preparar_top20_missing_dir_raises():
-    from _pytest import tmpdir
     from lib.preparar_top20 import run_preparar_top20
     missing = Path("non_existent_dir_12345")
     out = Path("./tmp_out_test")
