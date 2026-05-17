@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predicast-forecast
+  labels:
+    app: predicast
+    component: forecast
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: predicast
+      component: forecast
+  template:
+    metadata:
+      labels:
+        app: predicast
+        component: forecast
+    spec:
+      containers:
+        - name: predicast-forecast
+          image: your-registry/predicast:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: API_PORT
+              value: "8000"
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: DATABASE_URL
+              value: "postgresql://predicast_user:password@postgres:5432/predicast"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
