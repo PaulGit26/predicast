@@ -1,0 +1,208 @@
+{
+  "grupo_1": {
+    "CEO 001": {
+      "algoritmo_ganador": "Ridge",
+      "hiperparametros_ganador": {
+        "alpha": 100.0
+      },
+      "metricas_test": {
+        "Algoritmo": "Ridge",
+        "R2": 0.9658585871547481,
+        "MAE": 756.6617551458107,
+        "RMSE": 1234.2728295136221,
+        "MAPE": 0.0
+      },
+      "comparativa": {
+        "Ridge": {
+          "R2": 0.9658585871547481,
+          "MAE": 756.6617551458107
+        },
+        "XGBoost": {
+          "R2": 0.8977300041623882,
+          "MAE": 821.3629619716543
+        },
+        "RandomForest": {
+          "R2": 0.630097162763545,
+          "MAE": 999.8232370715117
+        }
+      }
+    },
+    "CEO 006": {
+      "algoritmo_ganador": "Ridge",
+      "hiperparametros_ganador": {
+        "alpha": 100.0
+      },
+      "metricas_test": {
+        "Algoritmo": "Ridge",
+        "R2": 0.9747676070783605,
+        "MAE": 640.4477427827636,
+        "RMSE": 948.3055437943383,
+        "MAPE": 0.0
+      },
+      "comparativa": {
+        "Ridge": {
+          "R2": 0.9747676070783605,
+          "MAE": 640.4477427827636
+        },
+        "XGBoost": {
+          "R2": 0.8205059581191164,
+          "MAE": 855.9170773708983
+        },
+        "RandomForest": {
+          "R2": 0.5349722766331015,
+          "MAE": 940.0793013265016
+        }
+      }
+    },
+    "CER 001": {
+      "algoritmo_ganador": "Ridge",
+      "hiperparametros_ganador": {
+        "alpha": 100.0
+      },
+      "metricas_test": {
+        "Algoritmo": "Ridge",
+        "R2": 0.958432914311937,
+        "MAE": 1200.2785832440552,
+        "RMSE": 1781.6568005840418,
+        "MAPE": 0.0
+      },
+      "comparativa": {
+        "Ridge": {
+          "R2": 0.958432914311937,
+          "MAE": 1200.2785832440552
+        },
+        "XGBoost": {
+          "R2": 0.8736610298450492,
+          "MAE": 1053.5929861068726
+        },
+        "RandomForest": {
+          "R2": 0.6098734659071476,
+          "MAE": 1254.0887690622708
+        }
+      }
+    },
+    "CER 004": {
+      "algoritmo_ganador": "XGBoost",
+      "hiperparametros_ganador": {
+        "colsample_bytree": 0.8,
+        "learning_rate": 0.1,
+        "max_depth": 3,
+        "min_child_weight": 3,
+        "n_estimators": 80,
+        "subsample": 0.8
+      },
+      "metricas_test": {
+        "Algoritmo": "XGBoost",
+        "R2": 0.9744369183253381,
+        "MAE": 153.86034356786848,
+        "RMSE": 260.49349802184724,
+        "MAPE": 0.0
+      },
+      "comparativa": {
+        "Ridge": {
+          "R2": 0.9455571438239506,
+          "MAE": 232.12268721639273
+        },
+        "XGBoost": {
+          "R2": 0.9744369183253381,
+          "MAE": 153.86034356786848
+        },
+        "RandomForest": {
+          "R2": 0.8718796403450081,
+          "MAE": 253.05167196065807
+        }
+      }
+    },
+    "CER 005": {
+      "algoritmo_ganador": "Ridge",
+      "hiperparametros_ganador": {
+        "alpha": 100.0
+      },
+      "metricas_test": {
+        "Algoritmo": "Ridge",
+        "R2": 0.9542596085214661,
+        "MAE": 765.5203563407259,
+        "RMSE": 1169.359290658548,
+        "MAPE": 0.0
+      },
+      "comparativa": {
+        "Ridge": {
+          "R2": 0.9542596085214661,
+          "MAE": 765.5203563407259
+        },
+        "XGBoost": {
+          "R2": 0.8586508806281689,
+          "MAE": 844.0741660254342
+        },
+        "RandomForest": {
+          "R2": 0.5974523020338243,
+          "MAE": 956.8186401237257
+        }
+      }
+    },
+    "CER 008": {
+      "algoritmo_ganador": "XGBoost",
+      "hiperparametros_ganador": {
+        "colsample_bytree": 0.8,
+        "learning_rate": 0.1,
+        "max_depth": 3,
+        "min_child_weight": 3,
+        "n_estimators": 80,
+        "subsample": 0.8
+      },
+      "metricas_test": {
+        "Algoritmo": "XGBoost",
+        "R2": 0.9682753266451748,
+        "MAE": 145.38943879591312,
+        "RMSE": 249.97835407698759,
+        "MAPE": 0.0
+      },
+      "comparativa": {
+        "Ridge": {
+          "R2": 0.9370989996187421,
+          "MAE": 216.11558977916505
+        },
+        "XGBoost": {
+          "R2": 0.9682753266451748,
+          "MAE": 145.38943879591312
+        },
+        "RandomForest": {
+          "R2": 0.8945143535153205,
+          "MAE": 217.29160755522494
+        }
+      }
+    },
+    "CERE 002": {
+      "algoritmo_ganador": "XGBoost",
+      "hiperparametros_ganador": {
+        "colsample_bytree": 0.8,
+        "learning_rate": 0.1,
+        "max_depth": 3,
+        "min_child_weight": 3,
+        "n_estimators": 80,
+        "subsample": 0.8
+      },
+      "metricas_test": {
+        "Algoritmo": "XGBoost",
+        "R2": 0.9921255690988662,
+        "MAE": 130.5405963420868,
+        "RMSE": 196.06381572519976,
+        "MAPE": 0.0
+      },
+      "comparativa": {
+        "Ridge": {
+          "R2": 0.8401525008078506,
+          "MAE": 511.072237478434
+        },
+        "XGBoost": {
+          "R2": 0.9921255690988662,
+          "MAE": 130.5405963420868
+        },
+        "RandomForest": {
+          "R2": 0.891290795145518,
+          "MAE": 403.25963898809044
+        }
+      }
+    }
+  }
+}

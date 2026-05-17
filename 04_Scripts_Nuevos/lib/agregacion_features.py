@@ -160,23 +160,6 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
         'archivo_meta': archivo_meta,
         'n_registros': len(df_features)
     }
-from pathlib import Path
-import pandas as pd
-import numpy as np
-import os
-import json
-from datetime import datetime
-
-
-def run_agregacion_features(eda_output_dir: str):
-    eda_output_dir = Path(eda_output_dir)
-    pareto_file = eda_output_dir / "PARETO_RESULTADO.json"
-    datos_top20 = eda_output_dir / "DATOS_TOP20_VENTAS.csv"
-
-    if not pareto_file.exists():
-        raise FileNotFoundError(f"Pareto result not found: {pareto_file}")
-    if not datos_top20.exists():
-        raise FileNotFoundError(f"DATOS_TOP20_VENTAS.csv not found: {datos_top20}")
 
     with open(pareto_file, "r", encoding="utf-8") as f:
         pareto = json.load(f)

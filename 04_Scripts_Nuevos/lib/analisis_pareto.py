@@ -19,8 +19,14 @@ def run_analisis_pareto(output_dir: str, datos_top20_path: str = None):
 
     vendas_por_producto = df.groupby("Código")["Salida"].sum().sort_values(ascending=False)
 
-    productos_80 = (vendas_por_producto.cumsum() / vendas_por_producto.sum() * 100 <= 80).sum()
-    productos_90 = (vendas_por_producto.cumsum() / vendas_por_producto.sum() * 100 <= 90).sum()
+    if len(vendas_por_producto) == 0 or vendas_por_producto.sum() == 0:
+        productos_80 = 0
+        productos_90 = 0
+        cumulative_pct = pd.Series(dtype=float)
+    else:
+        cumulative_pct = (vendas_por_producto.cumsum() / vendas_por_producto.sum() * 100)
+        productos_80 = max(1, int((cumulative_pct <= 80).sum()))
+        productos_90 = max(1, int((cumulative_pct <= 90).sum()))
 
     productos_criticos = vendas_por_producto.head(productos_80)
 
