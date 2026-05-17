@@ -1,6 +1,5 @@
 """Machine Learning utilities for PREDICAST."""
 
-from .model_loader import ModelLoader
-from .predictor import XGBoostPredictor
+from .inference.mlflow_loader import MLFlowLoader
 
-__all__ = ["ModelLoader", "XGBoostPredictor"]
+__all__ = ["MLFlowLoader"]

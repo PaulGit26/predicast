@@ -24,8 +24,6 @@ logger = logging.getLogger(__name__)
 logger.info(f"📂 Cargando .env desde: {env_path}")
 
 # Importar módulos
-from src.ml.model_loader import ModelLoader
-from src.ml.predictor import XGBoostPredictor
 from src.db.config import init_db, get_db
 from src.utils.auth import TokenManager
 from .routes import create_routes
@@ -40,30 +38,10 @@ app.config['JSON_SORT_KEYS'] = False
 # CORS habilitado para desarrollo
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# ============================================
-# Cargar modelo ML (OPCIONAL - Usamos CSVs con predicciones precalculadas)
-# ============================================
-try:
-    model_path = os.getenv("MODEL_PATH", "../../03_Modelos/xgboost_forecasting_modelo.joblib")
-    metadata_path = os.getenv("METADATA_PATH", "../../03_Modelos/forecasting_metadata.json")
-    
-    if os.path.exists(model_path):
-        loader = ModelLoader(model_path, metadata_path)
-        predictor = XGBoostPredictor(loader)
-        logger.info("✅ Modelo ML cargado exitosamente")
-    else:
-        logger.warning(f"⚠️  Modelo ML no encontrado en {model_path}")
-        logger.info("📊 Usando predicciones precalculadas desde CSVs")
-        predictor = None
-except Exception as e:
-    logger.warning(f"⚠️  No se pudo cargar modelo ML: {e}")
-    logger.info("📊 Usando predicciones precalculadas desde CSVs")
-    predictor = None
-
-# ============================================
-# Contexto de la app
-# ============================================
-app.predictor = predictor
+# NOTE: El sistema usa predicciones precalculadas en CSVs dentro de `01_Datos`.
+# Históricamente existía carga de modelo (.joblib) pero el flujo actual toma
+# las predicciones resultantes generadas por los scripts de `04_Scripts_Nuevos`.
+app.predictor = None
 
 
 # ============================================

@@ -15,70 +15,76 @@ print('='*50)
 print()
 
 # 1. Verificar archivos modelo existen
-print('1. Verificando archivos de modelo...')
-# Paths relativos desde 07_Sistema_Produccion
-model_file = Path('../03_Modelos/xgboost_model_V2_V2_Realista.joblib')
-metadata_file = Path('../03_Modelos/xgboost_metadata_V2_V2_Realista.json')
+print('1. Verificando archivos de predicciones y scripts (01_Datos, 01_Datos_Nuevos, 04_Scripts_Nuevos)')
 
-print(f'   Modelo: {model_file.exists()} ({model_file})')
-print(f'   Metadata: {metadata_file.exists()} ({metadata_file})')
+# Verificar CSVs finales en 01_Datos
+base_path = Path(__file__).resolve().parent
+pred_pivot = base_path / "01_Datos" / "predicciones_52semanas_pivot_V4.csv"
+pred_largo = base_path / "01_Datos" / "predicciones_52semanas_largo_V4.csv"
+metadata_json = base_path / "01_Datos" / "predicciones_52semanas_METADATA_V4.json"
 
-if not (model_file.exists() and metadata_file.exists()):
-    print('   ERROR: Archivos de modelo no encontrados')
+print(f'   predicciones_pivot: {pred_pivot.exists()} ({pred_pivot})')
+print(f'   predicciones_largo: {pred_largo.exists()} ({pred_largo})')
+print(f'   metadata_json: {metadata_json.exists()} ({metadata_json})')
+
+missing = []
+if not pred_pivot.exists():
+    missing.append(str(pred_pivot))
+if not pred_largo.exists():
+    missing.append(str(pred_largo))
+if not metadata_json.exists():
+    missing.append(str(metadata_json))
+
+if missing:
+    print('   ERROR: Faltan archivos de predicciones finales. Faltan:')
+    for m in missing:
+        print('    -', m)
     sys.exit(1)
 
 print()
 
 # 2. Cargar modelo
-print('2. Cargando modelo XGBoost...')
-try:
-    from src.ml.model_loader import ModelLoader
-    loader = ModelLoader(str(model_file), str(metadata_file))
-    model, metadata = loader.load()
-    print(f'   Version: {metadata["model_version"]}')
-    print(f'   Features: {metadata["n_features"]}')
-    print(f'   R2 Score: {metadata["performance"]["R2_Test"]:.4f}')
-except Exception as e:
-    print(f'   ERROR: {e}')
+print('2. Verificando scripts de procesamiento en 04_Scripts_Nuevos (02_... -> 10_...)')
+scripts_dir = Path('04_Scripts_Nuevos')
+required_prefixes = [
+    '02_PREPARAR_DATA_ESPECIFICO',
+    '03_ANALISIS_PARETO',
+    '04_AGREGACION_SEMANAL_Y_FEATURES',
+    '05_SELECCION_FILTRADO_FEATURES',
+    '08_OPTIMIZACION_HIPERPARAMETROS_PRODUCCION',
+    '10_PREDICCIONES_FINAL_PRODUCCION'
+]
+
+found = {p: False for p in required_prefixes}
+if scripts_dir.exists():
+    for f in scripts_dir.iterdir():
+        name = f.name.upper()
+        for pref in required_prefixes:
+            if name.startswith(pref):
+                found[pref] = True
+
+for k, v in found.items():
+    print(f'   {k}:', 'OK' if v else 'MISSING')
+
+if not all(found.values()):
+    print('   ERROR: Faltan scripts críticos en 04_Scripts_Nuevos. Verifica el pipeline de procesamiento.')
     sys.exit(1)
 
 print()
 
 # 3. Test predictor
-print('3. Testeando Predictor...')
+print('3. Validación rápida de salida de predicciones (muestreo)')
 try:
-    from src.ml.predictor import XGBoostPredictor
-    predictor = XGBoostPredictor(loader)
-    
-    test_input = {
-        'Stock_anterior': 100,
-        'Stock_posterior': 95,
-        'Precio_unitario': 150.0,
-        'Año': 2026,
-        'Mes': 4,
-        'Trimestre': 2,
-        'Día_Semana': 2,
-        'Canal_Promedio_Demanda': 75.0,
-        'Campana_Promedio_Demanda': 60.0,
-        'Cliente_Promedio_Demanda': 80.0,
-        'Producto_Promedio_Demanda': 85.0,
-        'Canal_venta_encoded': 0,
-        'Campana_encoded': 3,
-        'Empresa_cliente_encoded': 0,
-        'Producto_codigo_encoded': 0
-    }
-    
-    result = predictor.predict(test_input)
-    
-    if result.get('status') == 'success':
-        print(f'   Prediccion: {result["prediction"]:.2f} unidades')
-        print(f'   Confianza: {result["confidence"]:.4f}')
-    else:
-        print(f'   ERROR: {result.get("error")}')
+    import pandas as pd
+    df = pd.read_csv(pred_largo)
+    sample = df.head(1)
+    if sample.empty:
+        print('   ERROR: predicciones_largo está vacío')
         sys.exit(1)
-        
+    else:
+        print('   Predicciones largo: OK - filas=', len(df))
 except Exception as e:
-    print(f'   ERROR: {e}')
+    print(f'   ERROR leyendo predicciones: {e}')
     sys.exit(1)
 
 print()

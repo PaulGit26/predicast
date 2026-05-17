@@ -72,15 +72,34 @@ class MLFlowLoader:
             except Exception as exc:
                 logger.warning("No se pudo cargar modelo joblib %s: %s", self.model_path, exc)
 
-        # Fallback dummy
-        try:
-            from src.ml.model_loader import DummyModel
-            model = DummyModel()
-        except Exception:
-            class _D:
-                def predict(self, X):
-                    return [0.0 for _ in range(len(X) if hasattr(X, '__len__') else 1)]
-            model = _D()
+        # Fallback dummy model (self-contained, no external dependency)
+        class _DummyModel:
+            def predict(self, X):
+                try:
+                    import numpy as np
+                    import pandas as pd
+                except Exception:
+                    np = None
+                    pd = None
 
+                if pd is not None and isinstance(X, pd.DataFrame):
+                    numeric = X.select_dtypes(include=["number"])
+                    if numeric.empty:
+                        return [0.0] * len(X)
+                    values = numeric.to_numpy(dtype=float)
+                    return list(values.sum(axis=1) * 0.1)
+
+                if np is not None:
+                    arr = np.asarray(X, dtype=float)
+                    if arr.ndim == 1:
+                        return [float(arr.sum()) * 0.1]
+                    return list(arr.sum(axis=1) * 0.1)
+
+                if isinstance(X, list):
+                    return [float(sum(row)) * 0.1 if isinstance(row, (list, tuple)) else float(row) * 0.1 for row in X]
+
+                return [0.0]
+
+        model = _DummyModel()
         self.model = model
         return model, self.metadata

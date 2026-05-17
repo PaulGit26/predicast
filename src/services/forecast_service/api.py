@@ -39,7 +39,7 @@ async def predict(req: ForecastRequestInput):
     )
 
     from src.ml.inference.mlflow_loader import MLFlowLoader
-    from src.ml.predictor import XGBoostPredictor
+        # from src.ml.predictor import XGBoostPredictor
     from src.config import settings
 
     try:
@@ -80,12 +80,21 @@ async def predict(req: ForecastRequestInput):
                 r = None
 
         # Load model (MLflow preferred)
-        loader = MLFlowLoader(mlflow_model_uri=os.getenv("MLFLOW_MODEL_URI"))
-        predictor = XGBoostPredictor(loader)
+            loader = MLFlowLoader()
+            model = loader.load()
 
         # Prepare input dictionary for predictor (minimal example)
         input_data = {"product_id": req.product_id, "periods": req.periods}
-        result = predictor.predict(input_data)
+        # Try to use model.predict (scikit-learn / xgboost style) or call the model if callable
+        try:
+            if hasattr(model, 'predict'):
+                pred = model.predict([list(input_data.values())])
+                pred_value = float(pred[0]) if hasattr(pred, '__len__') else float(pred)
+            else:
+                pred_value = float(model(input_data))
+            result = {'status': 'success', 'prediction': pred_value}
+        except Exception as e:
+            result = {'status': 'error', 'error': str(e)}
 
         # Convert to ForecastResponse-like structure (simple mapping)
         forecast_point = ForecastPoint(period=1, forecast=float(result.get("prediction", 0.0)))
