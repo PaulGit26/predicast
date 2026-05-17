@@ -1,9 +1,7 @@
 {
-  "timestamp": "2026-05-02T18:29:42.838671",
+  "timestamp": "2026-05-17T14:04:19.654412",
   "datos_raw": 63329,
   "datos_limpios": 59007,
-  "registros_excluidos_traspaso": 2666,
-  "registros_excluidos_guias": 1656,
   "registros_venta": 31992,
   "productos_totales": 1540,
   "top20_productos": [
@@ -28,6 +26,5 @@
     "CER 009",
     "TPH-00001"
   ],
-  "top20_concentracion_pct": "86.2%",
   "registros_top20": 17735
 }

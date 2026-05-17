@@ -25,7 +25,7 @@ print(f"¿CP_01 existe? {'CP_01' in df_hist['Producto_codigo'].values}")
 # Filtrar productos disponibles más vendidos
 # Si no están los Pareto, mostrar TOP 7 por volumen
 if not any(p in df_hist['Producto_codigo'].values for p in productos_pareto):
-    print("\n⚠️ Productos Pareto NO existen en histórico.")
+    print("\nWARNING: Productos Pareto NO existen en histórico.")
     print("Mostrando TOP 7 productos por volumen total...\n")
     
     # Agrupar por producto y calcular volumen total
@@ -34,7 +34,7 @@ if not any(p in df_hist['Producto_codigo'].values for p in productos_pareto):
     print(f"TOP 7 productos: {productos_top7}\n")
 else:
     productos_top7 = [p for p in productos_pareto if p in df_hist['Producto_codigo'].values]
-    print(f"\n✓ Productos Pareto encontrados: {len(productos_top7)}")
+    print(f"\nProductos Pareto encontrados: {len(productos_top7)}")
 
 # Filtrar datos para estos productos
 df_plot = df_hist[df_hist['Producto_codigo'].isin(productos_top7)].copy()
@@ -89,7 +89,7 @@ fig_subplots.update_layout(
 )
 
 fig_subplots.write_html(os.path.join(DATA_DIR, 'grafico_historico_subplots.html'))
-print("✓ Gráfico de subplots guardado: grafico_historico_subplots.html")
+print("Gráfico de subplots guardado: grafico_historico_subplots.html")
 
 # ============================================================
 # GRAFICO 2: Líneas superpuestas (comparativa directa)
@@ -119,7 +119,7 @@ fig_overlay.update_layout(
 )
 
 fig_overlay.write_html(os.path.join(DATA_DIR, 'grafico_historico_overlay.html'))
-print("✓ Gráfico de superposición guardado: grafico_historico_overlay.html")
+print("Gráfico de superposición guardado: grafico_historico_overlay.html")
 
 # ============================================================
 # GRAFICO 3: Área apilada (volumen total)
@@ -155,13 +155,13 @@ fig_area.update_layout(
 )
 
 fig_area.write_html(os.path.join(DATA_DIR, 'grafico_historico_area.html'))
-print("✓ Gráfico de área apilada guardado: grafico_historico_area.html")
+print("Gráfico de área apilada guardado: grafico_historico_area.html")
 
 # ============================================================
 # ESTADISTICAS
 # ============================================================
 
-print("\n📊 ESTADÍSTICAS HISTÓRICO (por producto):\n")
+print("\nESTADÍSTICAS HISTÓRICO (por producto):\n")
 
 for producto in productos_top7:
     df_prod = df_plot[df_plot['Producto_codigo'] == producto]
@@ -179,7 +179,7 @@ for producto in productos_top7:
     print(f"  CV: {cv:.1f}%")
     print()
 
-print(f"✅ 3 gráficos HTML generados en: {DATA_DIR}\n")
+print(f"3 gráficos HTML generados en: {DATA_DIR}\n")
 print("Abre en navegador:")
 print("  1. grafico_historico_subplots.html  (7 gráficos separados)")
 print("  2. grafico_historico_overlay.html   (líneas superpuestas)")
