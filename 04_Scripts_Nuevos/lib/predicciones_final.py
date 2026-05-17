@@ -87,7 +87,6 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
 
         historico_pred = [salida_anterior] * 16
 
-        residuales_hist = residuales_por_producto[producto]['residuales']
         residuales_media = residuales_por_producto[producto]['media']
         residuales_std = residuales_por_producto[producto]['std']
 

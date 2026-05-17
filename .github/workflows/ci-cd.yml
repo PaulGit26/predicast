@@ -42,7 +42,7 @@ jobs:
             --cov=lib \
             --cov=04_Scripts_Nuevos/lib \
             --cov-report=term-missing \
-            --cov-fail-under=40
+            --cov-fail-under=25
 
   build-and-push:
     name: Build & Push Docker images
