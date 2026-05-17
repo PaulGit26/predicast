@@ -81,16 +81,26 @@ async def health_check():
     )
 
 
-# ===== ROUTERS (TO BE IMPORTED) =====
+# ===== ROUTERS =====
 
-# Placeholder para servicios
-# from src.services.forecast_service.api import router as forecast_router
-# from src.services.analytics_service.api import router as analytics_router
-# from src.services.user_service.api import router as user_router
+# Importar routers de servicios si existen (fall back silencioso)
+try:
+    from src.services.forecast_service.api import router as forecast_router
+    app.include_router(forecast_router, prefix=settings.API_PREFIX, tags=["Forecast"])
+except Exception as e:  # pragma: no cover - optional in dev
+    logger.info("Forecast router not available yet", error=str(e))
 
-# app.include_router(forecast_router, prefix=settings.API_PREFIX, tags=["Forecast"])
-# app.include_router(analytics_router, prefix=settings.API_PREFIX, tags=["Analytics"])
-# app.include_router(user_router, prefix=settings.API_PREFIX, tags=["Users"])
+try:
+    from src.services.analytics_service.api import router as analytics_router
+    app.include_router(analytics_router, prefix=settings.API_PREFIX, tags=["Analytics"])
+except Exception as e:  # pragma: no cover - optional in dev
+    logger.info("Analytics router not available yet", error=str(e))
+
+try:
+    from src.services.user_service.api import router as user_router
+    app.include_router(user_router, prefix=settings.API_PREFIX, tags=["Users"])
+except Exception as e:  # pragma: no cover - optional in dev
+    logger.info("User router not available yet", error=str(e))
 
 
 # ===== EXCEPTION HANDLERS =====
