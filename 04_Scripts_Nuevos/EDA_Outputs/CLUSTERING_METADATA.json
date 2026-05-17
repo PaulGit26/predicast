@@ -1,0 +1,139 @@
+{
+  "fecha_generacion": "2026-05-02T18:38:02.964931",
+  "metodologia": "Syntetos & Boylan (2005) - ADI/CV² Classification",
+  "referencias": [
+    "Syntetos, A. A., & Boylan, J. E. (2005). The accuracy of intermittent demand estimates.",
+    "International Journal of Forecasting, 21(1), 137-152."
+  ],
+  "thresholds": {
+    "ADI": 1.32,
+    "CV2": 0.49
+  },
+  "grupos": {
+    "GRUPO_1": {
+      "nombre": "ERRATIC - Demanda Frecuente y Variable",
+      "descripcion": "ADI < 1.32 (demandas casi diarias) Y CV² > 0.49 (alta variabilidad)",
+      "estrategia": "4 MODELOS LOCALES (1 modelo por producto)",
+      "productos": [
+        "CEO 001",
+        "CEO 006",
+        "CER 001",
+        "CER 004",
+        "CER 005",
+        "CER 008",
+        "CERE 002"
+      ],
+      "conteo": 7,
+      "caracteristicas": {
+        "frecuencia_demanda": "Frecuente (casi cada semana)",
+        "variabilidad": "Alta (impredecible)",
+        "recomendacion_modelo": "Ridge, XGBoost (mejor para capturar patrones complejos)"
+      }
+    },
+    "GRUPO_2": {
+      "nombre": "INTERMITTENT - Demanda Episódica y Consistente",
+      "descripcion": "ADI > 1.32 (demandas espaciadas) Y CV² < 0.49 (baja variabilidad)",
+      "estrategia": "1 MODELO GLOBAL (modelo único para todos)",
+      "productos": [],
+      "conteo": 0,
+      "caracteristicas": {
+        "frecuencia_demanda": "Episódica (saltos en tiempo)",
+        "variabilidad": "Baja (predecible cuando ocurre)",
+        "recomendacion_modelo": "Ridge, LightGBM (mejor para datos dispersos)"
+      }
+    }
+  },
+  "detalles_por_producto": [
+    {
+      "Código": "CEO 001",
+      "ADI": 1.0,
+      "CV": 2.1814,
+      "CV2": 4.7586,
+      "Semanas_Totales": 226,
+      "Semanas_Con_Demanda": 226,
+      "Pct_Semanas_Demanda": 100.0,
+      "Media_Demanda": 3068.97,
+      "Std_Demanda": 6694.73,
+      "Cluster_Clasificacion": "ERRATIC",
+      "Grupo_Asignado": "GRUPO_1_ERRATIC"
+    },
+    {
+      "Código": "CEO 006",
+      "ADI": 1.0,
+      "CV": 2.08,
+      "CV2": 4.3262,
+      "Semanas_Totales": 221,
+      "Semanas_Con_Demanda": 221,
+      "Pct_Semanas_Demanda": 100.0,
+      "Media_Demanda": 2876.73,
+      "Std_Demanda": 5983.48,
+      "Cluster_Clasificacion": "ERRATIC",
+      "Grupo_Asignado": "GRUPO_1_ERRATIC"
+    },
+    {
+      "Código": "CER 001",
+      "ADI": 1.0,
+      "CV": 1.8584,
+      "CV2": 3.4538,
+      "Semanas_Totales": 224,
+      "Semanas_Con_Demanda": 224,
+      "Pct_Semanas_Demanda": 100.0,
+      "Media_Demanda": 4712.73,
+      "Std_Demanda": 8758.32,
+      "Cluster_Clasificacion": "ERRATIC",
+      "Grupo_Asignado": "GRUPO_1_ERRATIC"
+    },
+    {
+      "Código": "CER 004",
+      "ADI": 1.0,
+      "CV": 1.4346,
+      "CV2": 2.058,
+      "Semanas_Totales": 188,
+      "Semanas_Con_Demanda": 188,
+      "Pct_Semanas_Demanda": 100.0,
+      "Media_Demanda": 1138.74,
+      "Std_Demanda": 1633.61,
+      "Cluster_Clasificacion": "ERRATIC",
+      "Grupo_Asignado": "GRUPO_1_ERRATIC"
+    },
+    {
+      "Código": "CER 005",
+      "ADI": 1.0,
+      "CV": 1.6819,
+      "CV2": 2.8289,
+      "Semanas_Totales": 224,
+      "Semanas_Con_Demanda": 224,
+      "Pct_Semanas_Demanda": 100.0,
+      "Media_Demanda": 3258.09,
+      "Std_Demanda": 5479.86,
+      "Cluster_Clasificacion": "ERRATIC",
+      "Grupo_Asignado": "GRUPO_1_ERRATIC"
+    },
+    {
+      "Código": "CER 008",
+      "ADI": 1.0,
+      "CV": 1.2332,
+      "CV2": 1.5208,
+      "Semanas_Totales": 183,
+      "Semanas_Con_Demanda": 183,
+      "Pct_Semanas_Demanda": 100.0,
+      "Media_Demanda": 1141.19,
+      "Std_Demanda": 1407.32,
+      "Cluster_Clasificacion": "ERRATIC",
+      "Grupo_Asignado": "GRUPO_1_ERRATIC"
+    },
+    {
+      "Código": "CERE 002",
+      "ADI": 1.0,
+      "CV": 1.0465,
+      "CV2": 1.0951,
+      "Semanas_Totales": 120,
+      "Semanas_Con_Demanda": 120,
+      "Pct_Semanas_Demanda": 100.0,
+      "Media_Demanda": 2120.21,
+      "Std_Demanda": 2218.73,
+      "Cluster_Clasificacion": "ERRATIC",
+      "Grupo_Asignado": "GRUPO_1_ERRATIC"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-05-02T18:29:42.838671",
+  "datos_raw": 63329,
+  "datos_limpios": 59007,
+  "registros_excluidos_traspaso": 2666,
+  "registros_excluidos_guias": 1656,
+  "registros_venta": 31992,
+  "productos_totales": 1540,
+  "top20_productos": [
+    "CER 001",
+    "CER 005",
+    "CEO 001",
+    "CEO 006",
+    "CERE 002",
+    "CER 004",
+    "CER 008",
+    "CEO 009",
+    "CP-00008",
+    "TPG-00001",
+    "CEO 002",
+    "CEO 004",
+    "TPC-00001",
+    "CEO-014",
+    "CP-00002",
+    "TPC-00006",
+    "CP-00007",
+    "TPG-00004",
+    "CER 009",
+    "TPH-00001"
+  ],
+  "top20_concentracion_pct": "86.2%",
+  "registros_top20": 17735
+}

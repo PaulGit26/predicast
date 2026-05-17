@@ -1,0 +1,18 @@
+{
+  "total_top20": 20,
+  "productos_80pct": 7,
+  "productos_90pct": 11,
+  "cobertura_80pct": "35.0%",
+  "cobertura_90pct": "55.0%",
+  "productos_seleccionados": [
+    "CER 001",
+    "CER 005",
+    "CEO 001",
+    "CEO 006",
+    "CERE 002",
+    "CER 004",
+    "CER 008"
+  ],
+  "salida_total_criticos": 3792155.0,
+  "pct_ventas_totales": "78.2%"
+}

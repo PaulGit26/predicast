@@ -1,0 +1,56 @@
+{
+  "timestamp": "2026-05-04T14:18:15.024035",
+  "registros_totales": 53701,
+  "registros_venta": 29339,
+  "registros_produccion": 9984,
+  "rango_fechas": "2021-01-01 00:00:00 a 2025-05-31 00:00:00",
+  "semanas_analizadas": 231,
+  "semanas_analizadas_codigos_objetivo": {
+    "CER 001": 224,
+    "CER 005": 225,
+    "CEO 001": 227,
+    "CEO 006": 222,
+    "CERE 002": 137,
+    "CER 004": 188,
+    "CER 008": 184
+  },
+  "productos_totales": 2924,
+  "productos_con_ventas": 1518,
+  "productos_pareto_80pct": 13,
+  "bodegas": [
+    "Almacen Punto de Ventas 1",
+    "Almacen Central",
+    "Almacen Punto de Venta 2"
+  ],
+  "canales_venta": [
+    "Online",
+    "Presencial"
+  ],
+  "top_5_productos": [
+    {
+      "Código": "CER 001",
+      "Salida_Total": 803789.0
+    },
+    {
+      "Código": "CEO 001",
+      "Salida_Total": 555047.0
+    },
+    {
+      "Código": "CER 005",
+      "Salida_Total": 537628.0
+    },
+    {
+      "Código": "CEO 006",
+      "Salida_Total": 488681.0
+    },
+    {
+      "Código": "CERE 002",
+      "Salida_Total": 249967.0
+    }
+  ],
+  "observaciones": {
+    "concentracion_ventas": "13 productos (0.9%) generan el 80% de ventas",
+    "bodega_principal": "Almacen Punto de Ventas 1",
+    "canal_principal": "Online"
+  }
+}
