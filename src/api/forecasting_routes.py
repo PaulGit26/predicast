@@ -36,13 +36,13 @@ def cargar_datos_forecasting():
         base_path = Path(__file__).resolve().parent.parent.parent.parent
         
         # Datos pivot (semanas x productos) - NOTA: El CSV tiene semanas en filas, productos en columnas
-        pred_pivot_path = base_path / "01_Datos" / "predicciones_52semanas_pivot.csv"
+        pred_pivot_path = base_path / "01_Datos" / "predicciones_52semanas_pivot_V4.csv"
         pred_pivot_raw = pd.read_csv(pred_pivot_path, index_col=0)
         # IMPORTANTE: Transponer para tener productos en filas y semanas en columnas
         PREDICCIONES = pred_pivot_raw.T
         
         # Datos largo (tidy format)
-        pred_largo = base_path / "01_Datos" / "predicciones_52semanas_largo.csv"
+        pred_largo = base_path / "01_Datos" / "predicciones_52semanas_largo_V4.csv"
         PREDICCIONES_LARGO = pd.read_csv(pred_largo)
         
         # Estadisticas
@@ -54,12 +54,12 @@ def cargar_datos_forecasting():
             print("[⚠️]  predicciones_estadisticas.csv no encontrado")
         
         # Metadata
-        metadata_json = base_path / "03_Modelos" / "forecasting_metadata.json"
+        metadata_json = base_path / "01_Datos" / "predicciones_52semanas_METADATA_V4.json"
         if metadata_json.exists():
             with open(metadata_json, 'r', encoding='utf-8') as f:
                 METADATA = json.load(f)
         else:
-            metadata_json_old = base_path / "01_Datos" / "metadata_forecasting.json"
+            metadata_json_old = base_path / "01_Datos" / "predicciones_52semanas_METADATA_V4.json"
             if metadata_json_old.exists():
                 with open(metadata_json_old, 'r', encoding='utf-8') as f:
                     METADATA = json.load(f)

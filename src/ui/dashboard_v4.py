@@ -612,7 +612,33 @@ def page_analisis_individual():
                 df_hist_prod = df_hist[df_hist['Producto_codigo'] == selected_producto].copy()
                 
                 if len(df_hist_prod) == 0:
-                    st.warning(f"⚠️ No hay datos históricos para {selected_producto}")
+                    st.info(f"ℹ️ {selected_producto}: Producto Pareto (nuevo). Mostrando pronóstico sin datos históricos.")
+                    # Mostrar solo pronóstico sin comparación histórica
+                    if forecast_detail.get("success"):
+                        predicciones = forecast_detail.get('predicciones_52_semanas', forecast_detail.get('predicciones', []))
+                        confianza = forecast_detail.get('intervalo_confianza_95_pct', {})
+                        
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Media", f"{forecast_detail['estadisticas_predicciones']['media']:.0f}")
+                        with col2:
+                            st.metric("Desv.Est", f"{forecast_detail['estadisticas_predicciones']['desv_estandar']:.2f}")
+                        with col3:
+                            st.metric("Mínimo", f"{forecast_detail['estadisticas_predicciones']['minimo']:.0f}")
+                        with col4:
+                            st.metric("Máximo", f"{forecast_detail['estadisticas_predicciones']['maximo']:.0f}")
+                        
+                        # Gráfico de pronóstico
+                        if predicciones:
+                            fig = go.Figure()
+                            fig.add_trace(go.Scatter(
+                                y=predicciones,
+                                mode='lines+markers',
+                                name='Pronóstico',
+                                line=dict(color='#3b82f6', width=3),
+                                fill='tozeroy'
+                            ))
+                            st.plotly_chart(fig, use_container_width=True)
                 else:
                     try:
                         df_hist_prod['Semana'] = pd.to_datetime(df_hist_prod['AñoSemana'] + '-1', format='%Y-W%W-%w')
