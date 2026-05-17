@@ -1,5 +1,5 @@
-"""
-Wrapper para agregación semanal y feature engineering.
+﻿"""
+Wrapper para agregaciÃ³n semanal y feature engineering.
 Provee `run_agregacion_features(output_dir, datos_top20_path=None, pareto_result_path=None)`
 """
 import os
@@ -11,7 +11,7 @@ import numpy as np
 
 def _week_to_date(year: int, week: int):
     try:
-        # Primer día (lunes) de la ISO week
+        # Primer dÃ­a (lunes) de la ISO week
         return datetime.fromisocalendar(int(year), int(week), 1)
     except Exception:
         return pd.NaT
@@ -33,32 +33,32 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
     df_ventas["Salida"] = pd.to_numeric(df_ventas.get("Salida", 0), errors="coerce").fillna(0)
 
     # Filter to critical products
-    df_ventas = df_ventas[df_ventas["Código"].isin(productos_criticos)].copy()
+    df_ventas = df_ventas[df_ventas["CÃ³digo"].isin(productos_criticos)].copy()
     df_ventas = df_ventas.dropna(subset=["Fecha"])  # drop rows without date
 
     # Week/year columns
-    df_ventas["Año"] = df_ventas["Fecha"].dt.isocalendar().year
+    df_ventas["AÃ±o"] = df_ventas["Fecha"].dt.isocalendar().year
     df_ventas["Semana"] = df_ventas["Fecha"].dt.isocalendar().week
 
     # Aggregation
-    agg_semanal = df_ventas.groupby(["Año", "Semana", "Código"]).agg({
+    agg_semanal = df_ventas.groupby(["AÃ±o", "Semana", "CÃ³digo"]).agg({
         "Salida": ["sum", "count", "mean", "std", "min", "max"],
         "Empresa_Cliente": lambda x: x.mode().iat[0] if len(x.mode()) > 0 else "Unknown",
         "Canal_Venta": lambda x: x.mode().iat[0] if len(x.mode()) > 0 else "Unknown",
         "Punto_Venta": lambda x: x.mode().iat[0] if len(x.mode()) > 0 else "Unknown",
     }).reset_index()
 
-    agg_semanal.columns = ["Año", "Semana", "Código", "Salida", "Transacciones", 
+    agg_semanal.columns = ["AÃ±o", "Semana", "CÃ³digo", "Salida", "Transacciones", 
                            "Salida_Promedio", "Salida_Std", "Salida_Min", "Salida_Max",
                            "Empresa_Modo", "Canal_Modo", "Punto_Modo"]
 
     # Reconstruct Fecha from ISO year-week
-    agg_semanal["Fecha"] = agg_semanal.apply(lambda r: _week_to_date(r["Año"], r["Semana"]), axis=1)
+    agg_semanal["Fecha"] = agg_semanal.apply(lambda r: _week_to_date(r["AÃ±o"], r["Semana"]), axis=1)
 
     # Feature engineering per product
     features_list = []
     for codigo in productos_criticos:
-        df_prod = agg_semanal[agg_semanal["Código"] == codigo].sort_values(["Año", "Semana"]).copy()
+        df_prod = agg_semanal[agg_semanal["CÃ³digo"] == codigo].sort_values(["AÃ±o", "Semana"]).copy()
         if len(df_prod) < 2:
             continue
         df_prod = df_prod.reset_index(drop=True)
@@ -66,9 +66,9 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
         # Temporal
         df_prod["Mes"] = df_prod["Fecha"].dt.month
         df_prod["Trimestre"] = df_prod["Fecha"].dt.quarter
-        df_prod["Día_Semana"] = df_prod["Fecha"].dt.dayofweek
-        df_prod["Día_Año"] = df_prod["Fecha"].dt.dayofyear
-        df_prod["Num_Semana_Año"] = df_prod["Fecha"].dt.isocalendar().week
+        df_prod["DÃ­a_Semana"] = df_prod["Fecha"].dt.dayofweek
+        df_prod["DÃ­a_AÃ±o"] = df_prod["Fecha"].dt.dayofyear
+        df_prod["Num_Semana_AÃ±o"] = df_prod["Fecha"].dt.isocalendar().week
 
         # Lags
         for lag in [1, 2, 3, 4, 13]:
@@ -93,8 +93,8 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
         df_prod["Variabilidad_Intra"] = df_prod["Salida_Std"] / df_prod["Salida_Promedio"].replace(0, 1)
 
         # Seasonal encoding
-        df_prod["Semana_Sin"] = np.sin(2 * np.pi * df_prod["Num_Semana_Año"] / 52)
-        df_prod["Semana_Cos"] = np.cos(2 * np.pi * df_prod["Num_Semana_Año"] / 52)
+        df_prod["Semana_Sin"] = np.sin(2 * np.pi * df_prod["Num_Semana_AÃ±o"] / 52)
+        df_prod["Semana_Cos"] = np.cos(2 * np.pi * df_prod["Num_Semana_AÃ±o"] / 52)
         df_prod["Mes_Sin"] = np.sin(2 * np.pi * (df_prod["Mes"] - 1) / 12)
         df_prod["Mes_Cos"] = np.cos(2 * np.pi * (df_prod["Mes"] - 1) / 12)
 
@@ -126,11 +126,11 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
 
     # Impute lags
     lag_cols = [col for col in df_features.columns if any(prefix in col for prefix in ["Lag_", "MA_", "Volatilidad_"])]
-    df_features[lag_cols] = df_features.groupby("Código")[lag_cols].transform(lambda x: x.fillna(method="bfill").fillna(method="ffill").fillna(0))
+    df_features[lag_cols] = df_features.groupby("CÃ³digo")[lag_cols].transform(lambda x: x.fillna(method="bfill").fillna(method="ffill").fillna(0))
 
     # Prepare export
     feature_cols = [col for col in df_features.columns 
-                    if col not in ["Código", "Año", "Semana", "Fecha", "Empresa_Modo", "Canal_Modo", "Punto_Modo",
+                    if col not in ["CÃ³digo", "AÃ±o", "Semana", "Fecha", "Empresa_Modo", "Canal_Modo", "Punto_Modo",
                                    "Salida", "Transacciones", "Salida_Promedio", "Salida_Std", "Salida_Min", "Salida_Max"]]
 
     # Export completo
@@ -139,7 +139,7 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
 
     # Export para modelos
     archivo_modelos = os.path.join(OUTPUT_DIR, "FEATURES_SEMANAL_PARA_MODELOS.csv")
-    df_export_features = df_features[["Código", "Año", "Semana", "Fecha", "Salida"] + feature_cols].copy()
+    df_export_features = df_features[["CÃ³digo", "AÃ±o", "Semana", "Fecha", "Salida"] + feature_cols].copy()
     df_export_features.to_csv(archivo_modelos, sep=";", encoding="latin-1", index=False)
 
     # Metadata
@@ -159,76 +159,4 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
         'archivo_modelos': archivo_modelos,
         'archivo_meta': archivo_meta,
         'n_registros': len(df_features)
-    }
-
-    with open(pareto_file, "r", encoding="utf-8") as f:
-        pareto = json.load(f)
-        productos_criticos = pareto.get("productos_seleccionados", [])
-
-    df_ventas = pd.read_csv(datos_top20, sep=";", encoding="latin-1", parse_dates=["Fecha"]) if datos_top20.exists() else pd.DataFrame()
-
-    if df_ventas.empty:
-        raise RuntimeError("No ventas data available for aggregation")
-
-    df_ventas["Salida"] = pd.to_numeric(df_ventas["Salida"], errors="coerce").fillna(0)
-
-    # Filter to critical products
-    df_ventas = df_ventas[df_ventas["Código"].isin(productos_criticos)].copy()
-    df_ventas = df_ventas.dropna(subset=["Fecha"]) if "Fecha" in df_ventas.columns else df_ventas
-
-    # Weekly aggregation
-    df_ventas["Año"] = df_ventas["Fecha"].dt.isocalendar().year
-    df_ventas["Semana"] = df_ventas["Fecha"].dt.isocalendar().week
-
-    agg_semanal = df_ventas.groupby(["Año", "Semana", "Código"]).agg({
-        "Salida": ["sum", "count", "mean", "std", "min", "max"],
-        "Empresa_Cliente": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Unknown",
-        "Canal_Venta": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Unknown",
-        "Punto_Venta": lambda x: x.mode()[0] if len(x.mode()) > 0 else "Unknown",
-    }).reset_index()
-
-    agg_semanal.columns = ["Año", "Semana", "Código", "Salida", "Transacciones", "Salida_Promedio", "Salida_Std", "Salida_Min", "Salida_Max", "Empresa_Modo", "Canal_Modo", "Punto_Modo"]
-
-    # Reconstruct a representative weekly date (ISO week start, Monday)
-    # so downstream feature code can use `.dt` accessors.
-    agg_semanal["Fecha"] = agg_semanal.apply(
-        lambda r: datetime.fromisocalendar(int(r["Año"]), int(r["Semana"]), 1), axis=1
-    )
-
-    # Feature engineering - minimal: add temporal cols and lags
-    features_list = []
-    for codigo in productos_criticos:
-        df_prod = agg_semanal[agg_semanal["Código"] == codigo].sort_values(["Año", "Semana"]).copy()
-        if len(df_prod) < 2:
-            continue
-        df_prod = df_prod.reset_index(drop=True)
-        df_prod["Mes"] = df_prod["Fecha"].dt.month
-        df_prod["Trimestre"] = df_prod["Fecha"].dt.quarter
-        for lag in [1, 2, 3, 4, 13]:
-            df_prod[f"Lag_{lag}"] = df_prod["Salida"].shift(lag)
-        salida_shifted = df_prod["Salida"].shift(1)
-        for window in [2, 4, 8, 13]:
-            df_prod[f"MA_{window}"] = salida_shifted.rolling(window=window, min_periods=1).mean()
-        features_list.append(df_prod)
-
-    df_features = pd.concat(features_list, ignore_index=True) if features_list else pd.DataFrame()
-
-    output_dir = eda_output_dir
-    df_features.to_csv(output_dir / "FEATURES_SEMANAL_COMPLETO.csv", sep=";", encoding="latin-1", index=False)
-
-    feature_cols = [col for col in df_features.columns if col not in ["Código", "Año", "Semana", "Fecha", "Salida", "Transacciones"]]
-    df_export_features = df_features[["Código", "Año", "Semana", "Fecha", "Salida"] + feature_cols].copy() if not df_features.empty else df_features
-    df_export_features.to_csv(output_dir / "FEATURES_SEMANAL_PARA_MODELOS.csv", sep=";", encoding="latin-1", index=False)
-
-    metadata = {
-        "productos_criticos": productos_criticos,
-        "total_registros": int(len(df_features)) if not df_features.empty else 0,
-        "total_features": len(feature_cols)
-    }
-    with open(output_dir / "FEATURES_METADATA.json", "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2, ensure_ascii=False)
-
-    return {
-        "features_csv": str(output_dir / "FEATURES_SEMANAL_PARA_MODELOS.csv"),
-        "metadata": metadata
     }

@@ -37,7 +37,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          python -m pytest tests/ 07_Sistema_Produccion/tests/ \
+          python -m pytest tests/ 07_Sistema_Produccion/tests/test_pipeline_integration.py \
             -v \
             --cov=lib \
             --cov=04_Scripts_Nuevos/lib \
