@@ -8,7 +8,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from fastapi import HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from src.config import settings
 
 
@@ -89,7 +89,7 @@ def decode_token(token: str) -> TokenPayload:
         )
 
 
-async def get_current_user(credentials: HTTPAuthCredentials = Depends(security)) -> TokenPayload:
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> TokenPayload:
     """FastAPI dependency para obtener usuario actual del JWT."""
     return decode_token(credentials.credentials)
 

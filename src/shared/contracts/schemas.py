@@ -26,7 +26,7 @@ class OrgResponse(OrgBase):
 
 class UserBase(BaseModel):
     """Usuario base."""
-    email: str = Field(..., regex=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    email: str = Field(..., pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     full_name: str = Field(..., min_length=1, max_length=255)
 
 
