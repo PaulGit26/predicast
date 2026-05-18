@@ -9,9 +9,10 @@ export default function handler(req, res) {
   }
 
   try {
+    const dataRoot = process.env.DATA_ROOT || path.resolve(process.cwd(), '../../..')
     const csvPath = path.resolve(
-      process.cwd(),
-      `../../../03_ANALISIS_EXPLORATORIO_DATOS/08_SERIE_SEMANAL_${product}.csv`
+      dataRoot,
+      `03_ANALISIS_EXPLORATORIO_DATOS/08_SERIE_SEMANAL_${product}.csv`
     )
     const text = fs.readFileSync(csvPath, 'utf-8')
     const lines = text.trim().split(/\r?\n/)

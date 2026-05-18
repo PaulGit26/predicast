@@ -8,8 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # Prevent Python from buffering stdout/stderr
 ENV PYTHONUNBUFFERED=1
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements-api.txt /app/requirements-api.txt
+RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r /app/requirements-api.txt
 
 COPY . /app
 

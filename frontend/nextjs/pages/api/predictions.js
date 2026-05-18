@@ -1,9 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 
-export default function handler(req, res) {
+export default function handler(_req, res) {
   try {
-    const csvPath = path.resolve(process.cwd(), '../../../01_Datos/predicciones_52semanas_largo_V4.csv')
+    const dataRoot = process.env.DATA_ROOT || path.resolve(process.cwd(), '../../..')
+    const csvPath = path.resolve(dataRoot, '01_Datos/predicciones_52semanas_largo_V4.csv')
     const text = fs.readFileSync(csvPath, 'utf-8')
     const lines = text.trim().split(/\r?\n/)
     const result = {}
