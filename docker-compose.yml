@@ -40,12 +40,37 @@ services:
       NODE_ENV: production
       BACKEND_URL: http://backend:8000
       DATA_ROOT: /data
+      PIPELINE_URL: http://pipeline:5001
     volumes:
       - ./01_Datos:/data/01_Datos:ro
       - ./03_ANALISIS_EXPLORATORIO_DATOS:/data/03_ANALISIS_EXPLORATORIO_DATOS:ro
     depends_on:
       backend:
         condition: service_healthy
+      pipeline:
+        condition: service_healthy
+
+  # ── Pipeline ML ─────────────────────────────────────────────────────────────
+  pipeline:
+    build:
+      context: ./07_Sistema_Produccion/pipeline
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      DATA_DIR: /data/01_Datos_Nuevos
+      EDA_DIR:  /data/EDA_Outputs
+      PRED_DIR: /data/01_Datos
+    volumes:
+      - ./01_Datos_Nuevos:/data/01_Datos_Nuevos:ro
+      - ./04_Scripts_Nuevos/EDA_Outputs:/data/EDA_Outputs
+      - ./01_Datos:/data/01_Datos
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ── Redis (cache de predicciones) ────────────────────────────────────────────
   redis:

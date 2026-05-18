@@ -1,0 +1,39 @@
+# Datos grandes — no se necesitan en la imagen del pipeline
+01_Datos/
+01_Datos_Nuevos/
+02_EDA_Graficos/
+03_ANALISIS_EXPLORATORIO_DATOS/
+04_Scripts_Nuevos/EDA_Outputs/
+04_Scripts_Nuevos/modelos_optimizados/
+04_Scripts_Nuevos/optimizacion_hiperparametros/
+
+# Scripts principales (solo se necesitan los lib/)
+04_Scripts_Nuevos/02_PREPARAR_TOP20.py
+04_Scripts_Nuevos/03_ANALISIS_PARETO.py
+04_Scripts_Nuevos/04_AGREGACION_SEMANAL_Y_FEATURES.py
+04_Scripts_Nuevos/05_SELECCION_FILTRADO_FEATURES.py
+04_Scripts_Nuevos/08_OPTIMIZACION_HIPERPARAMETROS_PRODUCCION.py
+04_Scripts_Nuevos/10_PREDICCIONES_FINAL_PRODUCCION.py
+04_Scripts_Nuevos/GRAFICO_HISTORICO_7PRODUCTOS.py
+04_Scripts_Nuevos/REPORTE_OPTIMIZACION_HIPERPARAMETROS.json
+
+# Submodule — solo se necesita pipeline/
+07_Sistema_Produccion/frontend/
+07_Sistema_Produccion/src/
+07_Sistema_Produccion/tests/
+07_Sistema_Produccion/infra/
+07_Sistema_Produccion/docs/
+07_Sistema_Produccion/orchestrator/
+07_Sistema_Produccion/venv/
+07_Sistema_Produccion/predicast.db
+07_Sistema_Produccion/debug.log
+
+# Git y CI
+.git/
+.github/
+.coverage
+
+# Cache Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo

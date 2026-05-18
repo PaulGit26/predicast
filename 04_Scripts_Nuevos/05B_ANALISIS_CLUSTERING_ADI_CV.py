@@ -30,7 +30,7 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
-OUTPUT_DIR = r"d:\Desktop\Predicast\04_Scripts_Nuevos\EDA_Outputs"
+OUTPUT_DIR = os.environ.get('EDA_DIR', r"d:\Desktop\Predicast\04_Scripts_Nuevos\EDA_Outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 print("\n" + "="*80)
