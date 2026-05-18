@@ -1,3 +1,6 @@
+# DOCKER_BUILDKIT=0 required on Windows — BuildKit causes CRLF files to be copied empty
+# Run with: $env:DOCKER_BUILDKIT=0; docker-compose up --build
+
 services:
 
   # ── Backend FastAPI ──────────────────────────────────────────────────────────
