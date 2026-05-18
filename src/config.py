@@ -5,6 +5,7 @@ Carga variables de entorno con pydantic-settings para type-safety.
 
 from pydantic_settings import BaseSettings
 from typing import Optional, List
+from pathlib import Path
 import os
 
 class Settings(BaseSettings):
@@ -65,6 +66,12 @@ class Settings(BaseSettings):
     SENTRY_DSN: Optional[str] = os.getenv("SENTRY_DSN", None)
     ENABLE_TRACING: bool = ENV == "production"
     
+    # ===== DATA =====
+    DATA_DIR: str = os.getenv(
+        "DATA_DIR",
+        str(Path(__file__).parents[2] / "01_Datos")
+    )
+
     # ===== PREFECT (Orchestration) =====
     PREFECT_API_URL: str = os.getenv("PREFECT_API_URL", "http://localhost:4200/api")
     
@@ -75,6 +82,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 # Instancia global

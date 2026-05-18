@@ -9,7 +9,16 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from src.orchestrator.prefect.pipeline_flow import pipeline_flow
+try:
+    from src.orchestrator.prefect.pipeline_flow import pipeline_flow as _pipeline_flow
+except ImportError:
+    try:
+        import sys
+        from pathlib import Path as _Path
+        sys.path.insert(0, str(_Path(__file__).resolve().parents[3] / "orchestrator"))
+        from prefect.pipeline_flow import pipeline_flow as _pipeline_flow
+    except ImportError:
+        _pipeline_flow = None
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +28,10 @@ def run_forecast_training_pipeline(base_dir: str | None = None) -> dict[str, Any
     repo_root = Path(base_dir) if base_dir else Path(__file__).resolve().parents[3]
     logger.info("Starting forecast training pipeline from %s", repo_root)
 
+    if _pipeline_flow is None:
+        raise RuntimeError("Prefect pipeline flow not available in this environment")
     try:
-        pipeline_flow(str(repo_root))
+        _pipeline_flow(str(repo_root))
     except Exception as exc:
         logger.exception("Forecast training pipeline failed: %s", exc)
         raise

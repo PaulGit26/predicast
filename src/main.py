@@ -9,7 +9,10 @@ from contextlib import asynccontextmanager
 from src.config import settings
 from src.shared.observability.logging import configure_logging, RequestIDMiddleware, get_logger
 from src.shared.auth.jwt_handler import HTTPException
-import sentry_sdk
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
 from datetime import datetime
 
 logger = get_logger(__name__)
@@ -23,7 +26,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Iniciando Predicast", version=settings.APP_VERSION, env=settings.ENV)
     
-    if settings.SENTRY_DSN:
+    if settings.SENTRY_DSN and sentry_sdk is not None:
         sentry_sdk.init(
             dsn=settings.SENTRY_DSN,
             environment=settings.ENV,
