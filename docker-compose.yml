@@ -46,7 +46,7 @@ services:
 
   # ── Redis (cache de predicciones) ────────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: redis:7
     ports:
       - "6379:6379"
     volumes:
