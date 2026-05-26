@@ -1,0 +1,46 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Frontend (built separately)
+frontend/
+
+# Tests and docs
+tests/
+docs/
+*.md
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Dev/CI
+.github/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+debug.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
