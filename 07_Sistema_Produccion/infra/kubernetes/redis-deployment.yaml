@@ -1,0 +1,60 @@
+# In production, use AWS ElastiCache Redis (see Terraform).
+# This manifest is for staging / integration testing only.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predicast-redis
+  namespace: predicast
+  labels:
+    app: predicast
+    component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: predicast
+      component: redis
+  template:
+    metadata:
+      labels:
+        app: predicast
+        component: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          args: ["--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+      volumes:
+        - name: redis-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: predicast-redis
+  namespace: predicast
+spec:
+  selector:
+    app: predicast
+    component: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+  type: ClusterIP

@@ -1,0 +1,44 @@
+# Requires: AWS Load Balancer Controller + cert-manager
+# cert-manager issuer: https://cert-manager.io/docs/configuration/acme/
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: predicast-ingress
+  namespace: predicast
+  annotations:
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERT_ID"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80,"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: "/api/v1/health"
+    alb.ingress.kubernetes.io/group.name: "predicast"
+spec:
+  rules:
+    # Frontend
+    - host: app.predicast.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: predicast-frontend
+                port:
+                  number: 3000
+    # Backend API
+    - host: api.predicast.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: predicast-backend
+                port:
+                  number: 8000
+  tls:
+    - hosts:
+        - app.predicast.com
+        - api.predicast.com

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: predicast
+  labels:
+    app.kubernetes.io/name: predicast
+    app.kubernetes.io/managed-by: kubectl

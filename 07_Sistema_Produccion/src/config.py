@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-prod")
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 24
+
+    # ===== AUTH0 =====
+    AUTH0_DOMAIN: str = os.getenv("AUTH0_DOMAIN", "")          # e.g. your-tenant.auth0.com
+    AUTH0_API_AUDIENCE: str = os.getenv("AUTH0_API_AUDIENCE", "")  # e.g. https://api.predicast.com
+    AUTH0_ALGORITHMS: list = ["RS256"]
     
     # ===== AWS S3 =====
     AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
