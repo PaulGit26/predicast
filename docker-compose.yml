@@ -30,10 +30,12 @@ services:
       start_period: 10s
 
   # ── Frontend Next.js ─────────────────────────────────────────────────────────
+  # Uses pre-built standalone output from host (npm run build on Windows).
+  # To update: run `npm run build` in 07_Sistema_Produccion/frontend/nextjs, then restart this service.
   frontend:
-    build:
-      context: ./07_Sistema_Produccion/frontend/nextjs
-      dockerfile: Dockerfile
+    image: node:20-slim
+    working_dir: /app
+    command: ["node", "server.js"]
     ports:
       - "3000:3000"
     environment:
@@ -41,7 +43,11 @@ services:
       BACKEND_URL: http://backend:8000
       DATA_ROOT: /data
       PIPELINE_URL: http://pipeline:5001
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
     volumes:
+      - ./07_Sistema_Produccion/frontend/nextjs/.next/standalone:/app
+      - ./07_Sistema_Produccion/frontend/nextjs/.next/static:/app/.next/static
       - ./01_Datos:/data/01_Datos:ro
       - ./03_ANALISIS_EXPLORATORIO_DATOS:/data/03_ANALISIS_EXPLORATORIO_DATOS:ro
     depends_on:
