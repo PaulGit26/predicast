@@ -163,26 +163,31 @@ jobs:
         run: |
           echo "$SSH_KEY" > /tmp/ec2.pem
           chmod 600 /tmp/ec2.pem
-          ssh -i /tmp/ec2.pem -o StrictHostKeyChecking=no ec2-user@$EC2_HOST << 'ENDSSH'
-            set -e
-            cd /home/ec2-user/predicast
 
-            aws ecr get-login-password --region us-east-1 \
-              | docker login --username AWS --password-stdin $ECR_REGISTRY
+          # Build .env with echo (avoids heredoc YAML conflicts)
+          echo "ECR_REGISTRY=${ECR_REGISTRY}"     > /tmp/deploy.env
+          echo "IMAGE_TAG=${IMAGE_TAG}"           >> /tmp/deploy.env
+          echo "DB_PASSWORD=${DB_PASSWORD}"       >> /tmp/deploy.env
+          echo "SECRET_KEY=${SECRET_KEY}"         >> /tmp/deploy.env
+          echo "NEXTAUTH_SECRET=${NEXTAUTH_SECRET}" >> /tmp/deploy.env
+          echo "NEXTAUTH_URL=${NEXTAUTH_URL}"     >> /tmp/deploy.env
 
-            cat > .env << ENVEOF
-            ECR_REGISTRY=$ECR_REGISTRY
-            IMAGE_TAG=$IMAGE_TAG
-            DB_PASSWORD=$DB_PASSWORD
-            SECRET_KEY=$SECRET_KEY
-            NEXTAUTH_SECRET=$NEXTAUTH_SECRET
-            NEXTAUTH_URL=$NEXTAUTH_URL
-            ENVEOF
+          # Build deploy script with echo
+          echo '#!/bin/bash'                                                           > /tmp/deploy.sh
+          echo 'set -e'                                                               >> /tmp/deploy.sh
+          echo 'cd /home/ec2-user/predicast'                                         >> /tmp/deploy.sh
+          echo 'source .env'                                                          >> /tmp/deploy.sh
+          echo 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REGISTRY"' >> /tmp/deploy.sh
+          echo 'docker compose -f docker-compose.prod.yml pull'                      >> /tmp/deploy.sh
+          echo 'docker compose -f docker-compose.prod.yml up -d --remove-orphans'   >> /tmp/deploy.sh
+          echo 'docker image prune -f'                                               >> /tmp/deploy.sh
 
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            docker image prune -f
-          ENDSSH
+          # SCP both files then execute
+          scp -i /tmp/ec2.pem -o StrictHostKeyChecking=no \
+            /tmp/deploy.env /tmp/deploy.sh \
+            ec2-user@$EC2_HOST:/home/ec2-user/predicast/
+          ssh -i /tmp/ec2.pem -o StrictHostKeyChecking=no ec2-user@$EC2_HOST \
+            "mv /home/ec2-user/predicast/deploy.env /home/ec2-user/predicast/.env && chmod +x /home/ec2-user/predicast/deploy.sh && /home/ec2-user/predicast/deploy.sh"
 
       - name: Verify deployment
         env:
