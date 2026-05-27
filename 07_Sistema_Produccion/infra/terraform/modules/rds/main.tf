@@ -2,8 +2,14 @@ variable "identifier" { type = string }
 variable "instance_class" { type = string }
 variable "allocated_storage" { type = number }
 variable "db_name" { type = string }
-variable "username" { type = string; sensitive = true }
-variable "password" { type = string; sensitive = true }
+variable "username" {
+  type      = string
+  sensitive = true
+}
+variable "password" {
+  type      = string
+  sensitive = true
+}
 variable "subnet_ids" { type = list(string) }
 variable "security_group_id" { type = string }
 
@@ -15,7 +21,7 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_instance" "main" {
   identifier             = var.identifier
   engine                 = "postgres"
-  engine_version         = "16.1"
+  engine_version         = "16.4"
   instance_class         = var.instance_class
   allocated_storage      = var.allocated_storage
   storage_type           = "gp3"
@@ -27,7 +33,7 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [var.security_group_id]
   skip_final_snapshot    = false
   final_snapshot_identifier = "${var.identifier}-final"
-  backup_retention_period = 7
+  backup_retention_period = 0
   deletion_protection    = true
   multi_az               = false   # set true for production HA
   publicly_accessible    = false

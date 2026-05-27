@@ -1,31 +1,12 @@
-output "eks_cluster_endpoint" {
-  description = "EKS cluster API endpoint"
-  value       = module.eks.cluster_endpoint
+output "ec2_public_ip" {
+  description = "Server IP — add as GitHub secret EC2_HOST"
+  value       = module.ec2.public_ip
 }
 
-output "eks_cluster_name" {
-  description = "EKS cluster name"
-  value       = module.eks.cluster_name
-}
-
-output "rds_endpoint" {
-  description = "RDS PostgreSQL endpoint"
-  value       = module.rds.endpoint
+output "ec2_ssh_private_key" {
+  description = "SSH private key — add as GitHub secret EC2_SSH_KEY"
+  value       = module.ec2.ssh_private_key
   sensitive   = true
-}
-
-output "elasticache_endpoint" {
-  description = "ElastiCache Redis endpoint"
-  value       = module.elasticache.endpoint
-  sensitive   = true
-}
-
-output "s3_bucket_data" {
-  value = module.s3.bucket_data_name
-}
-
-output "s3_bucket_models" {
-  value = module.s3.bucket_models_name
 }
 
 output "ecr_backend_url" {
@@ -40,7 +21,15 @@ output "ecr_pipeline_url" {
   value = module.ecr.pipeline_url
 }
 
-output "kubeconfig_command" {
-  description = "Command to update local kubeconfig"
-  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
+output "s3_data_bucket" {
+  value = module.s3.bucket_data_name
+}
+
+output "s3_models_bucket" {
+  value = module.s3.bucket_models_name
+}
+
+output "deploy_command" {
+  description = "Command to SSH into the server"
+  value       = "ssh -i predicast.pem ec2-user@${module.ec2.public_ip}"
 }
