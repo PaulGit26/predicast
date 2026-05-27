@@ -11,6 +11,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+RUN mkdir -p public
 RUN node --max_old_space_size=1024 ./node_modules/.bin/next build
 
 # Stage 3: Runtime
