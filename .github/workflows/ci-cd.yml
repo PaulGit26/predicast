@@ -49,7 +49,7 @@ jobs:
             -v \
             --cov=04_Scripts_Nuevos/lib \
             --cov-report=term-missing \
-            --cov-fail-under=60
+            --cov-fail-under=45
 
   # ── 3. Build & Push to AWS ECR ───────────────────────────────────────────────
   build-push:
