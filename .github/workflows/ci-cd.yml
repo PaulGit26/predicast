@@ -148,13 +148,22 @@ jobs:
           SSH_OPTS="-i /tmp/ec2.pem -o StrictHostKeyChecking=no"
 
           # Create data directories on server
-          ssh $SSH_OPTS ec2-user@$EC2_HOST "mkdir -p /home/ec2-user/predicast/data/01_Datos /home/ec2-user/predicast/data/03_ANALISIS_EXPLORATORIO_DATOS"
+          ssh $SSH_OPTS ec2-user@$EC2_HOST "mkdir -p /home/ec2-user/predicast/data/01_Datos /home/ec2-user/predicast/data/01_Datos_Nuevos /home/ec2-user/predicast/data/03_ANALISIS_EXPLORATORIO_DATOS /home/ec2-user/predicast/data/EDA_Outputs"
 
           # Copy compose + nginx
           scp $SSH_OPTS \
             07_Sistema_Produccion/infra/docker-compose.prod.yml \
             07_Sistema_Produccion/infra/nginx.conf \
             ec2-user@$EC2_HOST:/home/ec2-user/predicast/
+
+          # Copy source data files needed by the pipeline
+          scp $SSH_OPTS \
+            01_Datos_Nuevos/Movimientos_MayorAuxiliar_2021.csv \
+            01_Datos_Nuevos/Movimientos_MayorAuxiliar_2022.csv \
+            01_Datos_Nuevos/Movimientos_MayorAuxiliar_2023.csv \
+            01_Datos_Nuevos/Movimientos_MayorAuxiliar_2024.csv \
+            01_Datos_Nuevos/Movimientos_MayorAuxiliar_2025.csv \
+            ec2-user@$EC2_HOST:/home/ec2-user/predicast/data/01_Datos_Nuevos/
 
           # Copy data files needed by Next.js API routes
           scp $SSH_OPTS \
