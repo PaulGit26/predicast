@@ -169,6 +169,10 @@ jobs:
             "03_ANALISIS_EXPLORATORIO_DATOS/07_SERIE_SEMANAL_VENTAS_PRODUCCION_STOCK.csv" \
             "03_ANALISIS_EXPLORATORIO_DATOS/14_COSTO_PLANCHA_ACUMULADO_POR_PRODUCTO.csv" \
             ec2-user@$EC2_HOST:/home/ec2-user/predicast/data/03_ANALISIS_EXPLORATORIO_DATOS/
+          scp $SSH_OPTS \
+            03_ANALISIS_EXPLORATORIO_DATOS/08_SERIE_SEMANAL_*.csv \
+            03_ANALISIS_EXPLORATORIO_DATOS/13_PLANCHA_GAP_*.csv \
+            ec2-user@$EC2_HOST:/home/ec2-user/predicast/data/03_ANALISIS_EXPLORATORIO_DATOS/
 
       - name: Deploy via SSH
         env:
