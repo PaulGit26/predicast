@@ -138,17 +138,37 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Copy compose files to EC2
+      - name: Copy compose files and data to EC2
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           echo "$SSH_KEY" > /tmp/ec2.pem
           chmod 600 /tmp/ec2.pem
-          scp -i /tmp/ec2.pem -o StrictHostKeyChecking=no \
+          SSH_OPTS="-i /tmp/ec2.pem -o StrictHostKeyChecking=no"
+
+          # Create data directories on server
+          ssh $SSH_OPTS ec2-user@$EC2_HOST "mkdir -p /home/ec2-user/predicast/data/01_Datos /home/ec2-user/predicast/data/03_ANALISIS_EXPLORATORIO_DATOS"
+
+          # Copy compose + nginx
+          scp $SSH_OPTS \
             07_Sistema_Produccion/infra/docker-compose.prod.yml \
             07_Sistema_Produccion/infra/nginx.conf \
             ec2-user@$EC2_HOST:/home/ec2-user/predicast/
+
+          # Copy data files needed by Next.js API routes
+          scp $SSH_OPTS \
+            "01_Datos/predicciones_52semanas_largo_V4.csv" \
+            "01_Datos/predicciones_52semanas_METADATA_V4.json" \
+            ec2-user@$EC2_HOST:/home/ec2-user/predicast/data/01_Datos/
+          scp $SSH_OPTS \
+            "03_ANALISIS_EXPLORATORIO_DATOS/01_VENTAS_POR_PRODUCTO.csv" \
+            "03_ANALISIS_EXPLORATORIO_DATOS/04_VENTAS_POR_BODEGA.csv" \
+            "03_ANALISIS_EXPLORATORIO_DATOS/05_VENTAS_POR_CANAL.csv" \
+            "03_ANALISIS_EXPLORATORIO_DATOS/06_TENDENCIA_MENSUAL.csv" \
+            "03_ANALISIS_EXPLORATORIO_DATOS/07_SERIE_SEMANAL_VENTAS_PRODUCCION_STOCK.csv" \
+            "03_ANALISIS_EXPLORATORIO_DATOS/14_COSTO_PLANCHA_ACUMULADO_POR_PRODUCTO.csv" \
+            ec2-user@$EC2_HOST:/home/ec2-user/predicast/data/03_ANALISIS_EXPLORATORIO_DATOS/
 
       - name: Deploy via SSH
         env:
@@ -182,11 +202,12 @@ jobs:
           echo 'docker compose -f docker-compose.prod.yml up -d --remove-orphans'   >> /tmp/deploy.sh
           echo 'docker image prune -f'                                               >> /tmp/deploy.sh
 
-          # SCP both files then execute
+          # SCP both files then execute (ServerAliveInterval keeps connection during long docker pull)
+          SSH_OPTS="-i /tmp/ec2.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=60"
           scp -i /tmp/ec2.pem -o StrictHostKeyChecking=no \
             /tmp/deploy.env /tmp/deploy.sh \
             ec2-user@$EC2_HOST:/home/ec2-user/predicast/
-          ssh -i /tmp/ec2.pem -o StrictHostKeyChecking=no ec2-user@$EC2_HOST \
+          ssh $SSH_OPTS ec2-user@$EC2_HOST \
             "mv /home/ec2-user/predicast/deploy.env /home/ec2-user/predicast/.env && chmod +x /home/ec2-user/predicast/deploy.sh && /home/ec2-user/predicast/deploy.sh"
 
       - name: Verify deployment
