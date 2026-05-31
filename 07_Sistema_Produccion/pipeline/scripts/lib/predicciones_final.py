@@ -74,8 +74,9 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
             'std': float(residuales.std()),
         }
 
-        # Guardar historial real de ventas y último vector de features
+        # Guardar historial real de ventas, std y último vector de features
         historia_real[producto] = y.values.tolist()
+        residuales_por_producto[producto]['std_ventas'] = float(y.std()) if len(y) > 1 else float(params_ganadores[producto].get('mae', 50))
         ultimo_features[producto] = {
             'features': X.iloc[-1].copy(),
             'valid_cols': valid_cols
@@ -145,9 +146,12 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
             # Agregar predicción al buffer para la siguiente iteración
             history.append(pred)
 
-            mae = params_ganadores[producto].get('mae', 50)
-            lower_bound = max(0, pred - 1.96 * mae)
-            upper_bound = pred + 1.96 * mae
+            # Bandas basadas en variabilidad histórica real, crecen con el horizonte
+            std_ventas = residuales_por_producto[producto]['std_ventas']
+            horizon_factor = 1.0 + (semana_num - 1) / 52 * 0.5  # 1.0 en W+1 → 1.5 en W+52
+            uncertainty = std_ventas * horizon_factor
+            lower_bound = max(0, pred - 1.96 * uncertainty)
+            upper_bound = pred + 1.96 * uncertainty
 
             predicciones_largo.append({
                 'Producto_codigo': producto,
