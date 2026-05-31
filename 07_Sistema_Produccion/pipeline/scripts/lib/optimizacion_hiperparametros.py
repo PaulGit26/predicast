@@ -33,7 +33,7 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
 
     # Param grids
     param_grid_xgb = {
-        'n_estimators': [80],
+        'n_estimators': [50],
         'max_depth': [3, 4],
         'learning_rate': [0.1],
         'subsample': [0.8],
@@ -41,7 +41,7 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
         'min_child_weight': [3]
     }
     param_grid_rf = {
-        'n_estimators': [80],
+        'n_estimators': [50],
         'max_depth': [5],
         'min_samples_split': [8],
         'min_samples_leaf': [2]
@@ -69,13 +69,13 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
         mejores = {}
 
         # Ridge
-        gs_ridge = GridSearchCV(Ridge(), param_grid_ridge, cv=tscv, scoring='r2', n_jobs=-1, verbose=0)
+        gs_ridge = GridSearchCV(Ridge(), param_grid_ridge, cv=tscv, scoring='r2', n_jobs=1, verbose=0)
         gs_ridge.fit(X, y)
         yhat_ridge = gs_ridge.predict(X)
         mejores['Ridge'] = {'params': gs_ridge.best_params_, 'r2': float(r2_score(y, yhat_ridge)), 'mae': float(mean_absolute_error(y, yhat_ridge))}
 
         # XGBoost
-        gs_xgb = GridSearchCV(XGBRegressor(random_state=42, verbosity=0), param_grid_xgb, cv=tscv, scoring='r2', n_jobs=4, verbose=0)
+        gs_xgb = GridSearchCV(XGBRegressor(random_state=42, verbosity=0, n_jobs=1), param_grid_xgb, cv=tscv, scoring='r2', n_jobs=1, verbose=0)
         gs_xgb.fit(X, y)
         yhat_xgb = gs_xgb.predict(X)
         mejores['XGBoost'] = {'params': gs_xgb.best_params_, 'r2': float(r2_score(y, yhat_xgb)), 'mae': float(mean_absolute_error(y, yhat_xgb))}
