@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import json
+import gc
 from scipy.stats import pearsonr
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import matplotlib
@@ -27,7 +28,8 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
     df_features = df[feature_cols].copy()
 
     # Coerce feature columns to numeric where possible; non-numeric become NaN
-    df_features_numeric = df_features.apply(lambda s: pd.to_numeric(s, errors='coerce'))
+    # Use float32 to halve memory usage vs float64
+    df_features_numeric = df_features.apply(lambda s: pd.to_numeric(s, errors='coerce')).astype('float32')
 
     # Clasificación de variables
     features_pasado = {
@@ -66,6 +68,7 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
 
     # Correlación (use numeric-only frame)
     corr_matrix = df_features_numeric.corr(method='pearson')
+    gc.collect()
 
     def find_highly_correlated_pairs(corr_mat, threshold=0.95):
         pairs = []
@@ -81,21 +84,27 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
 
     pares_altos_095 = find_highly_correlated_pairs(corr_matrix, threshold=0.95)
     pares_altos_090 = find_highly_correlated_pairs(corr_matrix, threshold=0.90)
+    del corr_matrix
+    gc.collect()
 
-    # VIF
+    # VIF — use float64 for numerical stability, drop NaN columns first
     def calculate_vif(df_f):
+        df_clean = df_f.dropna(axis=1).astype('float64')
         vif_data = pd.DataFrame()
-        vif_data["Feature"] = df_f.columns
+        vif_data["Feature"] = df_clean.columns
         vif_list = []
-        for i in range(df_f.shape[1]):
+        arr = df_clean.values
+        for i in range(arr.shape[1]):
             try:
-                vif_list.append(variance_inflation_factor(df_f.values, i))
+                vif_list.append(variance_inflation_factor(arr, i))
             except Exception:
                 vif_list.append(np.nan)
+        del arr
         vif_data["VIF"] = vif_list
         return vif_data.sort_values("VIF", ascending=False)
 
     vif_data = calculate_vif(df_features_numeric)
+    gc.collect()
     features_problema = vif_data[vif_data["VIF"] > 10]["Feature"].tolist()
 
     # Construcción de feature sets
@@ -140,8 +149,9 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
     ax.set_title(f'Matriz de Correlación - TOP {top_n} Features\n(Correlación de Pearson)', 
                  fontsize=14, fontweight='bold', pad=20)
     plt.tight_layout()
-    plt.savefig(output_dir / "06_CORRELACION_HEATMAP_TOP30.png", dpi=300, bbox_inches="tight")
-    plt.close()
+    plt.savefig(output_dir / "06_CORRELACION_HEATMAP_TOP30.png", dpi=100, bbox_inches="tight")
+    plt.close('all')
+    gc.collect()
 
     # Gráficos adicionales
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -155,8 +165,9 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
     ax.axvline(x=0, color='black', linestyle='-', linewidth=0.5)
     ax.grid(axis='x', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(output_dir / "07_CORRELACION_TARGET_TOP25.png", dpi=300, bbox_inches="tight")
-    plt.close()
+    plt.savefig(output_dir / "07_CORRELACION_TARGET_TOP25.png", dpi=100, bbox_inches="tight")
+    plt.close('all')
+    gc.collect()
 
     fig, ax = plt.subplots(figsize=(12, 6))
     vif_top = vif_data.head(20)
@@ -172,8 +183,9 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
     ax.legend()
     ax.grid(axis='x', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(output_dir / "08_VIF_MULTICOLINEALIDAD.png", dpi=300, bbox_inches="tight")
-    plt.close()
+    plt.savefig(output_dir / "08_VIF_MULTICOLINEALIDAD.png", dpi=100, bbox_inches="tight")
+    plt.close('all')
+    gc.collect()
 
     # Exportar resultados
     for set_name, feats in feature_sets.items():
