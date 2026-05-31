@@ -64,26 +64,29 @@ def run_preparar_top20(data_dir: str, output_dir: str):
             guias_a_excluir = guias_agrupadas[mask_iguales]["Número"].tolist()
             df_clean = df_clean[~((df_clean["Documento"].str.contains("Guía de remisión - R", na=False)) & (df_clean["Número"].isin(guias_a_excluir)))]
 
-    # Limpiar outliers en Salida por producto (cap = Q3 + 3×IQR por código)
-    # Registra cuántos registros fueron corregidos para trazabilidad
+    # Limpiar outliers en Salida y Entrada por producto (cap = Q3 + 3×IQR por código)
+    # Al corregir a nivel de transacción, el stock derivado queda consistente automáticamente
     outliers_corregidos = 0
-    if "Código" in df_clean.columns and "Salida" in df_clean.columns:
+    if "Código" in df_clean.columns:
         for codigo in df_clean["Código"].unique():
-            mask = (df_clean["Código"] == codigo) & (df_clean["Salida"] > 0)
-            ventas_prod = df_clean.loc[mask, "Salida"]
-            if len(ventas_prod) < 4:
-                continue
-            q1 = ventas_prod.quantile(0.25)
-            q3 = ventas_prod.quantile(0.75)
-            iqr = q3 - q1
-            cap = q3 + 3 * iqr
-            if cap <= 0:
-                continue
-            outlier_mask = mask & (df_clean["Salida"] > cap)
-            n = outlier_mask.sum()
-            if n > 0:
-                df_clean.loc[outlier_mask, "Salida"] = cap
-                outliers_corregidos += n
+            for col in ["Salida", "Entrada"]:
+                if col not in df_clean.columns:
+                    continue
+                mask = (df_clean["Código"] == codigo) & (df_clean[col] > 0)
+                valores = df_clean.loc[mask, col]
+                if len(valores) < 4:
+                    continue
+                q1 = valores.quantile(0.25)
+                q3 = valores.quantile(0.75)
+                iqr = q3 - q1
+                cap = q3 + 3 * iqr
+                if cap <= 0:
+                    continue
+                outlier_mask = mask & (df_clean[col] > cap)
+                n = int(outlier_mask.sum())
+                if n > 0:
+                    df_clean.loc[outlier_mask, col] = cap
+                    outliers_corregidos += n
 
     # Ventas
     df_ventas = df_clean[df_clean.get("Salida", 0) > 0].copy()
