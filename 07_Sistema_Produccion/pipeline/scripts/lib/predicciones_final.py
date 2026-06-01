@@ -9,9 +9,44 @@ import re
 import json
 import numpy as np
 import pandas as pd
+from datetime import timedelta
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 import xgboost as xgb
+
+
+def _update_temporal_features(features_pd, future_date):
+    """Actualiza todas las features temporales para la fecha futura concreta."""
+    week_of_year = future_date.isocalendar()[1]
+    month = future_date.month
+    quarter = (month - 1) // 3 + 1
+    day_of_year = future_date.timetuple().tm_yday
+
+    exact = {
+        'Semana_Sin': np.sin(2 * np.pi * week_of_year / 52),
+        'Semana_Cos': np.cos(2 * np.pi * week_of_year / 52),
+        'Mes_Sin':    np.sin(2 * np.pi * (month - 1) / 12),
+        'Mes_Cos':    np.cos(2 * np.pi * (month - 1) / 12),
+        'Mes':        float(month),
+        'Trimestre':  float(quarter),
+    }
+    for col, val in exact.items():
+        if col in features_pd.index:
+            features_pd.loc[col] = val
+
+    # Columnas con caracteres especiales (Num_Semana_Año, Día_Año) — buscar por patrón
+    for col in features_pd.index:
+        col_str = str(col)
+        if re.search(r'Num_Semana', col_str, re.IGNORECASE):
+            features_pd.loc[col] = float(week_of_year)
+        elif re.search(r'[Dd].{0,3}[Aa].{0,3}[Aa]', col_str):  # Día_Año
+            features_pd.loc[col] = float(day_of_year)
+
+    # Dummies de trimestre
+    for q in range(1, 5):
+        trim_col = f'Trim_{q}'
+        if trim_col in features_pd.index:
+            features_pd.loc[trim_col] = 1.0 if quarter == q else 0.0
 
 
 def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str):
@@ -74,12 +109,19 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
             'std': float(residuales.std()),
         }
 
-        # Guardar historial real de ventas, std y último vector de features
+        # Guardar historial real de ventas, std, última fecha y último vector de features
         historia_real[producto] = y.values.tolist()
         residuales_por_producto[producto]['std_ventas'] = float(y.std()) if len(y) > 1 else float(params_ganadores[producto].get('mae', 50))
+        last_date = None
+        if 'Fecha' in df_prod.columns:
+            try:
+                last_date = pd.to_datetime(df_prod['Fecha'].iloc[-1])
+            except Exception:
+                pass
         ultimo_features[producto] = {
             'features': X.iloc[-1].copy(),
-            'valid_cols': valid_cols
+            'valid_cols': valid_cols,
+            'last_date': last_date,
         }
 
     # Generar predicciones 52 semanas — forecast recursivo
@@ -89,6 +131,7 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
     for producto in sorted(modelos_finales.keys()):
         features_base = ultimo_features[producto]['features'].copy()
         valid_cols = ultimo_features[producto]['valid_cols']
+        last_date = ultimo_features[producto].get('last_date')
 
         # Parsear columnas de lag y MA para actualización recursiva
         lag_map = {}  # col_name -> n (Lag_N)
@@ -131,6 +174,10 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
                     features_pd.loc[col] = float(np.mean(history[-window:]))
                 elif len(history) > 0:
                     features_pd.loc[col] = float(np.mean(history))
+
+            # Actualizar features temporales con la fecha real de la semana futura
+            if last_date is not None:
+                _update_temporal_features(features_pd, last_date + timedelta(weeks=semana_num))
 
             features_array = features_pd.values.reshape(1, -1)
             features_array = np.nan_to_num(features_array, nan=0.0)
