@@ -900,7 +900,10 @@ export default function Home() {
                 {session?.user?.name || session?.user?.email || 'Usuario'}
               </span>
               <button
-                onClick={() => signOut({ callbackUrl: '/auth/login' })}
+                onClick={async () => {
+                  await signOut({ redirect: false })
+                  window.location.href = '/api/logout'
+                }}
                 style={{
                   padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0',
                   background: 'white', color: '#64748b',
