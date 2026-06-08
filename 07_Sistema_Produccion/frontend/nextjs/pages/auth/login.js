@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/router'
 
 export default function LoginPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const { error } = router.query
 
@@ -41,7 +41,7 @@ export default function LoginPage() {
 
         <button
           style={styles.button}
-          onClick={() => signIn('auth0', { callbackUrl: '/' })}
+          onClick={() => signIn('auth0', { callbackUrl: '/' }, { prompt: 'login' })}
         >
           Iniciar sesión con Auth0
         </button>
