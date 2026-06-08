@@ -750,6 +750,7 @@ function TabNav({ active, onChange }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { data: session } = useSession()
   const [tab, setTab] = useState('resumen')
   const [sku, setSku] = useState(null)
   const [periods, setPeriods] = useState(52)
@@ -887,6 +888,28 @@ export default function Home() {
             >
               Regenerar datos
             </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderLeft: '1px solid #e2e8f0', paddingLeft: 12 }}>
+              {session?.user?.image && (
+                <img
+                  src={session.user.image}
+                  alt=""
+                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }}
+                />
+              )}
+              <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>
+                {session?.user?.name || session?.user?.email || 'Usuario'}
+              </span>
+              <button
+                onClick={() => signOut({ callbackUrl: '/auth/login' })}
+                style={{
+                  padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0',
+                  background: 'white', color: '#64748b',
+                  cursor: 'pointer', fontSize: 12, fontWeight: 500,
+                }}
+              >
+                Cerrar sesión
+              </button>
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
