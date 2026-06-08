@@ -9,7 +9,6 @@ export const authOptions = {
       issuer: `https://${process.env.AUTH0_DOMAIN}`,
       authorization: {
         params: {
-          audience: process.env.AUTH0_API_AUDIENCE,
           scope: 'openid profile email',
         },
       },

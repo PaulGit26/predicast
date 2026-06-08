@@ -1,3 +1,6 @@
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from './api/auth/[...nextauth]'
+import { signOut, useSession } from 'next-auth/react'
 import { useState, useEffect, useMemo } from 'react'
 import {
   ComposedChart, BarChart, Bar, Area, Line,
@@ -770,7 +773,7 @@ export default function Home() {
   const [produccion, setProduccion] = useState(null)
   const [safetyWeeks, setSafetyWeeks] = useState(2)
 
-  const loadAllData = () => {
+  const loadAllData = async () => {
     return Promise.all([
       fetch('/api/predictions').then(r => r.json()),
       fetch('/api/metadata').then(r => r.json()),
@@ -925,4 +928,12 @@ export default function Home() {
       )}
     </main>
   )
+}
+
+export async function getServerSideProps(context) {
+  const session = await getServerSession(context.req, context.res, authOptions)
+  if (!session) {
+    return { redirect: { destination: '/auth/login', permanent: false } }
+  }
+  return { props: { session } }
 }
