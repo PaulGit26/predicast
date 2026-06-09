@@ -1511,45 +1511,63 @@ function TabAnalisisFinanciero({ eficiencia, precios, skuPlancha }) {
 
 // ─── Tab: Ingesta de Datos y Reentrenamiento ─────────────────────────────────
 
-const INGEST_SKUS = ['CER001', 'CER005', 'CEO001', 'CEO006', 'CER008', 'CER004', 'CERE002']
-
-function parseIngestCSV(text) {
-  const lines = text.trim().split(/\r?\n/)
-  if (lines.length < 2) return { rows: [], error: 'El archivo está vacío o solo tiene encabezado.' }
-  const sep = lines[0].includes(';') ? ';' : ','
-  const rows = []
-  for (let i = 1; i < lines.length; i++) {
-    const p = lines[i].split(sep)
-    if (p.length < 4) continue
-    rows.push({
-      sku:        (p[0] || '').trim(),
-      semana:     (p[1] || '').trim(),
-      ventas:     parseFloat(p[2]) || 0,
-      produccion: parseFloat(p[3]) || 0,
-      stock:      parseFloat(p[4]) || 0,
-    })
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  const chunk = 8192
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
-  return { rows }
+  return btoa(binary)
 }
 
-function downloadTemplate() {
+function parseMovimientosPreview(buffer, maxRows = 25) {
+  const text = new TextDecoder('windows-1252').decode(buffer)
+  const lines = text.trim().split(/\r?\n/)
+  if (lines.length < 2) return { rows: [], totalRows: 0, error: 'Archivo vacío o sin datos.' }
+  const sep = lines[0].includes(';') ? ';' : ','
+  const header = lines[0].split(sep).map(h => h.trim())
+  const idxOf = name => header.findIndex(h => h.toLowerCase().replace(/[^a-z]/g, '').includes(name))
+  const iCodigo  = idxOf('codigo')
+  const iFecha   = idxOf('fecha')
+  const iDoc     = idxOf('documento')
+  const iEntrada = idxOf('entrada')
+  const iSalida  = idxOf('salida')
+  const totalRows = lines.length - 1
+  const preview = lines.slice(1, maxRows + 1).filter(l => l.trim()).map(line => {
+    const p = line.split(sep)
+    return {
+      codigo:  (p[iCodigo]  || '').trim(),
+      fecha:   (p[iFecha]   || '').trim(),
+      doc:     (p[iDoc]     || '').trim().substring(0, 30),
+      entrada: (p[iEntrada] || '').trim(),
+      salida:  (p[iSalida]  || '').trim(),
+    }
+  })
+  const hasRequired = iCodigo >= 0 && iFecha >= 0 && iEntrada >= 0 && iSalida >= 0
+  return { rows: preview, totalRows, hasRequired }
+}
+
+function downloadMovimientosTemplate() {
+  const year = new Date().getFullYear()
   const lines = [
-    'SKU;Semana_Inicio;Ventas_Semanales;Produccion_Semanal;Stock_Cierre_Semanal',
-    'CER001;2025-05-05;1200;1400;3800',
-    'CER005;2025-05-05;750;800;2100',
-    'CEO001;2025-05-05;980;1000;4100',
+    'Código;Descripción;Fecha;Documento;Número;Bodega;Entrada;Salida;Saldo;Valor Unitario;Entrada.1;Salida.1;Saldo.1;Costo Unitario;Empresa_Cliente;Canal_Venta;Punto_Venta',
+    `CER001;CANALETA RANURADA FG 0.75 (60x40mm);${year}-04-07;Venta - Boleta;001-000123;;0.0;1200.0;3800.0;0.92;;;3484.0;0.92;CLIENTE A;MOSTRADOR;LOCAL 1`,
+    `CER005;CANALETA RANURADA FG 0.75 (100x40mm);${year}-04-07;Venta - Boleta;001-000124;;0.0;750.0;2100.0;0.92;;;1932.0;0.92;CLIENTE B;MOSTRADOR;LOCAL 1`,
+    `CEO001;CANALETA OMEGA FG 0.75 (60mm);${year}-04-14;Venta - Boleta;001-000125;;0.0;980.0;4100.0;1.17;;;3802.0;1.17;CLIENTE C;MAYORISTA;LOCAL 2`,
   ]
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = 'plantilla_datos_nuevos.csv'; a.click()
+  a.href = url
+  a.download = `Movimientos_MayorAuxiliar_${year}.csv`
+  a.click()
   URL.revokeObjectURL(url)
 }
 
 function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
-  const [rows, setRows]               = useState([])
-  const [parseError, setParseError]   = useState('')
-  const [validErrors, setValidErrors] = useState([])
+  const [fileInfo, setFileInfo]       = useState(null)   // { name, base64, preview, totalRows, hasRequired, year }
+  const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading]     = useState(false)
   const [uploadOk, setUploadOk]       = useState(null)
   const [history, setHistory]         = useState([])
@@ -1562,15 +1580,18 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
 
   const handleFile = (file) => {
     if (!file) return
+    setUploadError(''); setUploadOk(null)
     const reader = new FileReader()
     reader.onload = (e) => {
-      const { rows: parsed, error } = parseIngestCSV(e.target.result)
-      setParseError(error || '')
-      setRows(parsed)
-      setValidErrors([])
-      setUploadOk(null)
+      const buffer = e.target.result
+      const base64 = arrayBufferToBase64(buffer)
+      const { rows, totalRows, hasRequired, error } = parseMovimientosPreview(buffer)
+      if (error) { setUploadError(error); setFileInfo(null); return }
+      const yearMatch = file.name.match(/(\d{4})/)
+      const year = yearMatch ? yearMatch[1] : null
+      setFileInfo({ name: file.name, base64, preview: rows, totalRows, hasRequired, year })
     }
-    reader.readAsText(file, 'utf-8')
+    reader.readAsArrayBuffer(file)
   }
 
   const handleDrop = (e) => {
@@ -1578,35 +1599,24 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
     handleFile(e.dataTransfer.files[0])
   }
 
-  const clientValidate = () => {
-    const errs = []
-    rows.forEach((r, i) => {
-      if (!INGEST_SKUS.includes(r.sku)) errs.push(`Fila ${i + 1}: SKU "${r.sku}" no reconocido`)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(r.semana)) errs.push(`Fila ${i + 1}: fecha "${r.semana}" inválida`)
-      if (r.ventas < 0 || r.produccion < 0 || r.stock < 0) errs.push(`Fila ${i + 1}: valores negativos`)
-    })
-    return errs
-  }
-
   const handleUpload = async () => {
-    const errs = clientValidate()
-    if (errs.length) { setValidErrors(errs); return }
-    setUploading(true); setValidErrors([]); setUploadOk(null)
+    if (!fileInfo) return
+    setUploading(true); setUploadError(''); setUploadOk(null)
     try {
       const r = await fetch('/api/ingest-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ filename: fileInfo.name, content_base64: fileInfo.base64 }),
       })
       const data = await r.json()
       if (!r.ok) {
-        setValidErrors(data.errors || [data.error || 'Error desconocido'])
+        setUploadError(data.error || 'Error desconocido')
       } else {
         setUploadOk(data.entry)
-        setRows([])
+        setFileInfo(null)
       }
     } catch (err) {
-      setValidErrors([String(err)])
+      setUploadError(String(err))
     } finally {
       setUploading(false)
     }
@@ -1622,44 +1632,40 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
     finally { setRetraining(false) }
   }
 
-  const skusUnicos = [...new Set(rows.map(r => r.sku))]
-  const errRows = new Set(
-    validErrors.map(e => { const m = e.match(/Fila (\d+)/); return m ? parseInt(m[1]) - 1 : -1 })
-  )
+  const existsInHistory = fileInfo?.name && history.some(h => h.filename === fileInfo.name)
 
   return (
     <div>
       {/* ── Sección 1: Carga de datos ── */}
-      <SectionTitle sub="Sube nuevas semanas de ventas y producción para mantener los datos actualizados">
-        Cargar nuevos datos semanales
+      <SectionTitle sub="Sube el archivo de Movimientos exportado desde el ERP para incorporar nuevos datos al sistema">
+        Cargar nuevo archivo de movimientos
       </SectionTitle>
 
       {/* Info del formato */}
       <div style={{ background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 10, padding: '14px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: TEAL_DARK, marginBottom: 6 }}>Formato esperado (CSV con ; o ,)</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: TEAL_DARK, marginBottom: 6 }}>Formato del archivo ERP (sin cambios)</div>
           <code style={{ fontSize: 11, color: '#0e7490', background: '#cffafe', padding: '3px 8px', borderRadius: 4 }}>
-            SKU;Semana_Inicio;Ventas_Semanales;Produccion_Semanal;Stock_Cierre_Semanal
+            Movimientos_MayorAuxiliar_YYYY.csv
           </code>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-            SKUs válidos: {INGEST_SKUS.join(', ')}
+            Columnas requeridas: Código · Fecha · Entrada · Salida · Documento — separador&nbsp;<code>;</code>
           </div>
         </div>
-        <button onClick={downloadTemplate} style={{
+        <button onClick={downloadMovimientosTemplate} style={{
           background: TEAL_DARK, color: '#fff', border: 'none', borderRadius: 8,
           padding: '8px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 6,
         }}>
           ⬇ Descargar plantilla
         </button>
       </div>
 
-      {/* Zona de drag & drop */}
+      {/* Zona drag & drop */}
       <div
         onDragOver={e => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        onClick={() => document.getElementById('file-input-ingest').click()}
+        onClick={() => document.getElementById('file-input-mov').click()}
         style={{
           border: `2px dashed ${dragging ? TEAL_DARK : '#cbd5e1'}`,
           borderRadius: 12, padding: '36px 24px', textAlign: 'center',
@@ -1669,51 +1675,77 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
       >
         <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
         <div style={{ fontWeight: 600, color: dragging ? TEAL_DARK : '#64748b' }}>
-          {dragging ? 'Suelta el archivo aquí' : 'Arrastra tu CSV aquí o haz clic para seleccionar'}
+          {dragging ? 'Suelta el archivo aquí' : 'Arrastra Movimientos_MayorAuxiliar_YYYY.csv o haz clic'}
         </div>
-        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Archivos .csv separados por ; o ,</div>
-        <input id="file-input-ingest" type="file" accept=".csv,.txt"
+        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>El archivo se sube tal como lo exporta el ERP</div>
+        <input id="file-input-mov" type="file" accept=".csv"
           style={{ display: 'none' }}
           onChange={e => handleFile(e.target.files[0])}
         />
       </div>
 
-      {parseError && (
+      {uploadError && (
         <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 16px', color: RED, marginBottom: 16, fontSize: 13 }}>
-          {parseError}
+          {uploadError}
         </div>
       )}
 
-      {/* Preview table */}
-      {rows.length > 0 && (
+      {/* Info del archivo detectado */}
+      {fileInfo && (
         <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 600, color: BLUE, fontSize: 14 }}>
-              Vista previa — {rows.length} filas · SKUs: {skusUnicos.join(', ')}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Archivo</div>
+                <div style={{ fontWeight: 600, color: BLUE, fontSize: 13 }}>{fileInfo.name}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total filas</div>
+                <div style={{ fontWeight: 600, color: BLUE, fontSize: 13 }}>{fileInfo.totalRows.toLocaleString('es-PE')}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Año detectado</div>
+                <div style={{ fontWeight: 600, color: fileInfo.year ? TEAL_DARK : ORANGE, fontSize: 13 }}>{fileInfo.year || 'No detectado'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Columnas</div>
+                <div style={{ fontWeight: 600, color: fileInfo.hasRequired ? GREEN : RED, fontSize: 13 }}>
+                  {fileInfo.hasRequired ? '✓ OK' : '✗ Faltan columnas'}
+                </div>
+              </div>
             </div>
-            <button onClick={() => { setRows([]); setValidErrors([]); setUploadOk(null) }}
-              style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#64748b' }}>
+            {existsInHistory && (
+              <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 14px', fontSize: 12, color: '#92400e' }}>
+                Este archivo ya fue cargado antes — <strong>reemplazará</strong> la versión existente en el servidor.
+              </div>
+            )}
+            <button onClick={() => { setFileInfo(null); setUploadError(''); setUploadOk(null) }}
+              style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12, color: '#64748b', marginLeft: 'auto' }}>
               Limpiar
             </button>
           </div>
-          <div style={{ overflowX: 'auto', maxHeight: 280, overflowY: 'auto', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+
+          {/* Preview primeras filas */}
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+            Vista previa — primeras {fileInfo.preview.length} filas de {fileInfo.totalRows.toLocaleString('es-PE')}
+          </div>
+          <div style={{ overflowX: 'auto', maxHeight: 240, overflowY: 'auto', borderRadius: 8, border: '1px solid #e2e8f0' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 1 }}>
                 <tr>
-                  {['#', 'SKU', 'Semana', 'Ventas', 'Producción', 'Stock'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: h === '#' || h === 'SKU' || h === 'Semana' ? 'left' : 'right', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                  {['Código', 'Fecha', 'Documento', 'Entrada', 'Salida'].map(h => (
+                    <th key={h} style={{ padding: '7px 12px', textAlign: 'left', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} style={{ background: errRows.has(i) ? '#fef2f2' : i % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                    <td style={{ padding: '6px 12px', color: '#94a3b8' }}>{i + 1}</td>
-                    <td style={{ padding: '6px 12px', fontWeight: 600, color: INGEST_SKUS.includes(r.sku) ? TEAL_DARK : RED }}>{r.sku || '—'}</td>
-                    <td style={{ padding: '6px 12px' }}>{r.semana || '—'}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right' }}>{r.ventas.toLocaleString('es-PE')}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right' }}>{r.produccion.toLocaleString('es-PE')}</td>
-                    <td style={{ padding: '6px 12px', textAlign: 'right' }}>{r.stock.toLocaleString('es-PE')}</td>
+                {fileInfo.preview.map((r, i) => (
+                  <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                    <td style={{ padding: '5px 12px', fontWeight: 500, color: TEAL_DARK }}>{r.codigo || '—'}</td>
+                    <td style={{ padding: '5px 12px' }}>{r.fecha || '—'}</td>
+                    <td style={{ padding: '5px 12px', color: '#64748b' }}>{r.doc || '—'}</td>
+                    <td style={{ padding: '5px 12px', color: GREEN }}>{r.entrada || '—'}</td>
+                    <td style={{ padding: '5px 12px', color: RED }}>{r.salida || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1722,20 +1754,16 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
         </div>
       )}
 
-      {/* Errores de validación */}
-      {validErrors.length > 0 && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, color: RED, marginBottom: 6, fontSize: 13 }}>Se encontraron errores de validación:</div>
-          {validErrors.map((e, i) => <div key={i} style={{ fontSize: 12, color: '#7f1d1d', marginTop: 2 }}>• {e}</div>)}
-        </div>
-      )}
-
-      {/* Resultado de carga */}
+      {/* Resultado de carga exitosa */}
       {uploadOk && (
         <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 13 }}>
-          <div style={{ fontWeight: 600, color: GREEN, marginBottom: 4 }}>Datos cargados correctamente</div>
+          <div style={{ fontWeight: 600, color: GREEN, marginBottom: 4 }}>Archivo guardado correctamente en el servidor</div>
           <div style={{ color: '#166534' }}>
-            {uploadOk.total_filas} filas procesadas · SKUs: {uploadOk.skus.join(', ')}
+            <strong>{uploadOk.filename}</strong> — {uploadOk.rows.toLocaleString('es-PE')} registros
+            {uploadOk.replaced ? ' (reemplazó versión anterior)' : ' (nuevo archivo)'}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 12, color: '#166534' }}>
+            Ya puedes ejecutar el reentrenamiento para generar nuevas predicciones.
           </div>
         </div>
       )}
@@ -1744,46 +1772,46 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 36 }}>
         <button
           onClick={handleUpload}
-          disabled={rows.length === 0 || uploading}
+          disabled={!fileInfo || !fileInfo.hasRequired || uploading}
           style={{
-            background: rows.length === 0 || uploading ? '#e2e8f0' : TEAL_DARK,
-            color: rows.length === 0 || uploading ? '#94a3b8' : '#fff',
+            background: !fileInfo || !fileInfo.hasRequired || uploading ? '#e2e8f0' : TEAL_DARK,
+            color: !fileInfo || !fileInfo.hasRequired || uploading ? '#94a3b8' : '#fff',
             border: 'none', borderRadius: 8,
-            padding: '10px 24px', cursor: rows.length === 0 || uploading ? 'not-allowed' : 'pointer',
+            padding: '10px 24px', cursor: !fileInfo || !fileInfo.hasRequired || uploading ? 'not-allowed' : 'pointer',
             fontWeight: 700, fontSize: 14, transition: 'all 0.15s',
           }}
         >
-          {uploading ? 'Cargando...' : `Confirmar y cargar ${rows.length} fila(s)`}
+          {uploading ? 'Subiendo archivo...' : fileInfo ? `Subir ${fileInfo.name}` : 'Selecciona un archivo primero'}
         </button>
-        {rows.length > 0 && (
-          <span style={{ fontSize: 12, color: '#64748b' }}>
-            {skusUnicos.length} SKU(s) · se agregarán a las series históricas
-          </span>
-        )}
       </div>
 
       {/* ── Sección 2: Reentrenamiento ── */}
       <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: 28, marginBottom: 28 }}>
-        <SectionTitle sub="Reentrenar los modelos ML con todos los datos disponibles (incluyendo los recién cargados)">
-          Reentrenamiento de modelos
+        <SectionTitle sub="Ejecuta el pipeline completo con todos los datos disponibles incluyendo el archivo recién cargado">
+          Reentrenamiento del modelo
         </SectionTitle>
         <div style={{ background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', padding: '20px 24px', display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 260 }}>
-            <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, marginBottom: 12 }}>
-              El pipeline ejecuta todos los pasos: limpieza → feature engineering → optimización de hiperparámetros → predicciones 52 semanas.
-              <br /><strong>Duración estimada: 5–15 minutos.</strong>
+            <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.8, marginBottom: 12 }}>
+              <strong>Pasos del pipeline:</strong><br />
+              1. Limpieza y filtrado de datos<br />
+              2. Agregación semanal + feature engineering<br />
+              3. Optimización de hiperparámetros (XGBoost)<br />
+              4. Predicciones 52 semanas por SKU<br />
+              <strong>Duración estimada: 5–15 minutos.</strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 10, height: 10, borderRadius: '50%',
                 background: pipeline?.status === 'running' ? ORANGE : pipeline?.status === 'success' ? GREEN : '#94a3b8',
-                boxShadow: pipeline?.status === 'running' ? `0 0 0 3px ${ORANGE}30` : 'none',
+                boxShadow: pipeline?.status === 'running' ? `0 0 0 4px ${ORANGE}30` : 'none',
+                transition: 'all 0.3s',
               }} />
               <span style={{ fontSize: 13, color: '#475569' }}>
-                {pipeline?.status === 'running' ? 'Reentrenamiento en curso...' :
-                 pipeline?.status === 'success' ? 'Última ejecución completada' :
-                 pipeline?.status === 'error' ? 'Error en última ejecución' :
-                 'Sin ejecuciones recientes'}
+                {pipeline?.status === 'running' ? 'Pipeline en ejecución...' :
+                 pipeline?.status === 'success' ? 'Última ejecución completada exitosamente' :
+                 pipeline?.status === 'error' ? 'Error en la última ejecución' :
+                 'Esperando orden de ejecución'}
               </span>
             </div>
           </div>
@@ -1798,19 +1826,19 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
               fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap',
             }}
           >
-            {retraining ? 'Iniciando...' : pipeline?.status === 'running' ? 'En proceso...' : '▶ Ejecutar reentrenamiento'}
+            {retraining ? 'Iniciando...' : pipeline?.status === 'running' ? 'En proceso...' : '▶ Ejecutar pipeline'}
           </button>
         </div>
         {pipeline?.status === 'running' && (
           <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 16px', marginTop: 12, fontSize: 12, color: '#92400e' }}>
-            El reentrenamiento está corriendo en segundo plano. Puedes navegar libremente — las nuevas predicciones aparecerán al finalizar.
+            El pipeline está corriendo en segundo plano. Las nuevas predicciones estarán disponibles al terminar — no cierres la sesión.
           </div>
         )}
       </div>
 
       {/* ── Sección 3: Historial ── */}
       <div style={{ borderTop: '2px solid #e2e8f0', paddingTop: 28 }}>
-        <SectionTitle sub="Registro de cargas de datos realizadas">Historial de ingestas</SectionTitle>
+        <SectionTitle sub="Archivos cargados al servidor">Historial de cargas</SectionTitle>
         {history.length === 0 ? (
           <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>
             Sin cargas registradas todavía.
@@ -1820,7 +1848,7 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
-                  {['Fecha', 'SKUs actualizados', 'Filas cargadas', 'Detalle'].map(h => (
+                  {['Fecha de carga', 'Archivo', 'Registros', 'Acción'].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0' }}>{h}</th>
                   ))}
                 </tr>
@@ -1831,12 +1859,12 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
                     <td style={{ padding: '8px 14px', color: '#64748b' }}>
                       {new Date(h.fecha).toLocaleString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td style={{ padding: '8px 14px', fontWeight: 600, color: TEAL_DARK }}>{h.skus?.join(', ') || '—'}</td>
-                    <td style={{ padding: '8px 14px' }}>{h.total_filas}</td>
-                    <td style={{ padding: '8px 14px', color: '#64748b', fontSize: 11 }}>
-                      {Object.entries(h.detalle || {}).map(([sku, d]) =>
-                        `${sku}: +${d.appended ?? 0} fila(s)${d.skipped ? `, ${d.skipped} dup.` : ''}`
-                      ).join(' · ')}
+                    <td style={{ padding: '8px 14px', fontWeight: 600, color: TEAL_DARK }}>{h.filename}</td>
+                    <td style={{ padding: '8px 14px' }}>{h.rows?.toLocaleString('es-PE') || '—'}</td>
+                    <td style={{ padding: '8px 14px', fontSize: 12 }}>
+                      <span style={{ background: h.replaced ? '#fef9c3' : '#f0fdf4', color: h.replaced ? '#854d0e' : '#166534', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                        {h.replaced ? 'Reemplazado' : 'Nuevo'}
+                      </span>
                     </td>
                   </tr>
                 ))}

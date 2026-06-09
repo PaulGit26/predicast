@@ -1,15 +1,15 @@
 import fs from 'fs'
 import path from 'path'
 
-const VALID_SKUS = ['CER001', 'CER005', 'CEO001', 'CEO006', 'CER008', 'CER004', 'CERE002']
-const SERIES_HEADER = 'Semana_Inicio;Ventas_Semanales;Produccion_Semanal;Stock_Cierre_Semanal'
+const REQUIRED_COLS = ['fecha', 'entrada', 'salida']
+const FILENAME_RE = /^Movimientos_.*\.csv$/i
 
 function dataRoot() {
   return process.env.DATA_ROOT || path.resolve(process.cwd(), '../../..')
 }
 
-function seriesPath(sku) {
-  return path.resolve(dataRoot(), `03_ANALISIS_EXPLORATORIO_DATOS/08_SERIE_SEMANAL_${sku}.csv`)
+function ingestionDir() {
+  return path.resolve(dataRoot(), '01_Datos_Nuevos')
 }
 
 function logPath() {
@@ -28,42 +28,19 @@ function writeLog(entries) {
   fs.writeFileSync(logPath(), JSON.stringify(entries, null, 2), 'utf-8')
 }
 
-function validateRows(rows) {
-  const errors = []
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i]
-    const row = i + 1
-    if (!VALID_SKUS.includes(r.sku)) errors.push(`Fila ${row}: SKU "${r.sku}" no reconocido`)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.semana)) errors.push(`Fila ${row}: fecha "${r.semana}" inválida (usar YYYY-MM-DD)`)
-    if (isNaN(r.ventas) || r.ventas < 0) errors.push(`Fila ${row}: ventas inválidas`)
-    if (isNaN(r.produccion) || r.produccion < 0) errors.push(`Fila ${row}: producción inválida`)
-    if (isNaN(r.stock) || r.stock < 0) errors.push(`Fila ${row}: stock inválido`)
-  }
-  return errors
+function countRows(buffer) {
+  const text = buffer.toString('latin1')
+  const lines = text.trim().split(/\r?\n/)
+  return Math.max(0, lines.length - 1)
 }
 
-function appendToSeries(sku, rows) {
-  const p = seriesPath(sku)
-  const newLines = rows.map(r => `${r.semana};${r.ventas};${r.produccion};${r.stock}`).join('\n')
-
-  if (!fs.existsSync(p)) {
-    fs.writeFileSync(p, SERIES_HEADER + '\n' + newLines + '\n', 'latin1')
-    return { created: true }
-  }
-
-  // Check for duplicate semanas already in the file
-  const existing = fs.readFileSync(p).toString('latin1')
-  const existingDates = new Set(
-    existing.trim().split(/\r?\n/).slice(1).map(l => l.split(';')[0]?.trim())
-  )
-  const toAppend = rows.filter(r => !existingDates.has(r.semana))
-  const skipped = rows.length - toAppend.length
-
-  if (toAppend.length > 0) {
-    const append = '\n' + toAppend.map(r => `${r.semana};${r.ventas};${r.produccion};${r.stock}`).join('\n')
-    fs.appendFileSync(p, append, 'latin1')
-  }
-  return { appended: toAppend.length, skipped }
+function validateHeader(buffer) {
+  const text = buffer.toString('latin1')
+  const firstLine = text.split(/\r?\n/)[0] || ''
+  const sep = firstLine.includes(';') ? ';' : ','
+  const cols = firstLine.split(sep).map(c => c.replace(/[^a-zA-Z]/g, '').toLowerCase())
+  const missing = REQUIRED_COLS.filter(r => !cols.some(c => c.includes(r)))
+  return { valid: missing.length === 0, missing }
 }
 
 export default function handler(req, res) {
@@ -73,36 +50,41 @@ export default function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const { rows } = req.body
-      if (!Array.isArray(rows) || rows.length === 0) {
-        return res.status(400).json({ error: 'rows debe ser un array no vacío' })
+      const { filename, content_base64 } = req.body
+
+      if (!filename || !content_base64) {
+        return res.status(400).json({ error: 'filename y content_base64 son requeridos' })
       }
 
-      const errors = validateRows(rows)
-      if (errors.length > 0) {
-        return res.status(422).json({ errors })
+      if (!FILENAME_RE.test(filename)) {
+        return res.status(400).json({ error: `El archivo debe llamarse "Movimientos_*.csv". Recibido: "${filename}"` })
       }
 
-      // Group by SKU
-      const bySku = {}
-      for (const r of rows) {
-        if (!bySku[r.sku]) bySku[r.sku] = []
-        bySku[r.sku].push(r)
+      const buffer = Buffer.from(content_base64, 'base64')
+
+      const { valid, missing } = validateHeader(buffer)
+      if (!valid) {
+        return res.status(422).json({
+          error: `El archivo no tiene las columnas requeridas. Faltan: ${missing.join(', ')}`,
+        })
       }
 
-      const results = {}
-      for (const [sku, skuRows] of Object.entries(bySku)) {
-        results[sku] = appendToSeries(sku, skuRows)
-      }
+      const destDir = ingestionDir()
+      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true })
 
-      // Append to log
+      const destPath = path.resolve(destDir, filename)
+      const existed = fs.existsSync(destPath)
+      fs.writeFileSync(destPath, buffer)
+
+      const rows = countRows(buffer)
+
       const log = readLog()
       const entry = {
         id: Date.now(),
         fecha: new Date().toISOString(),
-        skus: Object.keys(bySku),
-        total_filas: rows.length,
-        detalle: results,
+        filename,
+        rows,
+        replaced: existed,
       }
       log.unshift(entry)
       if (log.length > 50) log.length = 50
