@@ -33,9 +33,10 @@ const MODULES = [
     icon: '📊',
     roles: ['admin', 'gerente_financiero'],
     tabs: [
-      { id: 'resumen',     label: 'Resumen Ejecutivo' },
-      { id: 'producto',    label: 'Por Producto' },
-      { id: 'exploracion', label: 'Exploración de Datos' },
+      { id: 'resumen',       label: 'Resumen Ejecutivo' },
+      { id: 'producto',      label: 'Por Producto' },
+      { id: 'exploracion',   label: 'Exploración de Datos' },
+      { id: 'planificacion', label: 'Planificación / GAP' },
     ],
   },
   {
@@ -63,8 +64,7 @@ const MODULES = [
     icon: '🏭',
     roles: ['admin', 'gerente_produccion'],
     tabs: [
-      { id: 'planificacion', label: 'Planificación / GAP' },
-      { id: 'produccion',    label: 'Plan de Producción' },
+      { id: 'produccion', label: 'Plan de Producción' },
     ],
   },
   {
