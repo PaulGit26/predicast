@@ -195,6 +195,8 @@ jobs:
           AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
           AUTH0_API_AUDIENCE: https://predicast-api
+          AUTH0_MGMT_CLIENT_ID: ${{ secrets.AUTH0_MGMT_CLIENT_ID }}
+          AUTH0_MGMT_CLIENT_SECRET: ${{ secrets.AUTH0_MGMT_CLIENT_SECRET }}
         run: |
           echo "$SSH_KEY" > /tmp/ec2.pem
           chmod 600 /tmp/ec2.pem
@@ -210,6 +212,8 @@ jobs:
           echo "AUTH0_CLIENT_SECRET=${AUTH0_CLIENT_SECRET}" >> /tmp/deploy.env
           echo "AUTH0_DOMAIN=${AUTH0_DOMAIN}"             >> /tmp/deploy.env
           echo "AUTH0_API_AUDIENCE=${AUTH0_API_AUDIENCE}" >> /tmp/deploy.env
+          echo "AUTH0_MGMT_CLIENT_ID=${AUTH0_MGMT_CLIENT_ID}" >> /tmp/deploy.env
+          echo "AUTH0_MGMT_CLIENT_SECRET=${AUTH0_MGMT_CLIENT_SECRET}" >> /tmp/deploy.env
 
           # Build deploy script with echo
           echo '#!/bin/bash'                                                           > /tmp/deploy.sh

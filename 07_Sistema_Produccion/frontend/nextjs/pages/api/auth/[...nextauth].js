@@ -15,16 +15,20 @@ export const authOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, account }) {
-      // Persist the Auth0 access_token so it can be sent to the backend API
+    async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token
+      }
+      if (profile) {
+        token.roles = profile['https://predicast/roles'] ?? []
+        token.auth0Id = profile.sub
       }
       return token
     },
     async session({ session, token }) {
-      // Expose access token on the client session
       session.accessToken = token.accessToken
+      session.roles = token.roles ?? []
+      session.auth0Id = token.auth0Id
       return session
     },
   },

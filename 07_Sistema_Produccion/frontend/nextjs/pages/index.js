@@ -22,13 +22,18 @@ const SKU_COLORS = ['#1a237e','#3b82f6','#43a047','#f59e0b','#ef4444','#8b5cf6',
 const fmt = v => (typeof v === 'number' ? Math.round(v).toLocaleString('es-PE') : v)
 const fmtDec = (v, d = 1) => (typeof v === 'number' ? v.toFixed(d) : v)
 
-const TABS = [
-  { id: 'resumen',       label: 'Resumen Ejecutivo' },
-  { id: 'producto',      label: 'Por Producto' },
-  { id: 'planificacion', label: 'Planificación / GAP' },
-  { id: 'exploracion',   label: 'Exploración de Datos' },
-  { id: 'produccion',    label: 'Plan de Producción' },
+const ALL_TABS = [
+  { id: 'resumen',       label: 'Resumen Ejecutivo',    roles: ['admin', 'gerente_financiero'] },
+  { id: 'producto',      label: 'Por Producto',         roles: ['admin', 'gerente_financiero'] },
+  { id: 'planificacion', label: 'Planificación / GAP',  roles: ['admin', 'gerente_produccion'] },
+  { id: 'exploracion',   label: 'Exploración de Datos', roles: ['admin', 'gerente_financiero'] },
+  { id: 'produccion',    label: 'Plan de Producción',   roles: ['admin', 'gerente_produccion'] },
+  { id: 'admin',         label: 'Administración',       roles: ['admin'] },
 ]
+
+function visibleTabs(roles) {
+  return ALL_TABS.filter(t => t.roles.some(r => roles.includes(r)))
+}
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 
@@ -727,12 +732,208 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   )
 }
 
+// ─── Tab: Administración ─────────────────────────────────────────────────────
+
+const ROLE_LABELS = {
+  admin: 'Admin',
+  gerente_produccion: 'Gte. Producción',
+  gerente_financiero: 'Gte. Financiero',
+}
+
+function TabAdmin() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [form, setForm] = useState({ open: false, email: '', password: '', name: '' })
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  const load = () => {
+    setLoading(true)
+    fetch('/api/admin/users')
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false) })
+      .catch(e => { setError(e.message); setLoading(false) })
+  }
+
+  useEffect(() => { load() }, [])
+
+  const flash = (text, ok = true) => {
+    setMsg({ text, ok })
+    setTimeout(() => setMsg(null), 3500)
+  }
+
+  const handleRoleChange = async (userId, roleId) => {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleId }),
+    })
+    if (res.ok) { flash('Rol actualizado'); load() }
+    else { const e = await res.json(); flash(e.error, false) }
+  }
+
+  const handleDelete = async (userId, email) => {
+    if (!confirm(`¿Eliminar usuario ${email}?`)) return
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
+    if (res.ok || res.status === 204) { flash('Usuario eliminado'); load() }
+    else { const e = await res.json(); flash(e.error, false) }
+  }
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.email, password: form.password, name: form.name }),
+    })
+    const body = await res.json()
+    setSaving(false)
+    if (res.ok) {
+      flash(`Usuario ${form.email} creado`)
+      setForm({ open: false, email: '', password: '', name: '' })
+      load()
+    } else {
+      flash(body.error || 'Error al crear usuario', false)
+    }
+  }
+
+  if (loading) return <p style={{ color: '#64748b', padding: 24 }}>Cargando usuarios...</p>
+  if (error) return <p style={{ color: RED, padding: 24 }}>Error: {error}</p>
+
+  const { users = [], allRoles = [] } = data || {}
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ color: BLUE, margin: 0, fontSize: 17, fontWeight: 700 }}>Gestión de usuarios</h2>
+          <p style={{ color: '#666', margin: '4px 0 0', fontSize: 13 }}>{users.length} usuario{users.length !== 1 ? 's' : ''} registrado{users.length !== 1 ? 's' : ''}</p>
+        </div>
+        <button
+          onClick={() => setForm(f => ({ ...f, open: !f.open }))}
+          style={{ padding: '8px 16px', background: BLUE, color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+        >
+          + Nuevo usuario
+        </button>
+      </div>
+
+      {msg && (
+        <div style={{ padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: 13,
+          background: msg.ok ? '#f0fdf4' : '#fef2f2',
+          border: `1px solid ${msg.ok ? '#86efac' : '#fca5a5'}`,
+          color: msg.ok ? '#166534' : '#dc2626' }}>
+          {msg.text}
+        </div>
+      )}
+
+      {form.open && (
+        <form onSubmit={handleCreate} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 20, marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 15, color: BLUE }}>Crear nuevo usuario</h3>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <input
+              required placeholder="Nombre completo"
+              value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              style={{ flex: 1, minWidth: 180, padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+            <input
+              required type="email" placeholder="Correo electrónico"
+              value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              style={{ flex: 1, minWidth: 220, padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+            <input
+              required type="password" placeholder="Contraseña temporal"
+              value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              style={{ flex: 1, minWidth: 180, padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+            />
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <button type="submit" disabled={saving}
+              style={{ padding: '8px 18px', background: GREEN, color: 'white', border: 'none', borderRadius: 6, cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13 }}>
+              {saving ? 'Creando...' : 'Crear usuario'}
+            </button>
+            <button type="button" onClick={() => setForm(f => ({ ...f, open: false }))}
+              style={{ padding: '8px 14px', background: 'white', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <th style={th}>Usuario</th>
+              <th style={th}>Último acceso</th>
+              <th style={th}>Rol</th>
+              <th style={th}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u, i) => (
+              <tr key={u.user_id} style={{ borderBottom: i < users.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                <td style={td}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {u.picture
+                      ? <img src={u.picture} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                      : <div style={{ width: 32, height: 32, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 13 }}>
+                          {(u.name || u.email || '?')[0].toUpperCase()}
+                        </div>
+                    }
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#1e293b' }}>{u.name || '—'}</div>
+                      <div style={{ color: '#64748b', fontSize: 12 }}>{u.email}</div>
+                    </div>
+                  </div>
+                </td>
+                <td style={td}>
+                  <span style={{ color: '#64748b' }}>
+                    {u.last_login ? new Date(u.last_login).toLocaleDateString('es-PE') : 'Nunca'}
+                  </span>
+                </td>
+                <td style={td}>
+                  <select
+                    value={u.roles[0]?.name || ''}
+                    onChange={e => {
+                      const roleId = allRoles.find(r => r.name === e.target.value)?.id || null
+                      handleRoleChange(u.user_id, roleId)
+                    }}
+                    style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 12, background: 'white', cursor: 'pointer' }}
+                  >
+                    <option value="">Sin rol</option>
+                    {allRoles.map(r => (
+                      <option key={r.id} value={r.name}>{ROLE_LABELS[r.name] || r.name}</option>
+                    ))}
+                  </select>
+                </td>
+                <td style={td}>
+                  <button
+                    onClick={() => handleDelete(u.user_id, u.email)}
+                    style={{ padding: '5px 10px', background: '#fef2f2', color: RED, border: `1px solid #fca5a5`, borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+const th = { padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#475569', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 }
+const td = { padding: '12px 16px', verticalAlign: 'middle' }
+
 // ─── Tab nav ──────────────────────────────────────────────────────────────────
 
-function TabNav({ active, onChange }) {
+function TabNav({ active, onChange, tabs }) {
   return (
     <div style={{ display: 'flex', borderBottom: `2px solid #e2e8f0`, marginBottom: 24, overflowX: 'auto' }}>
-      {TABS.map(t => (
+      {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)} style={{
           padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
           fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap',
@@ -751,7 +952,10 @@ function TabNav({ active, onChange }) {
 
 export default function Home() {
   const { data: session } = useSession()
-  const [tab, setTab] = useState('resumen')
+  const roles = session?.roles ?? []
+  const tabs = visibleTabs(roles)
+
+  const [tab, setTab] = useState(() => tabs[0]?.id ?? 'resumen')
   const [sku, setSku] = useState(null)
   const [periods, setPeriods] = useState(52)
 
@@ -922,7 +1126,7 @@ export default function Home() {
         </div>
       </header>
 
-      <TabNav active={tab} onChange={setTab} />
+      <TabNav active={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'resumen' && (
         <TabResumen predictions={predictions} metadata={metadata} pareto={pareto} semanal={semanal} canal={canal} />
@@ -952,6 +1156,7 @@ export default function Home() {
           setSafetyWeeks={setSafetyWeeks}
         />
       )}
+      {tab === 'admin' && <TabAdmin />}
     </main>
   )
 }
