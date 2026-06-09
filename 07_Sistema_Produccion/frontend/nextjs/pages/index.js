@@ -22,17 +22,53 @@ const SKU_COLORS = ['#1a237e','#3b82f6','#43a047','#f59e0b','#ef4444','#8b5cf6',
 const fmt = v => (typeof v === 'number' ? Math.round(v).toLocaleString('es-PE') : v)
 const fmtDec = (v, d = 1) => (typeof v === 'number' ? v.toFixed(d) : v)
 
-const ALL_TABS = [
-  { id: 'resumen',       label: 'Resumen Ejecutivo',    roles: ['admin', 'gerente_financiero'] },
-  { id: 'producto',      label: 'Por Producto',         roles: ['admin', 'gerente_financiero'] },
-  { id: 'planificacion', label: 'Planificación / GAP',  roles: ['admin', 'gerente_produccion'] },
-  { id: 'exploracion',   label: 'Exploración de Datos', roles: ['admin', 'gerente_financiero'] },
-  { id: 'produccion',    label: 'Plan de Producción',   roles: ['admin', 'gerente_produccion'] },
-  { id: 'admin',         label: 'Administración',       roles: ['admin'] },
+const MODULES = [
+  {
+    id: 'finanzas',
+    label: 'Módulo Finanzas',
+    description: 'Análisis de demanda, métricas de rendimiento y exploración de datos históricos de ventas.',
+    color: '#1a237e',
+    bg: '#eff6ff',
+    accent: '#3b82f6',
+    icon: '📊',
+    roles: ['admin', 'gerente_financiero'],
+    tabs: [
+      { id: 'resumen',    label: 'Resumen Ejecutivo' },
+      { id: 'producto',   label: 'Por Producto' },
+      { id: 'exploracion',label: 'Exploración de Datos' },
+    ],
+  },
+  {
+    id: 'produccion',
+    label: 'Módulo Producción',
+    description: 'Planificación operativa, análisis de GAP y calendario de producción con safety stock dinámico.',
+    color: '#166534',
+    bg: '#f0fdf4',
+    accent: '#43a047',
+    icon: '🏭',
+    roles: ['admin', 'gerente_produccion'],
+    tabs: [
+      { id: 'planificacion', label: 'Planificación / GAP' },
+      { id: 'produccion',    label: 'Plan de Producción' },
+    ],
+  },
+  {
+    id: 'admin',
+    label: 'Administración',
+    description: 'Gestión de usuarios, asignación de roles y control de accesos al sistema.',
+    color: '#7c3aed',
+    bg: '#f5f3ff',
+    accent: '#8b5cf6',
+    icon: '⚙️',
+    roles: ['admin'],
+    tabs: [
+      { id: 'admin', label: 'Usuarios' },
+    ],
+  },
 ]
 
-function visibleTabs(roles) {
-  return ALL_TABS.filter(t => t.roles.some(r => roles.includes(r)))
+function visibleModules(roles) {
+  return MODULES.filter(m => m.roles.some(r => roles.includes(r)))
 }
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
@@ -928,17 +964,66 @@ function TabAdmin() {
 const th = { padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#475569', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 }
 const td = { padding: '12px 16px', verticalAlign: 'middle' }
 
+// ─── Module selector ─────────────────────────────────────────────────────────
+
+function ModuleSelector({ modules, onSelect }) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <p style={{ color: '#64748b', fontSize: 14, marginBottom: 20 }}>
+        Selecciona un módulo para comenzar:
+      </p>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+        {modules.map(m => (
+          <button
+            key={m.id}
+            onClick={() => onSelect(m)}
+            style={{
+              flex: '1 1 240px', maxWidth: 340,
+              background: m.bg,
+              border: `2px solid ${m.accent}`,
+              borderRadius: 14,
+              padding: '24px 28px',
+              cursor: 'pointer',
+              textAlign: 'left',
+              transition: 'box-shadow 0.15s',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+            }}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = `0 4px 16px ${m.accent}33`}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'}
+          >
+            <div style={{ fontSize: 32, marginBottom: 10 }}>{m.icon}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: m.color, marginBottom: 6 }}>{m.label}</div>
+            <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6, marginBottom: 14 }}>{m.description}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {m.tabs.map(t => (
+                <span key={t.id} style={{
+                  fontSize: 11, background: 'white',
+                  border: `1px solid ${m.accent}`,
+                  color: m.color, borderRadius: 20,
+                  padding: '3px 10px', fontWeight: 500,
+                }}>
+                  {t.label}
+                </span>
+              ))}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Tab nav ──────────────────────────────────────────────────────────────────
 
-function TabNav({ active, onChange, tabs }) {
+function TabNav({ active, onChange, tabs, color = BLUE }) {
   return (
     <div style={{ display: 'flex', borderBottom: `2px solid #e2e8f0`, marginBottom: 24, overflowX: 'auto' }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)} style={{
           padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
           fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap',
-          color: active === t.id ? BLUE : '#64748b',
-          borderBottom: active === t.id ? `3px solid ${BLUE}` : '3px solid transparent',
+          color: active === t.id ? color : '#64748b',
+          borderBottom: active === t.id ? `3px solid ${color}` : '3px solid transparent',
           marginBottom: -2, transition: 'all 0.15s',
         }}>
           {t.label}
@@ -953,9 +1038,10 @@ function TabNav({ active, onChange, tabs }) {
 export default function Home() {
   const { data: session } = useSession()
   const roles = session?.roles ?? []
-  const tabs = visibleTabs(roles)
+  const modules = visibleModules(roles)
 
-  const [tab, setTab] = useState(() => tabs[0]?.id ?? 'resumen')
+  const [currentModule, setCurrentModule] = useState(null)
+  const [tab, setTab] = useState(null)
   const [sku, setSku] = useState(null)
   const [periods, setPeriods] = useState(52)
 
@@ -977,6 +1063,11 @@ export default function Home() {
 
   const [produccion, setProduccion] = useState(null)
   const [safetyWeeks, setSafetyWeeks] = useState(2)
+
+  const selectModule = (mod) => {
+    setCurrentModule(mod)
+    setTab(mod.tabs[0].id)
+  }
 
   const loadAllData = async () => {
     return Promise.all([
@@ -1045,6 +1136,10 @@ export default function Home() {
       setGap(Array.isArray(gapData) ? gapData : [])
     }).catch(() => {})
   }, [sku])
+
+  useEffect(() => {
+    if (modules.length === 1 && !currentModule) selectModule(modules[0])
+  }, [modules.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return (
     <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: 60, textAlign: 'center', color: '#555' }}>
@@ -1126,37 +1221,60 @@ export default function Home() {
         </div>
       </header>
 
-      <TabNav active={tab} onChange={setTab} tabs={tabs} />
+      {modules.length > 1 && currentModule && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, marginBottom: 4, fontSize: 13 }}>
+          <button
+            onClick={() => { setCurrentModule(null); setTab(null) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px 0', fontWeight: 500 }}
+          >
+            ← Módulos
+          </button>
+          <span style={{ color: '#cbd5e1' }}>/</span>
+          <span style={{ color: currentModule.color, fontWeight: 600 }}>
+            {currentModule.icon} {currentModule.label}
+          </span>
+        </div>
+      )}
 
-      {tab === 'resumen' && (
-        <TabResumen predictions={predictions} metadata={metadata} pareto={pareto} semanal={semanal} canal={canal} />
+      {!currentModule ? (
+        <ModuleSelector modules={modules} onSelect={selectModule} />
+      ) : (
+        <>
+          <div style={{ marginTop: 20 }}>
+            <TabNav active={tab} onChange={setTab} tabs={currentModule.tabs} color={currentModule.accent} />
+          </div>
+
+          {tab === 'resumen' && (
+            <TabResumen predictions={predictions} metadata={metadata} pareto={pareto} semanal={semanal} canal={canal} />
+          )}
+          {tab === 'producto' && (
+            <TabProducto
+              sku={sku} setSku={setSku}
+              predictions={predictions} metadata={metadata}
+              historical={historical} pareto={pareto}
+              periods={periods} setPeriods={setPeriods}
+            />
+          )}
+          {tab === 'planificacion' && (
+            <TabPlanificacion
+              sku={sku} setSku={setSku}
+              gap={gap} eficiencia={eficiencia}
+              predictions={predictions} pareto={pareto}
+            />
+          )}
+          {tab === 'exploracion' && (
+            <TabExploracion tendencia={tendencia} bodega={bodega} canal={canal} />
+          )}
+          {tab === 'produccion' && (
+            <TabProduccion
+              produccion={produccion}
+              safetyWeeks={safetyWeeks}
+              setSafetyWeeks={setSafetyWeeks}
+            />
+          )}
+          {tab === 'admin' && <TabAdmin />}
+        </>
       )}
-      {tab === 'producto' && (
-        <TabProducto
-          sku={sku} setSku={setSku}
-          predictions={predictions} metadata={metadata}
-          historical={historical} pareto={pareto}
-          periods={periods} setPeriods={setPeriods}
-        />
-      )}
-      {tab === 'planificacion' && (
-        <TabPlanificacion
-          sku={sku} setSku={setSku}
-          gap={gap} eficiencia={eficiencia}
-          predictions={predictions} pareto={pareto}
-        />
-      )}
-      {tab === 'exploracion' && (
-        <TabExploracion tendencia={tendencia} bodega={bodega} canal={canal} />
-      )}
-      {tab === 'produccion' && (
-        <TabProduccion
-          produccion={produccion}
-          safetyWeeks={safetyWeeks}
-          setSafetyWeeks={setSafetyWeeks}
-        />
-      )}
-      {tab === 'admin' && <TabAdmin />}
     </main>
   )
 }
