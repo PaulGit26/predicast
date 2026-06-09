@@ -50,6 +50,7 @@ const MODULES = [
     tabs: [
       { id: 'costo_planchas',      label: 'Inversión de Planchas' },
       { id: 'analisis_financiero', label: 'Análisis Financiero Histórico' },
+      { id: 'backtest_predicast',  label: 'Simulación con Predicast' },
     ],
   },
   {
@@ -1507,6 +1508,210 @@ function TabAnalisisFinanciero({ eficiencia, precios, skuPlancha }) {
   )
 }
 
+// ─── Tab: Simulación con Predicast ───────────────────────────────────────────
+
+function TabSimulacionPredicast({ backtest, safetyWeeks, setSafetyWeeks, precios, skuPlancha }) {
+  const skus = backtest?.skus || {}
+  const timeline = backtest?.timeline || []
+
+  const metrics = useMemo(() => {
+    return Object.entries(skus).map(([sku, d]) => {
+      const cfg = skuPlancha[sku]
+      if (!cfg) return null
+      const unitCost = (precios[cfg.tipo] || 0) / cfg.prod_por_plancha
+      const { produccion_total, ventas_total, n_semanas, avg_semanal } = d.totales
+      const sobreProdReal = Math.max(0, produccion_total - ventas_total)
+      const sobreProdSistema = Math.round(avg_semanal * safetyWeeks)
+      const costoReal = Math.round(sobreProdReal * unitCost)
+      const costoSistema = Math.round(sobreProdSistema * unitCost)
+      const ahorro = Math.max(0, costoReal - costoSistema)
+      return { sku, sobreProdReal, sobreProdSistema, costoReal, costoSistema, ahorro, n_semanas }
+    }).filter(Boolean)
+  }, [skus, safetyWeeks, precios, skuPlancha])
+
+  const totalReal    = metrics.reduce((s, m) => s + m.costoReal, 0)
+  const totalSistema = metrics.reduce((s, m) => s + Math.min(m.costoSistema, m.costoReal), 0)
+  const totalAhorro  = metrics.reduce((s, m) => s + m.ahorro, 0)
+  const reduccion    = totalReal > 0 ? (totalAhorro / totalReal * 100).toFixed(1) : 0
+
+  const barData = metrics.map(m => ({
+    sku: m.sku,
+    sistema: Math.min(m.costoSistema, m.costoReal),
+    ahorro: m.ahorro,
+  }))
+
+  const monthly = useMemo(() => {
+    const map = {}
+    for (const r of timeline) {
+      const mes = r.semana.substring(0, 7)
+      if (!map[mes]) map[mes] = { mes, ventas: 0, produccion: 0 }
+      map[mes].ventas    += r.ventas
+      map[mes].produccion += r.produccion
+    }
+    return Object.values(map).sort((a, b) => a.mes.localeCompare(b.mes))
+  }, [timeline])
+
+  const n_semanas = metrics[0]?.n_semanas || 0
+  const periodo   = timeline.length
+    ? `${timeline[0].semana.substring(0, 7)} → ${timeline[timeline.length - 1].semana.substring(0, 7)}`
+    : ''
+
+  if (!backtest) return (
+    <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
+      Cargando datos históricos...
+    </div>
+  )
+
+  return (
+    <div>
+      {/* Info / controls banner */}
+      <div style={{
+        background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 10,
+        padding: '14px 20px', marginBottom: 24,
+        display: 'flex', gap: 32, flexWrap: 'wrap', alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>Período analizado</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TEAL_DARK }}>{periodo}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>Semanas de datos</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TEAL_DARK }}>{n_semanas} sem.</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>SKUs analizados</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TEAL_DARK }}>7 productos</div>
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>
+            Buffer de seguridad: <span style={{ color: TEAL_DARK }}>{safetyWeeks} sem.</span>
+          </div>
+          <input type="range" min={0} max={8} value={safetyWeeks}
+            onChange={e => setSafetyWeeks(Number(e.target.value))}
+            style={{ width: 140, accentColor: TEAL_DARK }}
+          />
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+        <StatCard label="Sobrecosto real (mat. prima)" value={`S/ ${fmt(totalReal)}`}
+          sub="Sobreproducción histórica acumulada" color={RED} bg="#fef2f2" />
+        <StatCard label="Sobrecosto con Predicast" value={`S/ ${fmt(totalSistema)}`}
+          sub={`Buffer intencional de ${safetyWeeks} sem.`} color={TEAL_DARK} bg="#f0fdfe" />
+        <StatCard label="Ahorro potencial total" value={`S/ ${fmt(totalAhorro)}`}
+          sub="Si se hubiera usado el sistema" color={GREEN} bg="#f0fdf4" />
+        <StatCard label="Reducción de sobrecosto" value={`${reduccion}%`}
+          sub="Eficiencia ganada con Predicast" color={PURPLE} bg="#f5f3ff" />
+      </div>
+
+      {/* Chart 1: stacked bar por SKU */}
+      <SectionTitle sub="Costo de sobreproducción de materia prima por SKU — Real (apilado) vs si se hubiera usado Predicast">
+        Comparativa de sobrecosto por SKU
+      </SectionTitle>
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: '20px 8px 8px', marginBottom: 28 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={barData} margin={{ top: 8, right: 24, left: 10, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="sku" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={v => `S/${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n === 'sistema' ? 'Con Predicast (buffer mín.)' : 'Ahorro potencial']} />
+            <Legend formatter={v => v === 'sistema' ? 'Con Predicast (buffer mínimo)' : 'Ahorro potencial'} />
+            <Bar dataKey="sistema" name="sistema" stackId="a" fill={TEAL_LIGHT} />
+            <Bar dataKey="ahorro"  name="ahorro"  stackId="a" fill={GREEN} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <p style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+          Barra completa = costo real de sobreproducción. Sección verde = ahorro potencial con Predicast.
+        </p>
+      </div>
+
+      {/* Chart 2: timeline producción vs ventas mensual */}
+      <SectionTitle sub="Producción real vs ventas reales (todos los SKUs, agregado mensual) — la brecha visible es la sobreproducción">
+        Evolución histórica: Producción vs Ventas (mensual)
+      </SectionTitle>
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: '20px 8px 8px', marginBottom: 28 }}>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={monthly} margin={{ top: 8, right: 24, left: 10, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="mes" tick={{ fontSize: 10 }} interval={5} />
+            <YAxis tickFormatter={v => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, n) => [`${fmt(v)} uds.`, n === 'produccion' ? 'Producción real' : 'Ventas reales']} />
+            <Legend formatter={v => v === 'produccion' ? 'Producción real' : 'Ventas reales'} />
+            <Area type="monotone" dataKey="produccion" name="produccion"
+              fill="#bfdbfe" stroke={BLUE_LIGHT} strokeWidth={1.5} fillOpacity={0.7} />
+            <Line type="monotone" dataKey="ventas" name="ventas"
+              stroke={GREEN} strokeWidth={2} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+        <p style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+          Área azul sobre la línea verde = sobreproducción histórica. Con Predicast, la producción habría seguido de cerca la línea de ventas.
+        </p>
+      </div>
+
+      {/* Tabla detalle */}
+      <SectionTitle sub="Desglose numérico por SKU">Detalle por SKU</SectionTitle>
+      <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: '#f8fafc' }}>
+              {['SKU', 'Sobreprod. real (uds)', 'Sobreprod. Predicast (uds)', 'Costo real (S/)', 'Costo c/ Predicast (S/)', 'Ahorro (S/)'].map((h, i) => (
+                <th key={h} style={{
+                  padding: '10px 14px', textAlign: i === 0 ? 'left' : 'right',
+                  color: i === 3 ? RED : i === 4 ? TEAL_DARK : i === 5 ? GREEN : '#475569',
+                  fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap',
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {metrics.map((m, i) => (
+              <tr key={m.sku} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                <td style={{ padding: '9px 14px', fontWeight: 600, color: TEAL_DARK }}>{m.sku}</td>
+                <td style={{ padding: '9px 14px', textAlign: 'right' }}>{fmt(m.sobreProdReal)}</td>
+                <td style={{ padding: '9px 14px', textAlign: 'right', color: '#64748b' }}>{fmt(m.sobreProdSistema)}</td>
+                <td style={{ padding: '9px 14px', textAlign: 'right', color: RED }}>{fmt(m.costoReal)}</td>
+                <td style={{ padding: '9px 14px', textAlign: 'right', color: TEAL_DARK }}>{fmt(Math.min(m.costoSistema, m.costoReal))}</td>
+                <td style={{ padding: '9px 14px', textAlign: 'right', color: GREEN, fontWeight: 600 }}>
+                  {m.ahorro > 0 ? fmt(m.ahorro) : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: '#f0fdf4', fontWeight: 700 }}>
+              <td style={{ padding: '10px 14px', borderTop: '2px solid #86efac', color: BLUE }}>TOTAL</td>
+              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac' }}>
+                {fmt(metrics.reduce((s, m) => s + m.sobreProdReal, 0))}
+              </td>
+              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: '#64748b' }}>
+                {fmt(metrics.reduce((s, m) => s + m.sobreProdSistema, 0))}
+              </td>
+              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: RED }}>
+                S/ {fmt(totalReal)}
+              </td>
+              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: TEAL_DARK }}>
+                S/ {fmt(totalSistema)}
+              </td>
+              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: GREEN }}>
+                S/ {fmt(totalAhorro)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* Nota metodológica */}
+      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 16px', fontSize: 12, color: '#92400e' }}>
+        <strong>Metodología:</strong> La sobreproducción real proviene de los datos históricos semana a semana (2021–2025).
+        El escenario &quot;Con Predicast&quot; asume que la producción habría igualado la demanda real (R²≈99%) más un buffer
+        intencional de <strong>{safetyWeeks} semana(s)</strong> de demanda promedio por SKU.
+        El ahorro es la diferencia entre ambos escenarios de costo de materia prima (planchas).
+      </div>
+    </div>
+  )
+}
+
 // ─── Tab nav ──────────────────────────────────────────────────────────────────
 
 function TabNav({ active, onChange, tabs, color = BLUE }) {
@@ -1558,6 +1763,7 @@ export default function Home() {
   const [produccion, setProduccion] = useState(null)
   const [safetyWeeks, setSafetyWeeks] = useState(2)
   const [planchaConfig, setPlanchaConfig] = useState(PLANCHA_CONFIG_DEFAULT)
+  const [backtest, setBacktest] = useState(null)
 
   const updatePrecios = async (newPrecios) => {
     const newConfig = { ...planchaConfig, precios: newPrecios }
@@ -1584,7 +1790,8 @@ export default function Home() {
       fetch('/api/bodega').then(r => r.json()),
       fetch('/api/semanal').then(r => r.json()),
       fetch('/api/eficiencia').then(r => r.json()),
-    ]).then(([pred, meta, par, tend, can, bod, sem, efic]) => {
+      fetch('/api/backtest').then(r => r.json()),
+    ]).then(([pred, meta, par, tend, can, bod, sem, efic, bt]) => {
       setPredictions(pred)
       setMetadata(meta || {})
       setPareto(Array.isArray(par) ? par : [])
@@ -1593,6 +1800,7 @@ export default function Home() {
       setBodega(Array.isArray(bod) ? bod : [])
       setSemanal(Array.isArray(sem) ? sem : [])
       setEficiencia(Array.isArray(efic) ? efic : [])
+      setBacktest(bt?.skus ? bt : null)
       const skus = Object.keys(pred || {})
       if (skus.length) setSku(s => s || skus[0])
       setLoading(false)
@@ -1817,6 +2025,15 @@ export default function Home() {
           {tab === 'analisis_financiero' && (
             <TabAnalisisFinanciero
               eficiencia={eficiencia}
+              precios={planchaConfig.precios}
+              skuPlancha={planchaConfig.skus}
+            />
+          )}
+          {tab === 'backtest_predicast' && (
+            <TabSimulacionPredicast
+              backtest={backtest}
+              safetyWeeks={safetyWeeks}
+              setSafetyWeeks={setSafetyWeeks}
               precios={planchaConfig.precios}
               skuPlancha={planchaConfig.skus}
             />
