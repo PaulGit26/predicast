@@ -48,7 +48,8 @@ const MODULES = [
     icon: '💰',
     roles: ['admin', 'gerente_financiero'],
     tabs: [
-      { id: 'costo_planchas', label: 'Costo de Planchas' },
+      { id: 'costo_planchas',      label: 'Costo de Planchas' },
+      { id: 'analisis_financiero', label: 'Análisis Financiero Histórico' },
     ],
   },
   {
@@ -799,8 +800,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
 const TEAL_DARK = '#0e7490'
 const TEAL_LIGHT = '#06b6d4'
 
-function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks }) {
-  const [precios, setPrecios] = useState(PRECIOS_DEFAULT)
+function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, setPrecios }) {
   const [horizon, setHorizon] = useState(12)
   const [editando, setEditando] = useState(false)
   const [preciosTemp, setPreciosTemp] = useState(PRECIOS_DEFAULT)
@@ -1292,6 +1292,181 @@ function ModuleSelector({ modules, onSelect }) {
   )
 }
 
+// ─── Tab: Análisis Financiero Histórico ──────────────────────────────────────
+
+const COSTOS_CONFIG = [
+  { key: 'mano_obra',     label: 'Mano de obra extra',          pct: 18, icon: '👷', color: '#7c3aed', desc: 'Horas hombre adicionales en producción no vendida' },
+  { key: 'transporte',    label: 'Transporte y logística',      pct:  6, icon: '🚚', color: '#0891b2', desc: 'Flete y distribución de pedidos sobreproducidos' },
+  { key: 'energia',       label: 'Energía eléctrica',           pct:  5, icon: '⚡', color: '#d97706', desc: 'Consumo eléctrico adicional de producción excedente' },
+  { key: 'almacenamiento',label: 'Almacenamiento',              pct:  8, icon: '🏪', color: '#059669', desc: 'Espacio de almacén ocupado por sobrestock' },
+  { key: 'depreciacion',  label: 'Depreciación de maquinaria',  pct:  3, icon: '⚙️', color: '#64748b', desc: 'Desgaste por uso de equipos en producción excedente' },
+  { key: 'oportunidad',   label: 'Costo de oportunidad',        pct: 10, icon: '📉', color: '#dc2626', desc: 'Capital inmovilizado sin retorno financiero' },
+  { key: 'deterioro',     label: 'Riesgo de deterioro / merma', pct:  2, icon: '⚠️', color: '#b45309', desc: 'Productos potencialmente dañados en almacén' },
+]
+
+function TabAnalisisFinanciero({ eficiencia, semanal, precios }) {
+  const [tasas, setTasas] = useState(() => Object.fromEntries(COSTOS_CONFIG.map(c => [c.key, c.pct])))
+  const [expandConfig, setExpandConfig] = useState(false)
+
+  const skuData = eficiencia
+    .filter(e => SKU_PLANCHA[e.codigo])
+    .map((e, idx) => {
+      const cfg = SKU_PLANCHA[e.codigo]
+      const precioP = precios[cfg.tipo]
+      const sobreprod = Math.max(0, e.produccion_total - e.ventas_total)
+      const costoMP = (sobreprod / cfg.prod_por_plancha) * precioP
+      return { sku: e.codigo, tipo: cfg.tipo, produccion_total: e.produccion_total, ventas_total: e.ventas_total, eficiencia: e.eficiencia, sobreprod, costoMP, color: SKU_COLORS[idx % SKU_COLORS.length] }
+    })
+
+  const totalSobreprod   = skuData.reduce((s, d) => s + d.sobreprod, 0)
+  const totalProduccion  = skuData.reduce((s, d) => s + d.produccion_total, 0)
+  const totalCostoMP     = skuData.reduce((s, d) => s + d.costoMP, 0)
+  const adicionales      = COSTOS_CONFIG.map(c => ({ ...c, pct: tasas[c.key], valor: totalCostoMP * tasas[c.key] / 100 }))
+  const totalAdicionales = adicionales.reduce((s, c) => s + c.valor, 0)
+  const impactoTotal     = totalCostoMP + totalAdicionales
+  const multiplicador    = totalCostoMP > 0 ? impactoTotal / totalCostoMP : 1
+  const sobreprodPct     = totalProduccion > 0 ? (totalSobreprod / totalProduccion) * 100 : 0
+
+  const waterfallData = [
+    { name: 'Materia prima', valor: Math.round(totalCostoMP), color: TEAL_DARK },
+    ...adicionales.map(c => ({ name: c.label, valor: Math.round(c.valor), color: c.color })),
+  ]
+
+  const avgCostPerUnit = totalSobreprod > 0 ? totalCostoMP / totalSobreprod : 0
+  const timelineData = semanal.slice(-104).map(s => {
+    const sp = Math.max(0, s.produccion - s.ventas)
+    const mp = sp * avgCostPerUnit
+    return { semana: s.semana, costoMP: Math.round(mp), costoTotal: Math.round(mp * multiplicador) }
+  })
+
+  const avgEfic = skuData.length ? skuData.reduce((s, d) => s + d.eficiencia, 0) / skuData.length : 0
+
+  return (
+    <div>
+      {/* ── Config panel ── */}
+      <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '14px 20px', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#9a3412' }}>Tasas de costos adicionales</span>
+            <span style={{ fontSize: 12, color: '#c2410c', marginLeft: 10 }}>
+              Multiplicador actual: <strong>{fmtDec(multiplicador, 2)}×</strong> el costo de materia prima
+            </span>
+          </div>
+          <button onClick={() => setExpandConfig(!expandConfig)}
+            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #fed7aa', background: expandConfig ? '#ffedd5' : 'white', color: '#9a3412', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            {expandConfig ? 'Cerrar' : '⚙️ Ajustar tasas'}
+          </button>
+        </div>
+        {expandConfig && (
+          <div style={{ marginTop: 16, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            {COSTOS_CONFIG.map(c => (
+              <div key={c.key} style={{ minWidth: 130 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#7c2d12', marginBottom: 3 }}>{c.icon} {c.label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input type="number" min={0} max={100} step={0.5} value={tasas[c.key]}
+                    onChange={e => setTasas(t => ({ ...t, [c.key]: parseFloat(e.target.value) || 0 }))}
+                    style={{ width: 58, padding: '4px 6px', borderRadius: 5, border: '1px solid #fed7aa', fontSize: 13 }} />
+                  <span style={{ fontSize: 12, color: '#92400e' }}>%</span>
+                </div>
+                <div style={{ fontSize: 10, color: '#a16207', marginTop: 2, lineHeight: 1.4 }}>{c.desc}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── KPI cards ── */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Unidades sobreproducidas', value: fmt(totalSobreprod), sub: `${fmtDec(sobreprodPct)}% del total producido`, color: ORANGE },
+          { label: 'Costo MP sobreproducida',  value: `S/ ${fmt(totalCostoMP)}`,    sub: 'Solo planchas metálicas',                  color: TEAL_DARK },
+          { label: 'Costos adicionales',        value: `S/ ${fmt(totalAdicionales)}`, sub: `${fmtDec(multiplicador - 1, 2)}× sobre costo MP`, color: PURPLE },
+          { label: 'IMPACTO TOTAL ESTIMADO',    value: `S/ ${fmt(impactoTotal)}`,    sub: 'Pérdida potencial por sobrestock',          color: RED },
+        ].map(c => (
+          <div key={c.label} style={{ flex: '1 1 175px', background: 'white', borderRadius: 10, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `4px solid ${c.color}` }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+            <div style={{ fontSize: 12, color: '#374151', marginTop: 3, fontWeight: 600 }}>{c.label}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Waterfall ── */}
+      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Desglose de impacto económico</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>Cada categoría como % aplicado sobre el costo de materia prima sobreproducida</p>
+        <ResponsiveContainer width="100%" height={310}>
+          <BarChart data={waterfallData} layout="vertical" margin={{ left: 10, right: 90, top: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
+            <YAxis type="category" dataKey="name" width={175} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={v => [`S/ ${fmt(v)}`, 'Costo estimado']} />
+            <Bar dataKey="valor" radius={[0, 4, 4, 0]} label={{ position: 'right', formatter: v => `S/ ${fmt(v)}`, fontSize: 11, fill: '#374151' }}>
+              {waterfallData.map((d, i) => <Cell key={i} fill={d.color} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Timeline histórico ── */}
+      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Impacto histórico semanal — últimas 2 años</h3>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>Costo estimado de sobreproducción por semana: materia prima y con todos los costos adicionales</p>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={timelineData} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 12 === 0 ? v : ''} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
+            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n === 'costoTotal' ? 'Impacto total' : 'Solo MP']} labelFormatter={v => `Semana: ${v}`} />
+            <Legend formatter={v => v === 'costoTotal' ? 'Impacto total (MP + adicionales)' : 'Solo materia prima'} />
+            <Area dataKey="costoTotal" name="costoTotal" stroke={RED} fill={RED} fillOpacity={0.1} dot={false} />
+            <Line dataKey="costoMP"    name="costoMP"    stroke={TEAL_DARK} strokeWidth={1.5} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Tabla por SKU ── */}
+      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', overflowX: 'auto' }}>
+        <h3 style={{ margin: '0 0 14px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Detalle por producto</h3>
+        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#fff1f2' }}>
+              {['SKU', 'Plancha', 'Producido', 'Vendido', 'Sobreproducido', 'Eficiencia', 'Costo MP excedente', 'Impacto total est.'].map(h => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#991b1b', borderBottom: '2px solid #fca5a5', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {skuData.map((d, i) => (
+              <tr key={d.sku} style={{ background: i % 2 === 0 ? '#fafafa' : 'white' }}>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: d.color, textAlign: 'right' }}>{d.sku}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
+                  <span style={{ background: d.tipo === '0.75' ? '#eff6ff' : '#fefce8', color: d.tipo === '0.75' ? BLUE : '#92400e', border: `1px solid ${d.tipo === '0.75' ? '#bfdbfe' : '#fde68a'}`, borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                    F.G. {d.tipo}
+                  </span>
+                </td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmt(d.produccion_total)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmt(d.ventas_total)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontWeight: 600, color: d.sobreprod > 0 ? RED : GREEN }}>{fmt(d.sobreprod)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontWeight: 600, color: d.eficiencia >= 98 ? GREEN : d.eficiencia >= 90 ? ORANGE : RED }}>{fmtDec(d.eficiencia)}%</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', color: TEAL_DARK, fontWeight: 600 }}>S/ {fmt(d.costoMP)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', color: RED, fontWeight: 700 }}>S/ {fmt(d.costoMP * multiplicador)}</td>
+              </tr>
+            ))}
+            <tr style={{ background: '#fff1f2', fontWeight: 700 }}>
+              <td colSpan={4} style={{ padding: '9px 12px', textAlign: 'right', color: '#991b1b', borderTop: '2px solid #fca5a5' }}>TOTAL</td>
+              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: RED }}>{fmt(totalSobreprod)}</td>
+              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: avgEfic >= 98 ? GREEN : ORANGE }}>{fmtDec(avgEfic)}%</td>
+              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: TEAL_DARK }}>S/ {fmt(totalCostoMP)}</td>
+              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: RED }}>S/ {fmt(impactoTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── Tab nav ──────────────────────────────────────────────────────────────────
 
 function TabNav({ active, onChange, tabs, color = BLUE }) {
@@ -1342,6 +1517,7 @@ export default function Home() {
 
   const [produccion, setProduccion] = useState(null)
   const [safetyWeeks, setSafetyWeeks] = useState(2)
+  const [precios, setPrecios] = useState(PRECIOS_DEFAULT)
 
   const selectModule = (mod) => {
     setCurrentModule(mod)
@@ -1578,6 +1754,15 @@ export default function Home() {
               produccion={produccion}
               safetyWeeks={safetyWeeks}
               setSafetyWeeks={setSafetyWeeks}
+              precios={precios}
+              setPrecios={setPrecios}
+            />
+          )}
+          {tab === 'analisis_financiero' && (
+            <TabAnalisisFinanciero
+              eficiencia={eficiencia}
+              semanal={semanal}
+              precios={precios}
             />
           )}
           {tab === 'produccion' && (
