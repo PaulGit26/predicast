@@ -1591,6 +1591,11 @@ function TabAsignacionSeguimiento({ produccion }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ semana: week.fecha, fecha_inicio: week.fecha, metas_sku: week.metas, operarios }),
       })
+      if (!r.ok) {
+        let errMsg = `Error ${r.status}`
+        try { const e = await r.json(); errMsg = e.error || errMsg } catch (_) { errMsg = await r.text().then(t => t.slice(0, 120)).catch(() => errMsg) }
+        setMsg({ ok: false, text: errMsg }); return
+      }
       const d = await r.json()
       setOperarios(d.semana?.operarios || operarios)
       setMsg({ ok: true, text: 'Asignación guardada. Los links de operarios ya están disponibles.' })

@@ -15,11 +15,17 @@ function readData() {
 }
 
 function writeData(d) {
-  fs.writeFileSync(dataPath(), JSON.stringify(d, null, 2), 'utf-8')
+  const p = dataPath()
+  const dir = path.dirname(p)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(p, JSON.stringify(d, null, 2), 'utf-8')
 }
 
 export default function handler(req, res) {
-  const data = readData()
+  let data
+  try { data = readData() } catch (e) {
+    return res.status(500).json({ error: `Error leyendo datos: ${e.message}` })
+  }
 
   // GET: list, by semana key, or by operator token
   if (req.method === 'GET') {
@@ -69,7 +75,9 @@ export default function handler(req, res) {
       created_at: existing.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
-    writeData(data)
+    try { writeData(data) } catch (e) {
+      return res.status(500).json({ error: `Error guardando datos: ${e.message}`, path: dataPath() })
+    }
     return res.status(200).json({ ok: true, semana: data.semanas[semana] })
   }
 
@@ -86,7 +94,9 @@ export default function handler(req, res) {
       updated: new Date().toISOString(),
     }
     data.semanas[semana].updated_at = new Date().toISOString()
-    writeData(data)
+    try { writeData(data) } catch (e) {
+      return res.status(500).json({ error: `Error guardando progreso: ${e.message}` })
+    }
     return res.status(200).json({ ok: true })
   }
 

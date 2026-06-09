@@ -43,3 +43,7 @@ Thumbs.db
 *.tfstate.*.backup
 .terraform.lock.hcl
 *.tfvars
+
+# Runtime data
+asignaciones.json
+*asignaciones.json
