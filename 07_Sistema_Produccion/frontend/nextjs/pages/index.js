@@ -2913,7 +2913,6 @@ export default function Home() {
   )
 
   const skus = Object.keys(predictions || {})
-  const totalForecast = skus.reduce((s, k) => s + (predictions[k] || []).reduce((a, r) => a + r.forecast, 0), 0)
   const avgR2 = skus.length ? skus.reduce((s, k) => s + (metadata[k]?.r2 || 0), 0) / skus.length : 0
 
   const hour = new Date().getHours()
@@ -2938,19 +2937,6 @@ export default function Home() {
             {pipeline.status === 'error' && (
               <span style={{ fontSize: 12, color: RED, fontWeight: 600 }}>✗ Error en pipeline</span>
             )}
-            <button
-              disabled={pipeline.status === 'running'}
-              onClick={() => fetch('/api/pipeline', { method: 'POST' }).then(r => r.json()).then(d => setPipeline(d.status === 'started' ? { status: 'running' } : pipeline))}
-              style={{
-                padding: '6px 14px', borderRadius: 6, border: `1px solid ${BLUE}`,
-                background: pipeline.status === 'running' ? '#e2e8f0' : BLUE,
-                color: pipeline.status === 'running' ? '#94a3b8' : 'white',
-                cursor: pipeline.status === 'running' ? 'not-allowed' : 'pointer',
-                fontSize: 13, fontWeight: 600,
-              }}
-            >
-              Regenerar datos
-            </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderLeft: '1px solid #e2e8f0', paddingLeft: 12 }}>
               {session?.user?.image && (
                 <img
