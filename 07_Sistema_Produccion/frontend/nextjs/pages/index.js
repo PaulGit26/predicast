@@ -48,7 +48,7 @@ const MODULES = [
     icon: '💰',
     roles: ['admin', 'gerente_financiero'],
     tabs: [
-      { id: 'costo_planchas',      label: 'Costo de Planchas' },
+      { id: 'costo_planchas',      label: 'Inversión de Planchas' },
       { id: 'analisis_financiero', label: 'Análisis Financiero Histórico' },
     ],
   },
