@@ -84,13 +84,13 @@ const MODULES = [
 // ─── Plancha config ───────────────────────────────────────────────────────────
 
 const SKU_PLANCHA = {
-  'CER 001':  { tipo: '0.75', prod_por_plancha: 141 },
-  'CER 005':  { tipo: '0.75', prod_por_plancha: 141 },
-  'CEO 001':  { tipo: '0.75', prod_por_plancha: 113 },
-  'CEO 006':  { tipo: '0.75', prod_por_plancha: 113 },
-  'CER 008':  { tipo: '1.20', prod_por_plancha: 115 },
-  'CER 004':  { tipo: '1.20', prod_por_plancha: 141 },
-  'CERE 002': { tipo: '1.20', prod_por_plancha: 141 },
+  'CER001':  { tipo: '0.75', prod_por_plancha: 141 },
+  'CER005':  { tipo: '0.75', prod_por_plancha: 141 },
+  'CEO001':  { tipo: '0.75', prod_por_plancha: 113 },
+  'CEO006':  { tipo: '0.75', prod_por_plancha: 113 },
+  'CER008':  { tipo: '1.20', prod_por_plancha: 115 },
+  'CER004':  { tipo: '1.20', prod_por_plancha: 141 },
+  'CERE002': { tipo: '1.20', prod_por_plancha: 141 },
 }
 const PRECIOS_DEFAULT = { '0.75': 129.95, '1.20': 201.63 }
 
@@ -1715,9 +1715,7 @@ export default function Home() {
             <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700, color: '#1e293b' }}>
               {greeting}, {firstName}
             </h2>
-            <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: 14 }}>
-              Selecciona un módulo para comenzar. Aquí tienes el estado actual del sistema:
-            </p>
+
           </div>
 
           <ModuleSelector modules={modules} onSelect={selectModule} />
