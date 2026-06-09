@@ -31,7 +31,7 @@ services:
       DATA_ROOT: /data
       PIPELINE_URL: http://pipeline:5001
     volumes:
-      - /home/ec2-user/predicast/data:/data:ro
+      - /home/ec2-user/predicast/data:/data
 
   pipeline:
     image: ${ECR_REGISTRY}/predicast-pipeline:${IMAGE_TAG:-latest}
