@@ -222,7 +222,7 @@ jobs:
           echo 'source .env'                                                          >> /tmp/deploy.sh
           echo 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REGISTRY"' >> /tmp/deploy.sh
           echo 'docker compose -f docker-compose.prod.yml pull'                      >> /tmp/deploy.sh
-          echo 'sudo chown -R 1001:1001 /home/ec2-user/predicast/data'              >> /tmp/deploy.sh
+          echo 'sudo touch /home/ec2-user/predicast/data/asignaciones.json && sudo chmod 666 /home/ec2-user/predicast/data/asignaciones.json' >> /tmp/deploy.sh
           echo 'docker compose -f docker-compose.prod.yml up -d --remove-orphans'   >> /tmp/deploy.sh
           echo 'docker image prune -f'                                               >> /tmp/deploy.sh
 
