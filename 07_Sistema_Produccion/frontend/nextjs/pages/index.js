@@ -83,16 +83,19 @@ const MODULES = [
 
 // ─── Plancha config ───────────────────────────────────────────────────────────
 
-const SKU_PLANCHA = {
-  'CER001':  { tipo: '0.75', prod_por_plancha: 141 },
-  'CER005':  { tipo: '0.75', prod_por_plancha: 141 },
-  'CEO001':  { tipo: '0.75', prod_por_plancha: 113 },
-  'CEO006':  { tipo: '0.75', prod_por_plancha: 113 },
-  'CER008':  { tipo: '1.20', prod_por_plancha: 115 },
-  'CER004':  { tipo: '1.20', prod_por_plancha: 141 },
-  'CERE002': { tipo: '1.20', prod_por_plancha: 141 },
+// Fallback mientras carga la config del servidor
+const PLANCHA_CONFIG_DEFAULT = {
+  precios: { '0.75': 129.95, '1.20': 201.63 },
+  skus: {
+    CER001:  { tipo: '0.75', prod_por_plancha: 141 },
+    CER005:  { tipo: '0.75', prod_por_plancha: 141 },
+    CEO001:  { tipo: '0.75', prod_por_plancha: 113 },
+    CEO006:  { tipo: '0.75', prod_por_plancha: 113 },
+    CER008:  { tipo: '1.20', prod_por_plancha: 115 },
+    CER004:  { tipo: '1.20', prod_por_plancha: 141 },
+    CERE002: { tipo: '1.20', prod_por_plancha: 141 },
+  },
 }
-const PRECIOS_DEFAULT = { '0.75': 129.95, '1.20': 201.63 }
 
 function visibleModules(roles) {
   return MODULES.filter(m => m.roles.some(r => roles.includes(r)))
@@ -800,10 +803,10 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
 const TEAL_DARK = '#0e7490'
 const TEAL_LIGHT = '#06b6d4'
 
-function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, setPrecios }) {
+function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, setPrecios, skuPlancha }) {
   const [horizon, setHorizon] = useState(12)
   const [editando, setEditando] = useState(false)
-  const [preciosTemp, setPreciosTemp] = useState(PRECIOS_DEFAULT)
+  const [preciosTemp, setPreciosTemp] = useState(precios)
 
   if (!produccion) return (
     <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -812,11 +815,11 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
     </div>
   )
 
-  const skus = Object.keys(produccion).filter(k => SKU_PLANCHA[k])
+  const skus = Object.keys(produccion).filter(k => skuPlancha[k])
 
   // Compute per-SKU cost data
   const costData = skus.map((sku, idx) => {
-    const cfg = SKU_PLANCHA[sku]
+    const cfg = skuPlancha[sku]
     const precioPlancha = precios[cfg.tipo]
     const planchasPorUnidad = 1 / cfg.prod_por_plancha
     const costoPorUnidad = precioPlancha * planchasPorUnidad
@@ -1304,14 +1307,14 @@ const COSTOS_CONFIG = [
   { key: 'deterioro',     label: 'Riesgo de deterioro / merma', pct:  2, icon: '⚠️', color: '#b45309', desc: 'Productos potencialmente dañados en almacén' },
 ]
 
-function TabAnalisisFinanciero({ eficiencia, semanal, precios }) {
+function TabAnalisisFinanciero({ eficiencia, semanal, precios, skuPlancha }) {
   const [tasas, setTasas] = useState(() => Object.fromEntries(COSTOS_CONFIG.map(c => [c.key, c.pct])))
   const [expandConfig, setExpandConfig] = useState(false)
 
   const skuData = eficiencia
-    .filter(e => SKU_PLANCHA[e.codigo])
+    .filter(e => skuPlancha[e.codigo])
     .map((e, idx) => {
-      const cfg = SKU_PLANCHA[e.codigo]
+      const cfg = skuPlancha[e.codigo]
       const precioP = precios[cfg.tipo]
       const sobreprod = Math.max(0, e.produccion_total - e.ventas_total)
       const costoMP = (sobreprod / cfg.prod_por_plancha) * precioP
@@ -1517,7 +1520,17 @@ export default function Home() {
 
   const [produccion, setProduccion] = useState(null)
   const [safetyWeeks, setSafetyWeeks] = useState(2)
-  const [precios, setPrecios] = useState(PRECIOS_DEFAULT)
+  const [planchaConfig, setPlanchaConfig] = useState(PLANCHA_CONFIG_DEFAULT)
+
+  const updatePrecios = async (newPrecios) => {
+    const newConfig = { ...planchaConfig, precios: newPrecios }
+    setPlanchaConfig(newConfig)
+    fetch('/api/plancha-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newConfig),
+    }).catch(() => {})
+  }
 
   const selectModule = (mod) => {
     setCurrentModule(mod)
@@ -1595,6 +1608,13 @@ export default function Home() {
   useEffect(() => {
     if (modules.length === 1 && !currentModule) selectModule(modules[0])
   }, [modules.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    fetch('/api/plancha-config')
+      .then(r => r.json())
+      .then(cfg => setPlanchaConfig(cfg))
+      .catch(() => {})
+  }, [])
 
   if (loading) return (
     <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: 60, textAlign: 'center', color: '#555' }}>
@@ -1752,15 +1772,17 @@ export default function Home() {
               produccion={produccion}
               safetyWeeks={safetyWeeks}
               setSafetyWeeks={setSafetyWeeks}
-              precios={precios}
-              setPrecios={setPrecios}
+              precios={planchaConfig.precios}
+              setPrecios={updatePrecios}
+              skuPlancha={planchaConfig.skus}
             />
           )}
           {tab === 'analisis_financiero' && (
             <TabAnalisisFinanciero
               eficiencia={eficiencia}
               semanal={semanal}
-              precios={precios}
+              precios={planchaConfig.precios}
+              skuPlancha={planchaConfig.skus}
             />
           )}
           {tab === 'produccion' && (
