@@ -24,18 +24,31 @@ const fmtDec = (v, d = 1) => (typeof v === 'number' ? v.toFixed(d) : v)
 
 const MODULES = [
   {
-    id: 'finanzas',
-    label: 'Módulo Finanzas',
-    description: 'Análisis de demanda, métricas de rendimiento y exploración de datos históricos de ventas.',
+    id: 'historico',
+    label: 'Histórico de Ventas y Stock',
+    description: 'Resumen ejecutivo, análisis por producto y exploración de datos históricos de ventas y stock.',
     color: '#1a237e',
     bg: '#eff6ff',
     accent: '#3b82f6',
     icon: '📊',
     roles: ['admin', 'gerente_financiero'],
     tabs: [
-      { id: 'resumen',    label: 'Resumen Ejecutivo' },
-      { id: 'producto',   label: 'Por Producto' },
-      { id: 'exploracion',label: 'Exploración de Datos' },
+      { id: 'resumen',     label: 'Resumen Ejecutivo' },
+      { id: 'producto',    label: 'Por Producto' },
+      { id: 'exploracion', label: 'Exploración de Datos' },
+    ],
+  },
+  {
+    id: 'finanzas',
+    label: 'Módulo Finanzas',
+    description: 'Proyección de costos de planchas metálicas, inversión semanal por producto y análisis financiero de producción.',
+    color: '#0e7490',
+    bg: '#f0fdfe',
+    accent: '#06b6d4',
+    icon: '💰',
+    roles: ['admin', 'gerente_financiero'],
+    tabs: [
+      { id: 'costo_planchas', label: 'Costo de Planchas' },
     ],
   },
   {
@@ -66,6 +79,19 @@ const MODULES = [
     ],
   },
 ]
+
+// ─── Plancha config ───────────────────────────────────────────────────────────
+
+const SKU_PLANCHA = {
+  'CER 001':  { tipo: '0.75', prod_por_plancha: 141 },
+  'CER 005':  { tipo: '0.75', prod_por_plancha: 141 },
+  'CEO 001':  { tipo: '0.75', prod_por_plancha: 113 },
+  'CEO 006':  { tipo: '0.75', prod_por_plancha: 113 },
+  'CER 008':  { tipo: '1.20', prod_por_plancha: 115 },
+  'CER 004':  { tipo: '1.20', prod_por_plancha: 141 },
+  'CERE 002': { tipo: '1.20', prod_por_plancha: 141 },
+}
+const PRECIOS_DEFAULT = { '0.75': 129.95, '1.20': 201.63 }
 
 function visibleModules(roles) {
   return MODULES.filter(m => m.roles.some(r => roles.includes(r)))
@@ -768,6 +794,259 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   )
 }
 
+// ─── Tab: Costo de Planchas ───────────────────────────────────────────────────
+
+const TEAL_DARK = '#0e7490'
+const TEAL_LIGHT = '#06b6d4'
+
+function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks }) {
+  const [precios, setPrecios] = useState(PRECIOS_DEFAULT)
+  const [horizon, setHorizon] = useState(12)
+  const [editando, setEditando] = useState(false)
+  const [preciosTemp, setPreciosTemp] = useState(PRECIOS_DEFAULT)
+
+  if (!produccion) return (
+    <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>💰</div>
+      <div style={{ fontWeight: 600 }}>Cargando datos de producción...</div>
+    </div>
+  )
+
+  const skus = Object.keys(produccion).filter(k => SKU_PLANCHA[k])
+
+  // Compute per-SKU cost data
+  const costData = skus.map((sku, idx) => {
+    const cfg = SKU_PLANCHA[sku]
+    const precioPlancha = precios[cfg.tipo]
+    const planchasPorUnidad = 1 / cfg.prod_por_plancha
+    const costoPorUnidad = precioPlancha * planchasPorUnidad
+    const cal = produccion[sku]?.calendar.slice(0, horizon) || []
+
+    const weeks = cal.map(w => ({
+      semana: w.semana,
+      fecha: w.fecha,
+      unidades: w.produccion,
+      planchas: w.produccion * planchasPorUnidad,
+      costo: w.produccion * costoPorUnidad,
+      urgente: w.urgente,
+    }))
+
+    const totUnidades = weeks.reduce((s, w) => s + w.unidades, 0)
+    const totPlanchas = weeks.reduce((s, w) => s + w.planchas, 0)
+    const totCosto = weeks.reduce((s, w) => s + w.costo, 0)
+
+    return { sku, cfg, precioPlancha, costoPorUnidad, weeks, totUnidades, totPlanchas, totCosto, color: SKU_COLORS[idx % SKU_COLORS.length] }
+  })
+
+  const totalInversion = costData.reduce((s, d) => s + d.totCosto, 0)
+  const totalPlanchas = costData.reduce((s, d) => s + d.totPlanchas, 0)
+  const avgSemanal = horizon > 0 ? totalInversion / horizon : 0
+
+  // Chart: weekly total cost stacked by SKU
+  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon).map(w => w.semana) || []
+  const chartData = allWeeks.map((sem, i) => {
+    const pt = { semana: sem.replace('semana_', 'S') }
+    costData.forEach(d => { pt[d.sku] = Math.round(d.weeks[i]?.costo || 0) })
+    return pt
+  })
+
+  const guardarPrecios = () => {
+    setPrecios({ ...preciosTemp })
+    setEditando(false)
+  }
+
+  return (
+    <div>
+
+      {/* ── Precio editor ── */}
+      <div style={{ background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 10, padding: '16px 20px', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: TEAL_DARK, marginBottom: 4 }}>
+              Precios de planchas metálicas
+            </div>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              {Object.entries(precios).map(([tipo, precio]) => (
+                <span key={tipo} style={{ fontSize: 13, color: '#0e7490' }}>
+                  <strong>F.G. {tipo}:</strong> S/ {precio.toFixed(2)} por plancha
+                </span>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => { setPreciosTemp({ ...precios }); setEditando(!editando) }}
+            style={{
+              padding: '7px 14px', borderRadius: 7, border: `1px solid ${TEAL_LIGHT}`,
+              background: editando ? '#e0f2fe' : 'white', color: TEAL_DARK,
+              cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            }}
+          >
+            {editando ? 'Cancelar' : '✏️ Editar precios'}
+          </button>
+        </div>
+
+        {editando && (
+          <div style={{ marginTop: 16, display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            {['0.75', '1.20'].map(tipo => (
+              <div key={tipo}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                  Plancha F.G. {tipo} (S/ por plancha)
+                </label>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={preciosTemp[tipo]}
+                  onChange={e => setPreciosTemp(p => ({ ...p, [tipo]: parseFloat(e.target.value) || 0 }))}
+                  style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${TEAL_LIGHT}`, fontSize: 14, width: 130 }}
+                />
+              </div>
+            ))}
+            <button
+              onClick={guardarPrecios}
+              style={{
+                padding: '7px 18px', borderRadius: 7, background: TEAL_DARK,
+                color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              }}
+            >
+              Aplicar
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Controls ── */}
+      <div style={{ display: 'flex', gap: 32, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+            Stock de seguridad: <span style={{ color: TEAL_DARK }}>{safetyWeeks} sem</span>
+          </label>
+          <input type="range" min={0.5} max={6} step={0.5} value={safetyWeeks}
+            onChange={e => setSafetyWeeks(parseFloat(e.target.value))} style={{ width: 160 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+            Horizonte: <span style={{ color: TEAL_DARK }}>{horizon} sem</span>
+          </label>
+          <input type="range" min={4} max={52} step={4} value={horizon}
+            onChange={e => setHorizon(parseInt(e.target.value))} style={{ width: 160 }} />
+        </div>
+      </div>
+
+      {/* ── KPI cards ── */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Inversión total proyectada', value: `S/ ${fmt(totalInversion)}`, color: TEAL_DARK },
+          { label: 'Promedio semanal', value: `S/ ${fmt(avgSemanal)}`, color: TEAL_LIGHT },
+          { label: 'Planchas totales a comprar', value: fmtDec(totalPlanchas, 1), color: ORANGE },
+          { label: 'Horizonte analizado', value: `${horizon} semanas`, color: PURPLE },
+        ].map(c => (
+          <div key={c.label} style={{
+            flex: '1 1 160px', background: 'white', borderRadius: 10,
+            padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            borderLeft: `4px solid ${c.color}`,
+          }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Chart ── */}
+      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+        <h3 style={{ margin: '0 0 4px', color: TEAL_DARK, fontSize: 15, fontWeight: 700 }}>
+          Inversión semanal en planchas por SKU — próximas {horizon} semanas
+        </h3>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>Costo total de planchas requeridas por semana de producción (S/)</p>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={chartData} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
+            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n]} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {costData.map(d => (
+              <Bar key={d.sku} dataKey={d.sku} stackId="a" fill={d.color} radius={costData[costData.length - 1].sku === d.sku ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Resumen por SKU ── */}
+      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24, overflowX: 'auto' }}>
+        <h3 style={{ margin: '0 0 14px', color: TEAL_DARK, fontSize: 15, fontWeight: 700 }}>Resumen por producto</h3>
+        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: '#f0fdfe' }}>
+              {['SKU', 'Tipo plancha', 'Precio plancha', 'Costo/unidad', 'Unidades totales', 'Planchas totales', 'Inversión total'].map(h => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: TEAL_DARK, borderBottom: `2px solid ${TEAL_LIGHT}`, whiteSpace: 'nowrap', fontSize: 12 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {costData.map((d, i) => (
+              <tr key={d.sku} style={{ background: i % 2 === 0 ? '#fafafa' : 'white' }}>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: d.color, textAlign: 'right' }}>{d.sku}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
+                  <span style={{ background: d.cfg.tipo === '0.75' ? '#eff6ff' : '#fefce8', color: d.cfg.tipo === '0.75' ? BLUE : '#92400e', border: `1px solid ${d.cfg.tipo === '0.75' ? '#bfdbfe' : '#fde68a'}`, borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                    F.G. {d.cfg.tipo}
+                  </span>
+                </td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>S/ {d.precioPlancha.toFixed(2)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', color: '#64748b' }}>S/ {d.costoPorUnidad.toFixed(4)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmt(d.totUnidades)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmtDec(d.totPlanchas, 2)}</td>
+                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontWeight: 700, color: TEAL_DARK }}>S/ {fmt(d.totCosto)}</td>
+              </tr>
+            ))}
+            <tr style={{ background: '#f0fdfe', fontWeight: 700 }}>
+              <td colSpan={4} style={{ padding: '9px 12px', textAlign: 'right', color: TEAL_DARK, borderTop: `2px solid ${TEAL_LIGHT}` }}>TOTAL</td>
+              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: `2px solid ${TEAL_LIGHT}` }}>{fmt(costData.reduce((s, d) => s + d.totUnidades, 0))}</td>
+              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: `2px solid ${TEAL_LIGHT}` }}>{fmtDec(totalPlanchas, 2)}</td>
+              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: `2px solid ${TEAL_LIGHT}`, color: TEAL_DARK }}>S/ {fmt(totalInversion)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Detalle semanal por SKU ── */}
+      {costData.map(d => d.totUnidades > 0 && (
+        <div key={d.sku} style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 16, overflowX: 'auto' }}>
+          <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: d.color }}>
+            {d.sku} — F.G. {d.cfg.tipo} &nbsp;
+            <span style={{ fontWeight: 400, fontSize: 12, color: '#64748b' }}>
+              ({d.cfg.prod_por_plancha} unidades/plancha · S/ {d.precioPlancha.toFixed(2)}/plancha)
+            </span>
+          </h4>
+          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                {['Semana', 'Fecha', 'Unidades a producir', 'Planchas necesarias', 'Costo planchas (S/)', 'Estado'].map(h => (
+                  <th key={h} style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.weeks.filter(w => w.unidades > 0).map((w, i) => (
+                <tr key={i} style={{ background: w.urgente ? '#fff5f5' : i % 2 === 0 ? '#fafafa' : 'white' }}>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.semana}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.fecha}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{fmt(w.unidades)}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmtDec(w.planchas, 3)}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: TEAL_DARK, borderBottom: '1px solid #f1f5f9' }}>S/ {fmt(w.costo)}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>
+                    {w.urgente
+                      ? <span style={{ color: RED, fontWeight: 700 }}>⚠ Urgente</span>
+                      : <span style={{ color: GREEN, fontWeight: 600 }}>✓ Normal</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Tab: Administración ─────────────────────────────────────────────────────
 
 const ROLE_LABELS = {
@@ -1293,6 +1572,13 @@ export default function Home() {
           )}
           {tab === 'exploracion' && (
             <TabExploracion tendencia={tendencia} bodega={bodega} canal={canal} />
+          )}
+          {tab === 'costo_planchas' && (
+            <TabCostoPlanchas
+              produccion={produccion}
+              safetyWeeks={safetyWeeks}
+              setSafetyWeeks={setSafetyWeeks}
+            />
           )}
           {tab === 'produccion' && (
             <TabProduccion
