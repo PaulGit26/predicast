@@ -2563,6 +2563,208 @@ function TabNav({ active, onChange, tabs, color = BLUE }) {
   )
 }
 
+// ─── Guía Contextual ──────────────────────────────────────────────────────────
+
+const GUIA_CONTENT = {
+  resumen: {
+    titulo: 'Resumen Ejecutivo',
+    desc: 'Vista general del negocio con los indicadores más importantes de ventas y stock.',
+    puntos: [
+      'Revisa el total vendido y producido por período',
+      'Identifica los SKUs con mayor volumen de movimiento',
+      'Usa los filtros de fecha para acotar el análisis',
+    ],
+    tip: 'Comienza aquí para tener una foto rápida del estado general antes de ir al detalle.',
+  },
+  producto: {
+    titulo: 'Análisis por Producto',
+    desc: 'Comportamiento histórico de ventas y stock para cada SKU individualmente.',
+    puntos: [
+      'Selecciona un SKU del menú para ver su evolución',
+      'Compara ventas vs. stock de cierre semana a semana',
+      'Detecta temporadas altas y bajas por producto',
+    ],
+    tip: 'Útil para entender el patrón estacional de cada SKU antes de planificar.',
+  },
+  exploracion: {
+    titulo: 'Exploración de Datos',
+    desc: 'Vista interactiva para explorar relaciones y distribuciones del historial completo.',
+    puntos: [
+      'Filtra por rango de fechas y SKU',
+      'Revisa distribuciones y correlaciones entre variables',
+      'Detecta outliers o semanas atípicas',
+    ],
+    tip: 'Ideal para analistas que quieren profundizar antes de tomar decisiones.',
+  },
+  planificacion: {
+    titulo: 'Planificación / GAP',
+    desc: 'Compara lo planificado vs. lo ejecutado para identificar brechas de producción.',
+    puntos: [
+      'GAP positivo = sobreproducción, GAP negativo = subproducción',
+      'Identifica semanas con mayor desviación histórica',
+      'Usa esta vista para ajustar tu criterio de safety stock',
+    ],
+    tip: 'Un GAP negativo recurrente en un SKU indica que la meta de producción está subestimada.',
+  },
+  costo_planchas: {
+    titulo: 'Inversión de Planchas',
+    desc: 'Calcula el costo de materia prima (planchas metálicas) para el plan de producción.',
+    puntos: [
+      'Ingresa el precio actual de plancha por m²',
+      'Ve el costo proyectado por SKU y semana',
+      'Identifica las semanas de mayor inversión en material',
+    ],
+    tip: 'Actualiza el precio cuando cambie en el mercado para mantener proyecciones precisas.',
+  },
+  analisis_financiero: {
+    titulo: 'Análisis Financiero Histórico',
+    desc: 'Evalúa el impacto económico de las decisiones de producción en el tiempo.',
+    puntos: [
+      'Revisa la inversión acumulada por período',
+      'Compara costos de sobreproducción vs. demanda insatisfecha',
+      'Identifica los SKUs de mayor peso en el presupuesto',
+    ],
+    tip: 'Cruza esta vista con Planificación/GAP para cuantificar cuánto costaron las desviaciones.',
+  },
+  backtest_predicast: {
+    titulo: 'Simulación con Predicast',
+    desc: 'Retrospectiva: ¿cuánto se habría ahorrado si Predicast hubiera guiado la producción histórica?',
+    puntos: [
+      'Ajusta las semanas de safety stock con el slider',
+      'Compara producción real vs. producción guiada por el modelo',
+      'Ve el ahorro en unidades y costos por SKU',
+    ],
+    tip: 'Esta vista es ideal para presentar el valor del sistema ante la gerencia general.',
+  },
+  produccion: {
+    titulo: 'Plan de Producción',
+    desc: 'Calendario semanal de recomendaciones generado por el modelo de ML.',
+    puntos: [
+      'Las semanas urgentes indican stock por debajo del mínimo',
+      'El safety stock dinámico se ajusta por SKU automáticamente',
+      'Exporta o imprime el calendario para compartirlo',
+    ],
+    tip: 'Revisa primero las semanas marcadas como urgentes antes de planificar el calendario.',
+  },
+  asignacion: {
+    titulo: 'Asignación de Operarios',
+    desc: 'Distribuye las metas de producción entre tu equipo y haz seguimiento del avance.',
+    puntos: [
+      '① Asignar: define cuánto produce cada operario por SKU',
+      '② Seguimiento: registra el avance real manualmente',
+      '③ Resumen: genera un reporte imprimible o por email',
+    ],
+    tip: 'Usa "Copiar link" para enviar a cada operario su vista personalizada — sin necesidad de login.',
+  },
+  ingesta: {
+    titulo: 'Actualización de Datos',
+    desc: 'Sube el archivo del ERP para actualizar la base de datos y reentrenar los modelos.',
+    puntos: [
+      'El archivo debe llamarse Movimientos_MayorAuxiliar_YYYY.csv',
+      'El sistema valida el formato antes de guardar',
+      'Tras subir, pulsa "Ejecutar pipeline" para reentrenar',
+    ],
+    tip: 'Sube el archivo mensualmente o al cierre de cada período para mantener las predicciones vigentes.',
+  },
+  admin: {
+    titulo: 'Administración de Usuarios',
+    desc: 'Gestiona quién tiene acceso al sistema y qué módulos puede ver.',
+    puntos: [
+      'Asigna roles: admin, gerente_financiero, gerente_produccion',
+      'Crea o desactiva usuarios desde el panel',
+      'Los roles determinan qué módulos aparecen en el dashboard',
+    ],
+    tip: 'Solo usuarios con rol admin pueden acceder a esta sección.',
+  },
+}
+
+function GuiaWidget({ tab }) {
+  const [open, setOpen] = useState(false)
+  const g = GUIA_CONTENT[tab]
+
+  useEffect(() => { setOpen(false) }, [tab])
+
+  if (!g) return null
+
+  return (
+    <>
+      <style>{`
+        @keyframes guiaSlideUp {
+          from { opacity: 0; transform: translateY(12px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)    scale(1);    }
+        }
+        @keyframes guiaPulse {
+          0%,100% { box-shadow: 0 4px 16px rgba(26,35,126,0.35); }
+          50%      { box-shadow: 0 4px 24px rgba(26,35,126,0.55); }
+        }
+      `}</style>
+
+      <div style={{ position: 'fixed', bottom: 28, right: 28, zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+        {/* Panel */}
+        {open && (
+          <div style={{
+            width: 300, background: '#fff', borderRadius: 18,
+            boxShadow: '0 8px 40px rgba(0,0,0,0.16)',
+            border: '1px solid #e2e8f0',
+            padding: '18px 18px 14px',
+            animation: 'guiaSlideUp 0.22s ease',
+            position: 'relative',
+          }}>
+            {/* Triangle pointer */}
+            <div style={{ position: 'absolute', bottom: -9, right: 17, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: '9px solid #e2e8f0' }} />
+            <div style={{ position: 'absolute', bottom: -7, right: 18, width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderTop: '8px solid #fff' }} />
+
+            {/* Header */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+              <span style={{ fontSize: 26, lineHeight: 1 }}>🤖</span>
+              <div>
+                <div style={{ fontWeight: 700, color: '#1a237e', fontSize: 13, lineHeight: 1.2 }}>{g.titulo}</div>
+                <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 3, lineHeight: 1.4 }}>{g.desc}</div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: '#f1f5f9', marginBottom: 10 }} />
+
+            {/* Bullets */}
+            <ul style={{ margin: '0 0 12px', padding: 0, listStyle: 'none' }}>
+              {g.puntos.map((p, i) => (
+                <li key={i} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', marginBottom: 6, fontSize: 12, color: '#374151', lineHeight: 1.4 }}>
+                  <span style={{ color: '#166534', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>
+                  {p}
+                </li>
+              ))}
+            </ul>
+
+            {/* Tip */}
+            <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 11px', fontSize: 11, color: '#713f12', lineHeight: 1.45 }}>
+              <span style={{ fontWeight: 700 }}>💡 Tip: </span>{g.tip}
+            </div>
+          </div>
+        )}
+
+        {/* Floating button */}
+        <button
+          onClick={() => setOpen(o => !o)}
+          title={open ? 'Cerrar guía' : `Guía: ${g.titulo}`}
+          style={{
+            width: 50, height: 50, borderRadius: '50%',
+            background: open ? '#1a237e' : 'linear-gradient(135deg, #1a237e 0%, #0e7490 100%)',
+            border: '2px solid rgba(255,255,255,0.25)',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, transition: 'transform 0.18s, background 0.18s',
+            transform: open ? 'scale(1.08) rotate(10deg)' : 'scale(1)',
+            animation: open ? 'none' : 'guiaPulse 2.8s ease-in-out infinite',
+          }}
+        >
+          {open ? '✕' : '🤖'}
+        </button>
+      </div>
+    </>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -2885,6 +3087,7 @@ export default function Home() {
           {tab === 'admin' && <TabAdmin />}
         </>
       )}
+      {tab && <GuiaWidget tab={tab} />}
     </main>
   )
 }
