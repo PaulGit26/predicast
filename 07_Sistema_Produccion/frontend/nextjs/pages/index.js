@@ -600,6 +600,12 @@ function TabExploracion({ tendencia, bodega, canal }) {
 
 // ─── Tab: Plan de Producción ──────────────────────────────────────────────────
 
+function fmtWeekDate(dateStr) {
+  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+  const d = new Date(dateStr + 'T00:00:00')
+  return `${String(d.getDate()).padStart(2,'0')} ${months[d.getMonth()]} ${d.getFullYear()}`
+}
+
 function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   const [horizon, setHorizon] = useState(12)
   const [detailSku, setDetailSku] = useState(null)
@@ -617,7 +623,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   )
 
   const activeSku = detailSku && produccion[detailSku] ? detailSku : skus[0]
-  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon).map(w => w.semana) || []
+  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon) || []
 
   const totalProduccion = skus.reduce((s, k) => {
     return s + produccion[k].calendar.slice(0, horizon).reduce((a, w) => a + w.produccion, 0)
@@ -636,7 +642,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   }
 
   const detailData = produccion[activeSku]?.calendar.slice(0, horizon).map(w => ({
-    name: w.semana,
+    name: fmtWeekDate(w.fecha),
     stock: w.stock_inicio,
     produccion: w.produccion,
     demanda: w.demanda,
@@ -699,9 +705,9 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
           <thead>
             <tr>
               <th style={{ padding: '6px 10px', textAlign: 'left', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#374151', minWidth: 90 }}>SKU</th>
-              {allWeeks.map(w => (
-                <th key={w} style={{ padding: '4px 6px', textAlign: 'center', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 600, color: '#64748b', minWidth: 52, fontSize: 10 }}>
-                  {w.replace('semana_', 'S')}
+              {allWeeks.map((w, i) => (
+                <th key={i} style={{ padding: '4px 6px', textAlign: 'center', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 600, color: '#64748b', minWidth: 68, fontSize: 10 }}>
+                  {fmtWeekDate(w.fecha)}
                 </th>
               ))}
             </tr>
@@ -751,7 +757,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart data={detailData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" tick={{ fontSize: 10 }} tickFormatter={v => v.replace('semana_', 'S')} />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={v => fmt(v)} />
             <Tooltip formatter={(v, n) => [fmt(v), n]} labelFormatter={v => v} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -771,7 +777,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
         <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
           <thead>
             <tr style={{ background: '#f8fafc' }}>
-              {['Semana', 'Fecha', 'Demanda', 'Producción', 'Stock inicio', 'Stock fin', 'Estado'].map(h => (
+              {['Fecha', 'Demanda', 'Producción', 'Stock inicio', 'Stock fin', 'Estado'].map(h => (
                 <th key={h} style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#374151', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -779,8 +785,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
           <tbody>
             {produccion[activeSku]?.calendar.slice(0, horizon).map((w, i) => (
               <tr key={i} style={{ background: w.urgente ? '#fff5f5' : w.produccion > 0 ? '#f0fdf4' : 'white' }}>
-                <td style={{ padding: '6px 12px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.semana}</td>
-                <td style={{ padding: '6px 12px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.fecha}</td>
+                <td style={{ padding: '6px 12px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{fmtWeekDate(w.fecha)}</td>
                 <td style={{ padding: '6px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.demanda)}</td>
                 <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: w.produccion > 0 ? 700 : 400, color: w.produccion > 0 ? GREEN : '#94a3b8', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.produccion)}</td>
                 <td style={{ padding: '6px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.stock_inicio)}</td>
@@ -849,9 +854,9 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
   const avgSemanal = horizon > 0 ? totalInversion / horizon : 0
 
   // Chart: weekly total cost stacked by SKU
-  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon).map(w => w.semana) || []
-  const chartData = allWeeks.map((sem, i) => {
-    const pt = { semana: sem.replace('semana_', 'S') }
+  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon) || []
+  const chartData = allWeeks.map((w, i) => {
+    const pt = { semana: fmtWeekDate(w.fecha) }
     costData.forEach(d => { pt[d.sku] = Math.round(d.weeks[i]?.costo || 0) })
     return pt
   })
