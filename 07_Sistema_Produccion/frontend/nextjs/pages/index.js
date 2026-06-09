@@ -1155,6 +1155,12 @@ export default function Home() {
   )
 
   const skus = Object.keys(predictions || {})
+  const totalForecast = skus.reduce((s, k) => s + (predictions[k] || []).reduce((a, r) => a + r.forecast, 0), 0)
+  const avgR2 = skus.length ? skus.reduce((s, k) => s + (metadata[k]?.r2 || 0), 0) / skus.length : 0
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
+  const firstName = (session?.user?.name || '').split(' ')[0] || session?.user?.email || 'Usuario'
 
   return (
     <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
@@ -1214,10 +1220,22 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-          <span style={{ fontSize: 12, color: '#888' }}>📦 {skus.length} SKUs</span>
-          <span style={{ fontSize: 12, color: '#888' }}>📅 52 semanas de horizonte</span>
-          <span style={{ fontSize: 12, color: '#888' }}>✅ {skus.length * 52} predicciones generadas</span>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          {[
+            { icon: '📦', label: `${skus.length} SKUs activos` },
+            { icon: '📅', label: '52 sem. de horizonte' },
+            { icon: '✅', label: `${(skus.length * 52).toLocaleString('es-PE')} predicciones` },
+            { icon: '🎯', label: `R² ${fmtDec(avgR2 * 100)}%` },
+          ].map(b => (
+            <span key={b.label} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: '#f1f5f9', border: '1px solid #e2e8f0',
+              borderRadius: 20, padding: '3px 12px',
+              fontSize: 12, color: '#475569', fontWeight: 500,
+            }}>
+              {b.icon} {b.label}
+            </span>
+          ))}
         </div>
       </header>
 
@@ -1237,7 +1255,42 @@ export default function Home() {
       )}
 
       {!currentModule ? (
-        <ModuleSelector modules={modules} onSelect={selectModule} />
+        <>
+          <div style={{ marginTop: 28, marginBottom: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700, color: '#1e293b' }}>
+              {greeting}, {firstName}
+            </h2>
+            <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: 14 }}>
+              Selecciona un módulo para comenzar. Aquí tienes el estado actual del sistema:
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 14, margin: '20px 0 28px', flexWrap: 'wrap' }}>
+            {[
+              { label: 'SKUs activos', value: skus.length, color: BLUE, icon: '📦' },
+              { label: 'Demanda total 52s', value: fmt(totalForecast), color: GREEN, icon: '📈' },
+              { label: 'R² promedio modelos', value: `${fmtDec(avgR2 * 100)}%`, color: PURPLE, icon: '🎯' },
+              { label: 'Horizonte de forecast', value: '52 semanas', color: ORANGE, icon: '📅' },
+            ].map(k => (
+              <div key={k.label} style={{
+                flex: '1 1 160px',
+                background: 'white',
+                border: '1px solid #e2e8f0',
+                borderLeft: `4px solid ${k.color}`,
+                borderRadius: 10,
+                padding: '14px 18px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              }}>
+                <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  {k.icon} {k.label}
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+
+          <ModuleSelector modules={modules} onSelect={selectModule} />
+        </>
       ) : (
         <>
           <div style={{ marginTop: 20 }}>
