@@ -1307,7 +1307,7 @@ const COSTOS_CONFIG = [
   { key: 'deterioro',     label: 'Riesgo de deterioro / merma', pct:  2, icon: '⚠️', color: '#b45309', desc: 'Productos potencialmente dañados en almacén' },
 ]
 
-function TabAnalisisFinanciero({ eficiencia, semanal, precios, skuPlancha }) {
+function TabAnalisisFinanciero({ eficiencia, precios, skuPlancha }) {
   const [tasas, setTasas] = useState(() => Object.fromEntries(COSTOS_CONFIG.map(c => [c.key, c.pct])))
   const [expandConfig, setExpandConfig] = useState(false)
 
@@ -1335,12 +1335,18 @@ function TabAnalisisFinanciero({ eficiencia, semanal, precios, skuPlancha }) {
     ...adicionales.map(c => ({ name: c.label, valor: Math.round(c.valor), color: c.color })),
   ]
 
-  const avgCostPerUnit = totalSobreprod > 0 ? totalCostoMP / totalSobreprod : 0
-  const timelineData = semanal.slice(-104).map(s => {
-    const sp = Math.max(0, s.produccion - s.ventas)
-    const mp = sp * avgCostPerUnit
-    return { semana: s.semana, costoMP: Math.round(mp), costoTotal: Math.round(mp * multiplicador) }
-  })
+  // Chart data — derived from eficiencia (same source as KPIs)
+  const barDataUnidades = skuData.map(d => ({
+    sku: d.sku,
+    Vendido: d.ventas_total,
+    Sobreproducido: d.sobreprod,
+  }))
+
+  const barDataCosto = skuData.map(d => ({
+    sku: d.sku,
+    costoMP: Math.round(d.costoMP),
+    costoAdicional: Math.round(d.costoMP * (multiplicador - 1)),
+  }))
 
   const avgEfic = skuData.length ? skuData.reduce((s, d) => s + d.eficiencia, 0) / skuData.length : 0
 
@@ -1411,20 +1417,51 @@ function TabAnalisisFinanciero({ eficiencia, semanal, precios, skuPlancha }) {
         </ResponsiveContainer>
       </div>
 
-      {/* ── Timeline histórico ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Impacto histórico semanal — últimas 2 años</h3>
-        <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>Costo estimado de sobreproducción por semana: materia prima y con todos los costos adicionales</p>
-        <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={timelineData} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
+      {/* ── Producido vs Vendido por SKU ── */}
+      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 20 }}>
+        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Producido vs Vendido por SKU — histórico total</h3>
+        <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>Unidades producidas desagregadas en vendidas (verde) y sobreproducidas no vendidas (rojo). Misma fuente que los KPIs.</p>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 12, marginTop: 8 }}>
+          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 12, height: 12, background: GREEN, borderRadius: 2, display: 'inline-block' }} /> Vendido
+          </span>
+          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 12, height: 12, background: RED, borderRadius: 2, display: 'inline-block' }} /> Sobreproducido (no vendido)
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={barDataUnidades} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 12 === 0 ? v : ''} />
+            <XAxis dataKey="sku" tick={{ fontSize: 12, fontWeight: 600 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <Tooltip formatter={(v, n) => [fmt(v) + ' u', n]} />
+            <Bar dataKey="Vendido"        stackId="a" fill={GREEN} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="Sobreproducido" stackId="a" fill={RED}   radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Costo de sobreproducción por SKU ── */}
+      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Impacto económico por SKU</h3>
+        <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>Costo de materia prima sobreproducida (teal) más costos adicionales estimados (rojo) por producto.</p>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 12, marginTop: 8 }}>
+          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 12, height: 12, background: TEAL_DARK, borderRadius: 2, display: 'inline-block' }} /> Costo MP sobreproducida
+          </span>
+          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 12, height: 12, background: RED, borderRadius: 2, display: 'inline-block' }} /> Costos adicionales est.
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={barDataCosto} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="sku" tick={{ fontSize: 12, fontWeight: 600 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
-            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n === 'costoTotal' ? 'Impacto total' : 'Solo MP']} labelFormatter={v => `Semana: ${v}`} />
-            <Legend formatter={v => v === 'costoTotal' ? 'Impacto total (MP + adicionales)' : 'Solo materia prima'} />
-            <Area dataKey="costoTotal" name="costoTotal" stroke={RED} fill={RED} fillOpacity={0.1} dot={false} />
-            <Line dataKey="costoMP"    name="costoMP"    stroke={TEAL_DARK} strokeWidth={1.5} dot={false} />
-          </ComposedChart>
+            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n === 'costoMP' ? 'Costo MP' : 'Costos adicionales']} />
+            <Bar dataKey="costoMP"       stackId="b" fill={TEAL_DARK} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="costoAdicional" stackId="b" fill={RED}      radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ResponsiveContainer>
       </div>
 
@@ -1780,7 +1817,6 @@ export default function Home() {
           {tab === 'analisis_financiero' && (
             <TabAnalisisFinanciero
               eficiencia={eficiencia}
-              semanal={semanal}
               precios={planchaConfig.precios}
               skuPlancha={planchaConfig.skus}
             />
