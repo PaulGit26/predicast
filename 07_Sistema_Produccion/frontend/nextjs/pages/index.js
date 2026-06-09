@@ -1265,30 +1265,6 @@ export default function Home() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 14, margin: '20px 0 28px', flexWrap: 'wrap' }}>
-            {[
-              { label: 'SKUs activos', value: skus.length, color: BLUE, icon: '📦' },
-              { label: 'Demanda total 52s', value: fmt(totalForecast), color: GREEN, icon: '📈' },
-              { label: 'R² promedio modelos', value: `${fmtDec(avgR2 * 100)}%`, color: PURPLE, icon: '🎯' },
-              { label: 'Horizonte de forecast', value: '52 semanas', color: ORANGE, icon: '📅' },
-            ].map(k => (
-              <div key={k.label} style={{
-                flex: '1 1 160px',
-                background: 'white',
-                border: '1px solid #e2e8f0',
-                borderLeft: `4px solid ${k.color}`,
-                borderRadius: 10,
-                padding: '14px 18px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              }}>
-                <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
-                  {k.icon} {k.label}
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
-              </div>
-            ))}
-          </div>
-
           <ModuleSelector modules={modules} onSelect={selectModule} />
         </>
       ) : (
