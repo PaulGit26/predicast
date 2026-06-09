@@ -64,8 +64,9 @@ const MODULES = [
     icon: '🏭',
     roles: ['admin', 'gerente_produccion'],
     tabs: [
-      { id: 'produccion', label: 'Plan de Producción' },
-      { id: 'ingesta',    label: 'Actualización de Datos' },
+      { id: 'produccion',  label: 'Plan de Producción' },
+      { id: 'asignacion',  label: 'Asignación de Operarios' },
+      { id: 'ingesta',     label: 'Actualización de Datos' },
     ],
   },
   {
@@ -1509,6 +1510,467 @@ function TabAnalisisFinanciero({ eficiencia, precios, skuPlancha }) {
   )
 }
 
+// ─── Tab: Asignación y Seguimiento de Operarios ──────────────────────────────
+
+const STATUS_COLOR = (p) => p >= 80 ? '#166534' : p >= 40 ? '#92400e' : p > 0 ? '#991b1b' : '#64748b'
+const STATUS_BG    = (p) => p >= 80 ? '#f0fdf4' : p >= 40 ? '#fffbeb' : p > 0 ? '#fef2f2' : '#f8fafc'
+const STATUS_LABEL = (p) => p >= 80 ? 'En meta' : p >= 40 ? 'En progreso' : p > 0 ? 'Rezagado' : 'Sin iniciar'
+
+function TabAsignacionSeguimiento({ produccion }) {
+  const [view, setView]         = useState('asignar')
+  const [weekIdx, setWeekIdx]   = useState(0)
+  const [operarios, setOperarios] = useState([])
+  const [progreso, setProgreso] = useState({})
+  const [saving, setSaving]     = useState(false)
+  const [msg, setMsg]           = useState(null)
+  const [baseUrl, setBaseUrl]   = useState('')
+
+  useEffect(() => { setBaseUrl(window.location.origin) }, [])
+
+  // Extract weeks that have ≥1 SKU with recommended production
+  const productionWeeks = useMemo(() => {
+    if (!produccion) return []
+    const skus = Object.keys(produccion)
+    if (!skus.length) return []
+    const nWeeks = produccion[skus[0]]?.calendar?.length || 0
+    const result = []
+    for (let i = 0; i < nWeeks; i++) {
+      const metas = {}
+      for (const s of skus) metas[s] = produccion[s]?.calendar[i]?.produccion || 0
+      if (Object.values(metas).some(v => v > 0)) {
+        result.push({
+          fecha: produccion[skus[0]].calendar[i].fecha,
+          semana: produccion[skus[0]].calendar[i].semana || `Semana ${i + 1}`,
+          metas,
+        })
+      }
+    }
+    return result
+  }, [produccion])
+
+  const week = productionWeeks[weekIdx]
+  const activeSKUs = week ? Object.entries(week.metas).filter(([, v]) => v > 0).map(([k]) => k) : []
+
+  // Load assignment from server when week changes
+  useEffect(() => {
+    if (!week?.fecha) return
+    fetch(`/api/asignaciones?semana=${week.fecha}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d?.operarios) { setOperarios(d.operarios); setProgreso(d.progreso || {}) }
+        else { setOperarios([]); setProgreso({}) }
+      })
+      .catch(() => {})
+  }, [week?.fecha])
+
+  const addOperario = () => {
+    const id    = Math.random().toString(36).slice(2, 10)
+    const token = Math.random().toString(36).slice(2, 18)
+    setOperarios(prev => [...prev, {
+      id, token, nombre: '', email: '',
+      asignaciones: Object.fromEntries(activeSKUs.map(s => [s, 0])),
+    }])
+  }
+
+  const updateOp = (id, field, val) =>
+    setOperarios(prev => prev.map(o => o.id === id ? { ...o, [field]: val } : o))
+
+  const updateOpSKU = (id, sku, val) =>
+    setOperarios(prev => prev.map(o =>
+      o.id === id ? { ...o, asignaciones: { ...o.asignaciones, [sku]: Number(val) || 0 } } : o
+    ))
+
+  const removeOp = (id) => setOperarios(prev => prev.filter(o => o.id !== id))
+
+  const saveAsignacion = async () => {
+    if (!week) return
+    setSaving(true); setMsg(null)
+    try {
+      const r = await fetch('/api/asignaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ semana: week.fecha, fecha_inicio: week.fecha, metas_sku: week.metas, operarios }),
+      })
+      const d = await r.json()
+      setOperarios(d.semana?.operarios || operarios)
+      setMsg({ ok: true, text: 'Asignación guardada. Los links de operarios ya están disponibles.' })
+    } catch (err) {
+      setMsg({ ok: false, text: String(err) })
+    } finally { setSaving(false) }
+  }
+
+  const saveProgreso = async (opId) => {
+    const p = progreso[opId] || { avances: {}, notas: '' }
+    await fetch('/api/asignaciones', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ semana: week.fecha, operario_id: opId, avances: p.avances, notas: p.notas }),
+    }).catch(() => {})
+    setMsg({ ok: true, text: 'Progreso guardado.' })
+    setTimeout(() => setMsg(null), 2000)
+  }
+
+  const updateAvance = (opId, sku, val) =>
+    setProgreso(prev => ({
+      ...prev,
+      [opId]: { ...prev[opId], avances: { ...prev[opId]?.avances, [sku]: Number(val) || 0 } },
+    }))
+
+  const updateNotas = (opId, val) =>
+    setProgreso(prev => ({ ...prev, [opId]: { ...prev[opId], notas: val } }))
+
+  const copyLink = (token) => {
+    navigator.clipboard.writeText(`${baseUrl}/asignacion/${token}`).then(() => {
+      setMsg({ ok: true, text: 'Link copiado al portapapeles.' })
+      setTimeout(() => setMsg(null), 2000)
+    })
+  }
+
+  const mailtoOp = (op) => {
+    const link = `${baseUrl}/asignacion/${op.token}`
+    const body = [
+      `Hola ${op.nombre},`,
+      ``,
+      `Aquí está tu plan de producción para la semana del ${week?.fecha}:`,
+      ...activeSKUs.map(s => `  - ${s}: ${(op.asignaciones[s] || 0).toLocaleString('es-PE')} unidades`),
+      ``,
+      `Consulta tu avance aquí: ${link}`,
+      ``,
+      `Saludos,`,
+      `Gerencia de Producción — Predicast`,
+    ].join('\n')
+    window.location.href = `mailto:${op.email}?subject=Tu plan de producción — semana del ${week?.fecha}&body=${encodeURIComponent(body)}`
+  }
+
+  const mailtoAll = () => {
+    const to = operarios.filter(o => o.email).map(o => o.email).join(';')
+    const body = [
+      `Equipo,`,
+      ``,
+      `Plan de producción para la semana del ${week?.fecha}:`,
+      ...operarios.map(o =>
+        [`${o.nombre}:`, ...activeSKUs.map(s => `  - ${s}: ${(o.asignaciones[s] || 0).toLocaleString('es-PE')} uds.`)].join('\n')
+      ),
+      ``,
+      `Predicast · Módulo Producción`,
+    ].join('\n')
+    window.location.href = `mailto:${to}?subject=Plan de producción — semana del ${week?.fecha}&body=${encodeURIComponent(body)}`
+  }
+
+  // ── Header shared across views ──────────────────────────────────────────────
+  const ViewBtn = ({ id, label }) => (
+    <button onClick={() => setView(id)} style={{
+      padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
+      background: view === id ? '#166534' : '#f1f5f9',
+      color: view === id ? '#fff' : '#64748b',
+      transition: 'all 0.15s',
+    }}>{label}</button>
+  )
+
+  const WeekSelect = () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>Semana:</span>
+      <select value={weekIdx}
+        onChange={e => { setWeekIdx(Number(e.target.value)); setMsg(null) }}
+        style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, color: '#1a237e', fontWeight: 600 }}>
+        {productionWeeks.map((w, i) => (
+          <option key={w.fecha} value={i}>{w.fecha} — {Object.values(w.metas).filter(v => v > 0).length} SKUs con producción</option>
+        ))}
+      </select>
+    </div>
+  )
+
+  if (!produccion) return <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>Cargando datos de producción...</div>
+  if (productionWeeks.length === 0) return <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>No hay semanas con producción programada.</div>
+
+  return (
+    <div>
+      {/* View selector */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <ViewBtn id="asignar"     label="① Asignar" />
+          <ViewBtn id="seguimiento" label="② Seguimiento" />
+          <ViewBtn id="resumen"     label="③ Resumen" />
+        </div>
+        <WeekSelect />
+      </div>
+
+      {msg && (
+        <div style={{ background: msg.ok ? '#f0fdf4' : '#fef2f2', border: `1px solid ${msg.ok ? '#86efac' : '#fca5a5'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: msg.ok ? '#166534' : '#991b1b', fontWeight: 500 }}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* ── VISTA ASIGNAR ──────────────────────────────────────────────────── */}
+      {view === 'asignar' && (
+        <div>
+          {/* Metas de la semana */}
+          <SectionTitle sub="Producción recomendada por el sistema para esta semana">Metas de la semana</SectionTitle>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
+            {activeSKUs.map(s => (
+              <div key={s} style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '12px 18px', minWidth: 130 }}>
+                <div style={{ fontSize: 11, color: '#166534', fontWeight: 600, marginBottom: 4 }}>{s}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#166534' }}>{(week.metas[s] || 0).toLocaleString('es-PE')}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>unidades</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabla de distribución */}
+          <SectionTitle sub="Distribuye las metas entre tus operarios">Distribución por operario</SectionTitle>
+          {operarios.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
+              Agrega operarios para distribuir las metas.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0', minWidth: 160 }}>Operario</th>
+                    {activeSKUs.map(s => (
+                      <th key={s} style={{ padding: '10px 12px', textAlign: 'right', color: '#166534', fontWeight: 600, borderBottom: '2px solid #e2e8f0', minWidth: 100 }}>{s}</th>
+                    ))}
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0' }}>Total</th>
+                    <th style={{ width: 36, borderBottom: '2px solid #e2e8f0' }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {operarios.map((op, i) => {
+                    const total = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
+                    return (
+                      <tr key={op.id} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                        <td style={{ padding: '8px 12px' }}>
+                          <input value={op.nombre} placeholder="Nombre del operario"
+                            onChange={e => updateOp(op.id, 'nombre', e.target.value)}
+                            style={{ width: '100%', padding: '4px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, fontWeight: 600, color: '#1a237e', boxSizing: 'border-box' }} />
+                          <input value={op.email} placeholder="email@empresa.com"
+                            onChange={e => updateOp(op.id, 'email', e.target.value)}
+                            style={{ width: '100%', padding: '3px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11, color: '#64748b', marginTop: 4, boxSizing: 'border-box' }} />
+                        </td>
+                        {activeSKUs.map(s => {
+                          const meta = week.metas[s] || 0
+                          const total_asig = operarios.reduce((sum, o) => sum + (o.asignaciones[s] || 0), 0)
+                          const over = total_asig > meta
+                          return (
+                            <td key={s} style={{ padding: '8px 12px', textAlign: 'right' }}>
+                              <input type="number" min={0} value={op.asignaciones[s] || 0}
+                                onChange={e => updateOpSKU(op.id, s, e.target.value)}
+                                style={{ width: 90, padding: '4px 8px', border: `1px solid ${over ? '#fca5a5' : '#e2e8f0'}`, borderRadius: 6, fontSize: 13, textAlign: 'right', background: over ? '#fef2f2' : '#fff' }} />
+                            </td>
+                          )
+                        })}
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#1a237e' }}>{total.toLocaleString('es-PE')}</td>
+                        <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                          <button onClick={() => removeOp(op.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, lineHeight: 1 }}>×</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#f0fdf4', fontWeight: 700 }}>
+                    <td style={{ padding: '10px 12px', color: '#166534', borderTop: '2px solid #86efac' }}>Total asignado</td>
+                    {activeSKUs.map(s => {
+                      const total = operarios.reduce((sum, o) => sum + (o.asignaciones[s] || 0), 0)
+                      const meta  = week.metas[s] || 0
+                      const diff  = total - meta
+                      return (
+                        <td key={s} style={{ padding: '10px 12px', textAlign: 'right', borderTop: '2px solid #86efac' }}>
+                          <div style={{ color: diff === 0 ? '#166534' : diff > 0 ? '#991b1b' : '#92400e' }}>{total.toLocaleString('es-PE')}</div>
+                          <div style={{ fontSize: 10, fontWeight: 400, color: '#94a3b8' }}>meta: {meta.toLocaleString('es-PE')}</div>
+                          {diff !== 0 && <div style={{ fontSize: 10, color: diff > 0 ? '#991b1b' : '#92400e' }}>{diff > 0 ? `+${diff}` : diff}</div>}
+                        </td>
+                      )
+                    })}
+                    <td style={{ borderTop: '2px solid #86efac' }} /><td style={{ borderTop: '2px solid #86efac' }} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <button onClick={addOperario} style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #86efac', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+              + Agregar operario
+            </button>
+            <button onClick={saveAsignacion} disabled={saving || operarios.length === 0}
+              style={{ background: operarios.length === 0 ? '#e2e8f0' : '#166534', color: operarios.length === 0 ? '#94a3b8' : '#fff', border: 'none', borderRadius: 8, padding: '8px 24px', cursor: operarios.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13 }}>
+              {saving ? 'Guardando...' : 'Guardar asignación'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── VISTA SEGUIMIENTO ─────────────────────────────────────────────────── */}
+      {view === 'seguimiento' && (
+        <div>
+          <SectionTitle sub="Registra el avance de cada operario — actualiza manualmente al consultar con el equipo">
+            Seguimiento de avance
+          </SectionTitle>
+          {operarios.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
+              Primero guarda una asignación en la vista ① Asignar.
+            </div>
+          ) : (
+            operarios.map(op => {
+              const p = progreso[op.id] || { avances: {}, notas: '' }
+              const totalMeta = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
+              const totalAv   = activeSKUs.reduce((s, k) => s + (p.avances?.[k] || 0), 0)
+              const totalPct  = totalMeta > 0 ? Math.round(totalAv / totalMeta * 100) : 0
+              return (
+                <div key={op.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '18px 20px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#1a237e', fontSize: 15 }}>{op.nombre || '—'}</div>
+                      {op.email && <div style={{ fontSize: 12, color: '#64748b' }}>{op.email}</div>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontSize: 11, background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '3px 10px', borderRadius: 10, fontWeight: 700 }}>
+                        {STATUS_LABEL(totalPct)} · {totalPct}%
+                      </div>
+                      <button onClick={() => saveProgreso(op.id)}
+                        style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: 7, padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        Guardar
+                      </button>
+                    </div>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        {['SKU', 'Meta', 'Avance actual', '%', 'Estado'].map(h => (
+                          <th key={h} style={{ padding: '7px 10px', textAlign: h === 'SKU' ? 'left' : 'right', color: '#475569', fontWeight: 600, borderBottom: '1px solid #e2e8f0', fontSize: 12 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeSKUs.map(s => {
+                        const meta  = op.asignaciones[s] || 0
+                        const av    = p.avances?.[s] || 0
+                        const pct   = meta > 0 ? Math.min(100, Math.round(av / meta * 100)) : 0
+                        return (
+                          <tr key={s}>
+                            <td style={{ padding: '7px 10px', fontWeight: 600, color: '#0e7490' }}>{s}</td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>{meta.toLocaleString('es-PE')}</td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                              <input type="number" min={0} max={meta} value={av}
+                                onChange={e => updateAvance(op.id, s, e.target.value)}
+                                style={{ width: 90, padding: '3px 7px', border: '1px solid #e2e8f0', borderRadius: 6, textAlign: 'right', fontSize: 13 }} />
+                            </td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: STATUS_COLOR(pct) }}>{pct}%</td>
+                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
+                              <span style={{ background: STATUS_BG(pct), color: STATUS_COLOR(pct), padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
+                                {STATUS_LABEL(pct)}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  <textarea value={p.notas || ''} onChange={e => updateNotas(op.id, e.target.value)}
+                    placeholder="Notas o incidencias del operario..."
+                    style={{ width: '100%', borderRadius: 7, border: '1px solid #e2e8f0', padding: '8px 10px', fontSize: 12, color: '#475569', resize: 'vertical', minHeight: 54, boxSizing: 'border-box' }} />
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* ── VISTA RESUMEN ─────────────────────────────────────────────────────── */}
+      {view === 'resumen' && (
+        <div>
+          {/* Print styles */}
+          <style>{`@media print { .no-print { display: none !important; } body { font-size: 12px; } }`}</style>
+
+          <div style={{ display: 'flex', gap: 12, marginBottom: 24 }} className="no-print">
+            <button onClick={() => window.print()} style={{ background: '#1a237e', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+              🖨️ Imprimir / PDF
+            </button>
+            {operarios.some(o => o.email) && (
+              <button onClick={mailtoAll} style={{ background: '#0e7490', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                📧 Enviar a todos
+              </button>
+            )}
+          </div>
+
+          {/* Print header */}
+          <div style={{ marginBottom: 24 }}>
+            <h2 style={{ color: '#1a237e', margin: 0, fontSize: 18 }}>Plan de Producción — Semana del {week?.fecha}</h2>
+            <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>
+              {operarios.length} operario(s) · {activeSKUs.length} SKU(s) con producción programada
+            </div>
+          </div>
+
+          {operarios.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
+              Sin asignaciones guardadas para esta semana.
+            </div>
+          ) : (
+            operarios.map(op => {
+              const p = progreso[op.id] || { avances: {}, notas: '' }
+              const totalMeta = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
+              const totalAv   = activeSKUs.reduce((s, k) => s + (p.avances?.[k] || 0), 0)
+              const totalPct  = totalMeta > 0 ? Math.round(totalAv / totalMeta * 100) : 0
+              return (
+                <div key={op.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#1a237e', fontSize: 16 }}>{op.nombre || '—'}</div>
+                      {op.email && <div style={{ fontSize: 12, color: '#64748b' }}>{op.email}</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }} className="no-print">
+                      <span style={{ background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '3px 10px', borderRadius: 10, fontWeight: 700, fontSize: 12 }}>
+                        {STATUS_LABEL(totalPct)} · {totalPct}%
+                      </span>
+                      <button onClick={() => copyLink(op.token)}
+                        style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
+                        🔗 Copiar link
+                      </button>
+                      {op.email && (
+                        <button onClick={() => mailtoOp(op)}
+                          style={{ background: '#f0fdfe', color: '#0e7490', border: '1px solid #a5f3fc', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
+                          📧 Enviar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {activeSKUs.map(s => {
+                      const meta = op.asignaciones[s] || 0
+                      const av   = p.avances?.[s] || 0
+                      const pct  = meta > 0 ? Math.min(100, Math.round(av / meta * 100)) : 0
+                      return (
+                        <div key={s} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', minWidth: 110, borderLeft: `3px solid ${STATUS_COLOR(pct)}` }}>
+                          <div style={{ fontWeight: 700, color: '#0e7490', fontSize: 12, marginBottom: 3 }}>{s}</div>
+                          <div style={{ fontWeight: 800, fontSize: 17, color: '#1a237e' }}>{meta.toLocaleString('es-PE')}</div>
+                          <div style={{ fontSize: 11, color: STATUS_COLOR(pct) }}>Avance: {av.toLocaleString('es-PE')} ({pct}%)</div>
+                          <div style={{ height: 4, background: '#e2e8f0', borderRadius: 2, marginTop: 5, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: STATUS_COLOR(pct), borderRadius: 2 }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {p.notas && (
+                    <div style={{ marginTop: 10, fontSize: 12, color: '#92400e', background: '#fffbeb', padding: '6px 10px', borderRadius: 6 }}>
+                      Nota: {p.notas}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 8 }} className="no-print">
+                    Link operario: {baseUrl}/asignacion/{op.token}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Tab: Ingesta de Datos y Reentrenamiento ─────────────────────────────────
 
 function arrayBufferToBase64(buffer) {
@@ -2413,6 +2875,9 @@ export default function Home() {
               safetyWeeks={safetyWeeks}
               setSafetyWeeks={setSafetyWeeks}
             />
+          )}
+          {tab === 'asignacion' && (
+            <TabAsignacionSeguimiento produccion={produccion} />
           )}
           {tab === 'ingesta' && (
             <TabIngestaReentrenamiento pipeline={pipeline} setPipeline={setPipeline} />
