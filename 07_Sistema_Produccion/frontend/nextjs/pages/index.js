@@ -1160,7 +1160,7 @@ export default function Home() {
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
-  const firstName = (session?.user?.name || '').split(' ')[0] || session?.user?.email || 'Usuario'
+  const firstName = (session?.user?.name || '').split(' ')[0] || 'Usuario'
 
   return (
     <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
