@@ -154,17 +154,17 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
         # Inicializar buffer con los últimos N valores reales
         history = list(ventas_reales[-buffer_needed:]) if len(ventas_reales) >= buffer_needed else list(ventas_reales)
 
-        residuales_media = residuales_por_producto[producto]['media']
-        residuales_std = residuales_por_producto[producto]['std']
-
         predicciones_pivot[producto] = []
-        np.random.seed(42)
+
+        # CV RMSE as calibrated uncertainty base (falls back to residual std if missing)
+        cv_rmse = params_ganadores[producto].get('rmse') or residuales_por_producto[producto]['std']
+        if cv_rmse <= 0:
+            cv_rmse = residuales_por_producto[producto]['std_ventas']
 
         for semana_num in range(1, 53):
             features_pd = features_base.copy()
 
             # Actualizar lags con el valor correcto del buffer histórico
-            # Lag_N = valor de N semanas atrás en la historia combinada
             for col, lag_n in lag_map.items():
                 if len(history) >= lag_n:
                     features_pd.loc[col] = history[-lag_n]
@@ -182,22 +182,15 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
 
             features_array = features_pd.values.reshape(1, -1)
             features_array = np.nan_to_num(features_array, nan=0.0)
-            pred_base = float(modelos_finales[producto].predict(features_array)[0])
-            pred_base = max(0, pred_base)
+            pred = float(modelos_finales[producto].predict(features_array)[0])
+            pred = max(0, pred)
 
-            # Añadir ruido residual con decaimiento (incertidumbre crece con horizonte)
-            residual_ajuste = np.random.normal(residuales_media, residuales_std + abs(residuales_std * 0.3))
-            decay_factor = 1.0 - (semana_num - 1) / 52 * 0.7
-            residual_final = residual_ajuste * decay_factor
-            pred = max(0, pred_base + residual_final)
-
-            # Agregar predicción al buffer para la siguiente iteración
+            # Use clean model prediction for recursive buffer (no noise contamination)
             history.append(pred)
 
-            # Bandas basadas en variabilidad histórica real, crecen con el horizonte
-            std_ventas = residuales_por_producto[producto]['std_ventas']
-            horizon_factor = 1.0 + (semana_num - 1) / 52 * 0.5  # 1.0 en W+1 → 1.5 en W+52
-            uncertainty = std_ventas * horizon_factor
+            # Confidence bands: CV RMSE scaled by horizon (grows ±50% at W+52)
+            horizon_factor = 1.0 + (semana_num - 1) / 52 * 0.5
+            uncertainty = cv_rmse * horizon_factor
             lower_bound = max(0, pred - 1.96 * uncertainty)
             upper_bound = pred + 1.96 * uncertainty
 
