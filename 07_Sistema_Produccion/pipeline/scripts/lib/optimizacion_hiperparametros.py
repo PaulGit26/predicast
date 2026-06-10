@@ -10,8 +10,19 @@ import pandas as pd
 from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, cross_val_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, make_scorer
+
+
+def _mape(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    mask = y_true > 0
+    if not mask.any():
+        return 0.0
+    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100)
+
+
+mape_scorer = make_scorer(_mape, greater_is_better=False)
 
 
 def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, clustering_metadata_path: str = None):
@@ -31,7 +42,6 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
     skip_cols = ['Código', 'Año', 'Semana', 'Salida', 'Fecha', 'Grupo']
     feature_cols = [col for col in df_features.columns if col not in skip_cols]
 
-    # Param grids
     param_grid_xgb = {
         'n_estimators': [50],
         'max_depth': [3, 4],
@@ -48,7 +58,8 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
     }
     param_grid_ridge = {'alpha': [1.0, 10.0, 100.0]}
 
-    tscv = TimeSeriesSplit(n_splits=3)
+    # 5 folds para mayor robustez en la estimación de métricas
+    tscv = TimeSeriesSplit(n_splits=5)
     reporte_ganadores = {'grupo_1': {}}
 
     for producto in GRUPO_1:
@@ -66,39 +77,60 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
         X = X_numeric[valid_cols].fillna(0)
         y = df_prod['Salida']
 
+        # Con pocos datos (< 20 muestras) reducir folds para evitar splits vacíos
+        n_splits_efectivos = min(5, max(2, len(X) // 4))
+        tscv_prod = TimeSeriesSplit(n_splits=n_splits_efectivos)
+
         mejores = {}
 
-        # Ridge
-        gs_ridge = GridSearchCV(Ridge(), param_grid_ridge, cv=tscv, scoring='r2', n_jobs=1, verbose=0)
+        gs_ridge = GridSearchCV(Ridge(), param_grid_ridge, cv=tscv_prod, scoring='r2', n_jobs=1, verbose=0)
         gs_ridge.fit(X, y)
-        yhat_ridge = gs_ridge.predict(X)
-        mejores['Ridge'] = {'params': gs_ridge.best_params_, 'r2': float(r2_score(y, yhat_ridge)), 'mae': float(mean_absolute_error(y, yhat_ridge))}
+        mejores['Ridge'] = {
+            'params': gs_ridge.best_params_,
+            'r2_cv': float(gs_ridge.best_score_),   # R² de cross-validation, no de entrenamiento
+            'estimator': gs_ridge.best_estimator_,
+        }
 
-        # XGBoost
-        gs_xgb = GridSearchCV(XGBRegressor(random_state=42, verbosity=0, n_jobs=1), param_grid_xgb, cv=tscv, scoring='r2', n_jobs=1, verbose=0)
+        gs_xgb = GridSearchCV(XGBRegressor(random_state=42, verbosity=0, n_jobs=1), param_grid_xgb, cv=tscv_prod, scoring='r2', n_jobs=1, verbose=0)
         gs_xgb.fit(X, y)
-        yhat_xgb = gs_xgb.predict(X)
-        mejores['XGBoost'] = {'params': gs_xgb.best_params_, 'r2': float(r2_score(y, yhat_xgb)), 'mae': float(mean_absolute_error(y, yhat_xgb))}
+        mejores['XGBoost'] = {
+            'params': gs_xgb.best_params_,
+            'r2_cv': float(gs_xgb.best_score_),
+            'estimator': gs_xgb.best_estimator_,
+        }
 
-        # RandomForest
-        gs_rf = GridSearchCV(RandomForestRegressor(random_state=42, n_jobs=1), param_grid_rf, cv=tscv, scoring='r2', n_jobs=1, verbose=0)
+        gs_rf = GridSearchCV(RandomForestRegressor(random_state=42, n_jobs=1), param_grid_rf, cv=tscv_prod, scoring='r2', n_jobs=1, verbose=0)
         gs_rf.fit(X, y)
-        yhat_rf = gs_rf.predict(X)
-        mejores['RandomForest'] = {'params': gs_rf.best_params_, 'r2': float(r2_score(y, yhat_rf)), 'mae': float(mean_absolute_error(y, yhat_rf))}
+        mejores['RandomForest'] = {
+            'params': gs_rf.best_params_,
+            'r2_cv': float(gs_rf.best_score_),
+            'estimator': gs_rf.best_estimator_,
+        }
 
-        ganador = max(mejores.keys(), key=lambda x: mejores[x]['r2'])
+        # Seleccionar ganador por CV R²
+        ganador = max(mejores.keys(), key=lambda x: mejores[x]['r2_cv'])
+        best_estimator = mejores[ganador]['estimator']
+
+        # Calcular métricas honestas con cross_val_score sobre el modelo ganador
+        cv_r2   = float(mejores[ganador]['r2_cv'])
+        cv_mae  = float(-np.mean(cross_val_score(best_estimator, X, y, cv=tscv_prod, scoring='neg_mean_absolute_error', n_jobs=1)))
+        cv_rmse = float(-np.mean(cross_val_score(best_estimator, X, y, cv=tscv_prod, scoring='neg_root_mean_squared_error', n_jobs=1)))
+        cv_mape = float(-np.mean(cross_val_score(best_estimator, X, y, cv=tscv_prod, scoring=mape_scorer, n_jobs=1)))
 
         reporte_ganadores['grupo_1'][producto] = {
             'algoritmo_ganador': ganador,
             'hiperparametros_ganador': mejores[ganador]['params'],
             'metricas_test': {
                 'Algoritmo': ganador,
-                'R2': mejores[ganador]['r2'],
-                'MAE': mejores[ganador]['mae'],
-                'RMSE': float(np.sqrt(mean_squared_error(y, (gs_xgb.predict(X) if ganador == 'XGBoost' else (gs_rf.predict(X) if ganador == 'RandomForest' else gs_ridge.predict(X)))))),
-                'MAPE': 0.0
+                'R2':   cv_r2,
+                'MAE':  cv_mae,
+                'RMSE': cv_rmse,
+                'MAPE': cv_mape,
             },
-            'comparativa': {algo: {'R2': datos['r2'], 'MAE': datos['mae']} for algo, datos in mejores.items()}
+            'comparativa': {
+                algo: {'R2_CV': datos['r2_cv']}
+                for algo, datos in mejores.items()
+            }
         }
 
     archivo_reporte = os.path.join(OUTPUT_DIR, 'REPORTE_OPTIMIZACION_HIPERPARAMETROS.json')

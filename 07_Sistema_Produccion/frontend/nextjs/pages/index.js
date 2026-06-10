@@ -329,9 +329,10 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
       {model && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
           <Badge label="Algoritmo" value={model.algoritmo} color={BLUE} />
-          <Badge label="R² Score" value={fmtDec(model.r2, 4)} color={model.r2 > 0.95 ? GREEN : ORANGE} />
-          <Badge label="MAE" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
-          <Badge label="RMSE" value={`${fmt(model.rmse)} u`} color={PURPLE} />
+          <Badge label="R² CV" value={fmtDec(model.r2, 4)} color={model.r2 > 0.85 ? GREEN : ORANGE} />
+          <Badge label="MAE CV" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
+          <Badge label="RMSE CV" value={`${fmt(model.rmse)} u`} color={PURPLE} />
+          {model.mape != null && <Badge label="MAPE CV" value={`${fmtDec(model.mape, 1)}%`} color={model.mape < 20 ? GREEN : model.mape < 40 ? ORANGE : RED} />}
         </div>
       )}
 

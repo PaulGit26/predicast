@@ -10,9 +10,10 @@ export default function handler(_req, res) {
     for (const [sku, info] of Object.entries(data.modelos || {})) {
       result[sku.replace(/\s+/g, '')] = {
         algoritmo: info.algoritmo,
-        r2: info.r2,
-        mae: info.mae,
+        r2:   info.r2,
+        mae:  info.mae,
         rmse: info.rmse,
+        mape: info.mape ?? null,
       }
     }
     res.status(200).json(result)

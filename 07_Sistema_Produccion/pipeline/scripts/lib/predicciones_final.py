@@ -59,9 +59,10 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
         params_ganadores[producto] = {
             'algoritmo': datos.get('algoritmo_ganador'),
             'parametros': datos.get('hiperparametros_ganador', {}),
-            'r2': datos.get('metricas_test', {}).get('R2', 0),
-            'mae': datos.get('metricas_test', {}).get('MAE', 50),
-            'rmse': datos.get('metricas_test', {}).get('RMSE', 0)
+            'r2':   datos.get('metricas_test', {}).get('R2', 0),
+            'mae':  datos.get('metricas_test', {}).get('MAE', 50),
+            'rmse': datos.get('metricas_test', {}).get('RMSE', 0),
+            'mape': datos.get('metricas_test', {}).get('MAPE', 0),
         }
 
     df_features = pd.read_csv(FEATURES_FILE, sep=';', encoding='latin-1')
@@ -230,9 +231,10 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
     for prod, datos in params_ganadores.items():
         modelos_meta[prod] = {
             'algoritmo': datos.get('algoritmo'),
-            'r2': float(datos.get('r2', 0)),
-            'mae': float(datos.get('mae', 0)),
-            'rmse': float(datos.get('rmse', 0))
+            'r2':   float(datos.get('r2', 0)),
+            'mae':  float(datos.get('mae', 0)),
+            'rmse': float(datos.get('rmse', 0)),
+            'mape': float(datos.get('mape', 0)),
         }
 
     metadata = {
