@@ -119,10 +119,27 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
                 last_date = pd.to_datetime(df_prod['Fecha'].iloc[-1])
             except Exception:
                 pass
+        # Seasonal index: avg demand by week-of-year / overall avg
+        # Captures repeating annual patterns to de-flatten the recursive forecast
+        seasonal_index = {}
+        if 'Fecha' in df_prod.columns:
+            try:
+                fechas = pd.to_datetime(df_prod['Fecha'], errors='coerce')
+                woy = fechas.dt.isocalendar().week.astype(int)
+                avg_by_woy = df_prod.groupby(woy)['Salida'].mean()
+                overall_avg = float(df_prod['Salida'].mean())
+                if overall_avg > 0:
+                    raw = (avg_by_woy / overall_avg).to_dict()
+                    # Clip to [0.2, 4.0] to prevent extreme amplification
+                    seasonal_index = {w: float(np.clip(v, 0.2, 4.0)) for w, v in raw.items()}
+            except Exception:
+                pass
+
         ultimo_features[producto] = {
             'features': X.iloc[-1].copy(),
             'valid_cols': valid_cols,
             'last_date': last_date,
+            'seasonal_index': seasonal_index,
         }
 
     # Generar predicciones 52 semanas — forecast recursivo
@@ -161,6 +178,8 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
         if cv_rmse <= 0:
             cv_rmse = residuales_por_producto[producto]['std_ventas']
 
+        seasonal_index = ultimo_features[producto].get('seasonal_index', {})
+
         for semana_num in range(1, 53):
             features_pd = features_base.copy()
 
@@ -182,11 +201,18 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
 
             features_array = features_pd.values.reshape(1, -1)
             features_array = np.nan_to_num(features_array, nan=0.0)
-            pred = float(modelos_finales[producto].predict(features_array)[0])
-            pred = max(0, pred)
+            pred_base = float(modelos_finales[producto].predict(features_array)[0])
+            pred_base = max(0, pred_base)
 
-            # Use clean model prediction for recursive buffer (no noise contamination)
-            history.append(pred)
+            # Apply seasonal index: scales prediction by week-of-year historical pattern
+            # Buffer uses pred_base (stable) so lags don't compound seasonal amplification
+            history.append(pred_base)
+            if last_date is not None and seasonal_index:
+                woy = int((last_date + timedelta(weeks=semana_num)).isocalendar()[1])
+                s_factor = seasonal_index.get(woy, 1.0)
+                pred = max(0, pred_base * s_factor)
+            else:
+                pred = pred_base
 
             # Confidence bands: CV RMSE scaled by horizon (grows ±50% at W+52)
             horizon_factor = 1.0 + (semana_num - 1) / 52 * 0.5
