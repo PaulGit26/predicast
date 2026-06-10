@@ -70,13 +70,13 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
         df_prod["Día_Año"] = df_prod["Fecha"].dt.dayofyear
         df_prod["Num_Semana_Año"] = df_prod["Fecha"].dt.isocalendar().week
 
-        # Lags
-        for lag in [1, 2, 3, 4, 13]:
+        # Lags — Lag_52 captures annual seasonality (same week last year)
+        for lag in [1, 2, 3, 4, 13, 52]:
             df_prod[f"Lag_{lag}"] = df_prod["Salida"].shift(lag)
 
         # Moving averages (use previous values only)
         salida_shifted = df_prod["Salida"].shift(1)
-        for window in [2, 4, 8, 13]:
+        for window in [2, 4, 8, 13, 26]:
             df_prod[f"MA_{window}"] = salida_shifted.rolling(window=window, min_periods=1).mean()
 
         # Volatility
