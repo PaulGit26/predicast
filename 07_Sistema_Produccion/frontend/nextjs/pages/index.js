@@ -332,7 +332,7 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
           <Badge label="R² CV" value={fmtDec(model.r2, 4)} color={model.r2 > 0.85 ? GREEN : ORANGE} />
           <Badge label="MAE CV" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
           <Badge label="RMSE CV" value={`${fmt(model.rmse)} u`} color={PURPLE} />
-          {model.mape != null && <Badge label="MAPE CV" value={`${fmtDec(model.mape, 1)}%`} color={model.mape < 20 ? GREEN : model.mape < 40 ? ORANGE : RED} />}
+          {model.mape != null && <Badge label="MAPE CV" value={model.mape > 150 ? '—' : `${fmtDec(model.mape, 1)}%`} color={model.mape > 150 ? '#888' : model.mape < 20 ? GREEN : model.mape < 40 ? ORANGE : RED} title={model.mape > 150 ? 'Demanda muy errática — MAPE no confiable' : undefined} />}
         </div>
       )}
 
@@ -2546,8 +2546,9 @@ function TabSimulacionPredicast({ backtest, safetyWeeks, setSafetyWeeks, precios
       {/* Nota metodológica */}
       <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 16px', fontSize: 12, color: '#92400e' }}>
         <strong>Metodología:</strong> La sobreproducción real proviene de los datos históricos semana a semana (2021–2025).
-        El escenario &quot;Con Predicast&quot; asume que la producción habría igualado la demanda real (R²≈99%) más un buffer
-        intencional de <strong>{safetyWeeks} semana(s)</strong> de demanda promedio por SKU.
+        El escenario &quot;Con Predicast&quot; simula la producción ajustada a la demanda histórica real más un buffer
+        intencional de <strong>{safetyWeeks} semana(s)</strong> de demanda promedio por SKU — representa el ahorro máximo alcanzable con forecast perfecto.
+        El modelo ML actual (R² CV ≈ 0.65) captura una fracción de este potencial, que mejora con mayor horizonte histórico.
         El ahorro es la diferencia entre ambos escenarios de costo de materia prima (planchas).
       </div>
     </div>
