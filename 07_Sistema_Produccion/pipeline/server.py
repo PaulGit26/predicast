@@ -1,7 +1,6 @@
 import threading
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request
-import run_pipeline
 
 app = Flask(__name__)
 
@@ -19,6 +18,7 @@ def _log(msg):
 
 def _execute():
     try:
+        import run_pipeline  # lazy: load heavy ML libs only when pipeline runs
         run_pipeline.main(log_callback=_log)
         with _lock:
             _state['status'] = 'done'
