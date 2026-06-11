@@ -76,10 +76,8 @@ def run_preparar_top20(data_dir: str, output_dir: str):
                 valores = df_clean.loc[mask, col]
                 if len(valores) < 4:
                     continue
-                q1 = valores.quantile(0.25)
-                q3 = valores.quantile(0.75)
-                iqr = q3 - q1
-                cap = q3 + 3 * iqr
+                # Use p99 cap: preserves real large B2B orders which are genuine demand
+                cap = valores.quantile(0.99)
                 if cap <= 0:
                     continue
                 outlier_mask = mask & (df_clean[col] > cap)

@@ -87,6 +87,22 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
         df_prod["Trend_vs_MA4"] = ((df_prod["Salida"] - df_prod.get("MA_4", 0)) / df_prod.get("MA_4", 1)).fillna(0)
         df_prod["Trend_vs_MA8"] = ((df_prod["Salida"] - df_prod.get("MA_8", 0)) / df_prod.get("MA_8", 1)).fillna(0)
 
+        # EWMA — exponential weighted MA, more weight to recent obs (Holt 1957)
+        df_prod["EWMA_4"]  = salida_shifted.ewm(span=4,  adjust=False).mean()
+        df_prod["EWMA_13"] = salida_shifted.ewm(span=13, adjust=False).mean()
+
+        # Linear time trend — captures long-term growth/decline (Hyndman 2018)
+        df_prod["Trend_Lineal"] = np.arange(len(df_prod), dtype=float)
+
+        # Weeks since last positive demand — key for intermittent demand (Croston 1972)
+        mask_positivo = (df_prod["Salida"] > 0).astype(int)
+        df_prod["Semanas_Desde_Ultima_Venta"] = mask_positivo.groupby(
+            (mask_positivo != mask_positivo.shift()).cumsum()
+        ).cumcount()
+
+        # YoY ratio: is demand growing vs same week last year? (Petropoulos 2022)
+        df_prod["YoY_Ratio"] = (salida_shifted / df_prod["Salida"].shift(52).replace(0, np.nan)).fillna(1.0).clip(0, 5)
+
         # Ratios
         df_prod["Ratio_Min_Max"] = df_prod["Salida_Min"] / df_prod["Salida_Max"].replace(0, 1)
         df_prod["Ratio_Transacciones"] = df_prod["Transacciones"] / df_prod["Transacciones"].rolling(4, min_periods=1).mean()
