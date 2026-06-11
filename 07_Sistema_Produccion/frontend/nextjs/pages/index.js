@@ -329,7 +329,7 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
       {model && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
           <Badge label="Algoritmo" value={model.algoritmo} color={BLUE} />
-          <Badge label="R² CV" value={fmtDec(model.r2, 4)} color={model.r2 > 0.85 ? GREEN : ORANGE} />
+
           <Badge label="MAE CV" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
           <Badge label="RMSE CV" value={`${fmt(model.rmse)} u`} color={PURPLE} />
           {model.mape != null && <Badge label="MAPE CV" value={model.mape > 150 ? '—' : `${fmtDec(model.mape, 1)}%`} color={model.mape > 150 ? '#888' : model.mape < 20 ? GREEN : model.mape < 40 ? ORANGE : RED} title={model.mape > 150 ? 'Demanda muy errática — MAPE no confiable' : undefined} />}
