@@ -42,6 +42,7 @@ services:
       DATA_DIR: /data/01_Datos_Nuevos
       EDA_DIR: /data/EDA_Outputs
       PRED_DIR: /data/01_Datos
+      ANALISIS_DIR: /data/03_ANALISIS_EXPLORATORIO_DATOS
     volumes:
       - /home/ec2-user/predicast/data:/data
     depends_on:

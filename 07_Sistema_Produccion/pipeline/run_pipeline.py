@@ -7,10 +7,12 @@ from datetime import datetime, timezone
 SCRIPTS_DIR = Path(__file__).parent / 'scripts'
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-DATA_DIR  = os.environ.get('DATA_DIR',  '/data/01_Datos_Nuevos')
-EDA_DIR   = os.environ.get('EDA_DIR',   '/data/EDA_Outputs')
-PRED_DIR  = os.environ.get('PRED_DIR',  '/data/01_Datos')
+DATA_DIR     = os.environ.get('DATA_DIR',     '/data/01_Datos_Nuevos')
+EDA_DIR      = os.environ.get('EDA_DIR',      '/data/EDA_Outputs')
+PRED_DIR     = os.environ.get('PRED_DIR',     '/data/01_Datos')
+ANALISIS_DIR = os.environ.get('ANALISIS_DIR', '/data/03_ANALISIS_EXPLORATORIO_DATOS')
 
+from lib.analisis_datos_reales     import run_analisis_datos_reales, run_analisis_planchas
 from lib.preparar_top20            import run_preparar_top20
 from lib.analisis_pareto           import run_analisis_pareto
 from lib.agregacion_features       import run_agregacion_features
@@ -29,13 +31,16 @@ def _run_clustering():
 
 
 def main(log_callback=print):
-    os.makedirs(EDA_DIR,  exist_ok=True)
-    os.makedirs(PRED_DIR, exist_ok=True)
+    os.makedirs(EDA_DIR,      exist_ok=True)
+    os.makedirs(PRED_DIR,     exist_ok=True)
+    os.makedirs(ANALISIS_DIR, exist_ok=True)
 
     clustering_meta = os.path.join(EDA_DIR, 'CLUSTERING_METADATA.json')
     reporte_path    = os.path.join(EDA_DIR, 'REPORTE_OPTIMIZACION_HIPERPARAMETROS.json')
 
     stages = [
+        ('Análisis Datos Reales (EDA)',   lambda: run_analisis_datos_reales(DATA_DIR, ANALISIS_DIR)),
+        ('Análisis Planchas',             lambda: run_analisis_planchas(ANALISIS_DIR)),
         ('Preparar TOP20',               lambda: run_preparar_top20(DATA_DIR, EDA_DIR)),
         ('Análisis Pareto',              lambda: run_analisis_pareto(EDA_DIR)),
         ('Agregación + Features',        lambda: run_agregacion_features(EDA_DIR)),

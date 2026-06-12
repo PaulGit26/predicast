@@ -19,7 +19,9 @@ def _mape(y_true, y_pred):
     mask = y_true > 0
     if not mask.any():
         return 0.0
-    return float(np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100)
+    # Cap each observation at 200% to prevent intermittent-demand weeks from exploding MAPE
+    raw = np.abs((y_true[mask] - y_pred[mask]) / y_true[mask]) * 100
+    return float(np.mean(np.clip(raw, 0, 200)))
 
 
 mape_scorer = make_scorer(_mape, greater_is_better=False)
