@@ -190,29 +190,10 @@ jobs:
           chmod 600 /tmp/ec2.pem
           SSH_OPTS="-i /tmp/ec2.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=60"
 
-          echo "Triggering pipeline..."
+          echo "Running pipeline on EC2 (blocks until complete)..."
           ssh $SSH_OPTS ec2-user@$EC2_HOST \
-            "curl -s -X POST http://localhost:5001/run | grep -q 'started\|running' || echo 'Pipeline already running'"
-
-          echo "Waiting for pipeline to complete (max 20 min)..."
-          for i in $(seq 1 120); do
-            STATUS=$(ssh $SSH_OPTS ec2-user@$EC2_HOST "curl -s http://localhost:5001/status | python3 -c \"import sys,json; print(json.load(sys.stdin)['status'])\"")
-            echo "  [$i/120] Pipeline status: $STATUS"
-            if [ "$STATUS" = "done" ]; then
-              echo "Pipeline completed successfully."
-              break
-            elif [ "$STATUS" = "error" ]; then
-              echo "Pipeline failed. Fetching last logs..."
-              ssh $SSH_OPTS ec2-user@$EC2_HOST \
-                "curl -s http://localhost:5001/logs | python3 -c \"import sys,json; logs=json.load(sys.stdin); print('\n'.join(logs[-20:]))\""
-              exit 1
-            fi
-            sleep 10
-          done
-          if [ "$STATUS" != "done" ]; then
-            echo "Pipeline timed out after 20 minutes."
-            exit 1
-          fi
+            "cd /home/ec2-user/predicast && docker compose -f docker-compose.prod.yml run --rm pipeline python run_pipeline.py"
+          echo "Pipeline completed successfully."
 
       - name: Deploy via SSH
         env:
