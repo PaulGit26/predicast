@@ -1,6 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 
+export const config = {
+  api: { bodyParser: { sizeLimit: '50mb' } },
+}
+
 const REQUIRED_COLS = ['fecha', 'entrada', 'salida']
 const FILENAME_RE = /^Movimientos_.*\.csv$/i
 
