@@ -2000,7 +2000,8 @@ function parseMovimientosPreview(buffer, maxRows = 25) {
   if (lines.length < 2) return { rows: [], totalRows: 0, error: 'Archivo vacío o sin datos.' }
   const sep = lines[0].includes(';') ? ';' : ','
   const header = lines[0].split(sep).map(h => h.trim())
-  const idxOf = name => header.findIndex(h => h.toLowerCase().replace(/[^a-z]/g, '').includes(name))
+  const normalize = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '')
+  const idxOf = name => header.findIndex(h => normalize(h).includes(name))
   const iCodigo  = idxOf('codigo')
   const iFecha   = idxOf('fecha')
   const iDoc     = idxOf('documento')
