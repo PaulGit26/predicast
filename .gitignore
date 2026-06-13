@@ -47,3 +47,17 @@ Thumbs.db
 # Runtime data
 asignaciones.json
 *asignaciones.json
+
+# Source data — uploaded via dashboard, not stored in repo
+01_Datos_Nuevos/Movimientos_*.csv
+01_Datos_Nuevos/Backup*/
+
+# Generated analysis outputs — produced by pipeline at runtime
+03_ANALISIS_EXPLORATORIO_DATOS/*.csv
+03_ANALISIS_EXPLORATORIO_DATOS/*.png
+03_ANALISIS_EXPLORATORIO_DATOS/*.json
+
+# Terraform secrets
+07_Sistema_Produccion/infra/terraform/*.pem
+07_Sistema_Produccion/infra/terraform/terraform.tfstate
+07_Sistema_Produccion/infra/terraform/terraform.tfstate.backup

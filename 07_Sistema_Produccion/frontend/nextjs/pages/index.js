@@ -2802,6 +2802,7 @@ export default function Home() {
   const [gap, setGap] = useState([])
 
   const [loading, setLoading] = useState(true)
+  const [hasData, setHasData] = useState(null)
   const [error, setError] = useState(null)
   const [pipeline, setPipeline] = useState({ status: 'idle' })
 
@@ -2826,17 +2827,25 @@ export default function Home() {
   }
 
   const loadAllData = async () => {
-    return Promise.all([
-      fetch('/api/predictions').then(r => r.json()),
-      fetch('/api/metadata').then(r => r.json()),
-      fetch('/api/pareto').then(r => r.json()),
-      fetch('/api/tendencia').then(r => r.json()),
-      fetch('/api/canal').then(r => r.json()),
-      fetch('/api/bodega').then(r => r.json()),
-      fetch('/api/semanal').then(r => r.json()),
-      fetch('/api/eficiencia').then(r => r.json()),
-      fetch('/api/backtest').then(r => r.json()),
-    ]).then(([pred, meta, par, tend, can, bod, sem, efic, bt]) => {
+    try {
+      const predRes = await fetch('/api/predictions')
+      const pred = predRes.ok ? await predRes.json() : {}
+      if (!pred || Object.keys(pred).length === 0) {
+        setHasData(false)
+        setLoading(false)
+        return
+      }
+      setHasData(true)
+      const [meta, par, tend, can, bod, sem, efic, bt] = await Promise.all([
+        fetch('/api/metadata').then(r => r.json()),
+        fetch('/api/pareto').then(r => r.json()),
+        fetch('/api/tendencia').then(r => r.json()),
+        fetch('/api/canal').then(r => r.json()),
+        fetch('/api/bodega').then(r => r.json()),
+        fetch('/api/semanal').then(r => r.json()),
+        fetch('/api/eficiencia').then(r => r.json()),
+        fetch('/api/backtest').then(r => r.json()),
+      ])
       setPredictions(pred)
       setMetadata(meta || {})
       setPareto(Array.isArray(par) ? par : [])
@@ -2846,10 +2855,13 @@ export default function Home() {
       setSemanal(Array.isArray(sem) ? sem : [])
       setEficiencia(Array.isArray(efic) ? efic : [])
       setBacktest(bt?.skus ? bt : null)
-      const skus = Object.keys(pred || {})
+      const skus = Object.keys(pred)
       if (skus.length) setSku(s => s || skus[0])
       setLoading(false)
-    }).catch(err => { setError(String(err)); setLoading(false) })
+    } catch (err) {
+      setError(String(err))
+      setLoading(false)
+    }
   }
 
   useEffect(() => { loadAllData() }, [])
@@ -2918,6 +2930,44 @@ export default function Home() {
       <strong>Error al cargar datos:</strong> {error}
     </main>
   )
+
+  if (hasData === false) {
+    const produccionMod = MODULES.find(m => m.id === 'produccion')
+    const goToIngesta = () => {
+      if (produccionMod) { selectModule(produccionMod); setTab('ingesta') }
+      setHasData(null); setLoading(true); loadAllData()
+    }
+    return (
+      <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
+        <header style={{ borderBottom: `3px solid ${BLUE}`, paddingBottom: 16, marginBottom: 40 }}>
+          <h1 style={{ color: BLUE, margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: 1 }}>PREDICAST</h1>
+        </header>
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: 56, marginBottom: 20 }}>📂</div>
+          <h2 style={{ color: BLUE, fontSize: 22, fontWeight: 700, marginBottom: 12 }}>Sin datos cargados</h2>
+          <p style={{ color: '#475569', fontSize: 15, maxWidth: 480, margin: '0 auto 32px', lineHeight: 1.7 }}>
+            El sistema no encontró datos de predicciones. Para comenzar, sube tu archivo
+            de movimientos y ejecuta el pipeline desde la pestaña <strong>Actualización de Datos</strong>.
+          </p>
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '20px 28px', maxWidth: 420, margin: '0 auto 32px', textAlign: 'left', fontSize: 14, color: '#334155' }}>
+            <div style={{ fontWeight: 700, marginBottom: 10, color: BLUE }}>Pasos para comenzar:</div>
+            <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 2 }}>
+              <li>Sube tu archivo <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: 4 }}>Movimientos_MayorAuxiliar_YYYY.csv</code></li>
+              <li>Haz clic en <strong>Ejecutar pipeline</strong></li>
+              <li>Espera ~10 min a que termine</li>
+              <li>El dashboard se cargará automáticamente</li>
+            </ol>
+          </div>
+          <button
+            onClick={goToIngesta}
+            style={{ background: BLUE, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Ir a Actualización de Datos
+          </button>
+        </div>
+      </main>
+    )
+  }
 
   const skus = Object.keys(predictions || {})
   const avgR2 = skus.length ? skus.reduce((s, k) => s + (metadata[k]?.r2 || 0), 0) / skus.length : 0
