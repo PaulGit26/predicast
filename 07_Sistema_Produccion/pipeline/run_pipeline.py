@@ -12,8 +12,9 @@ EDA_DIR      = os.environ.get('EDA_DIR',      '/data/EDA_Outputs')
 PRED_DIR     = os.environ.get('PRED_DIR',     '/data/01_Datos')
 ANALISIS_DIR = os.environ.get('ANALISIS_DIR', '/data/03_ANALISIS_EXPLORATORIO_DATOS')
 
-from lib.analisis_datos_reales     import run_analisis_datos_reales, run_analisis_planchas
-from lib.preparar_top20            import run_preparar_top20
+from lib.analisis_datos_reales      import run_analisis_datos_reales, run_analisis_planchas
+from lib.limpieza_preprocesamiento  import run_limpieza_preprocesamiento
+from lib.preparar_top20             import run_preparar_top20
 from lib.analisis_pareto           import run_analisis_pareto
 from lib.agregacion_features       import run_agregacion_features
 from lib.seleccion_filtrado_features import run_seleccion_filtrado_features
@@ -42,6 +43,7 @@ def main(log_callback=print):
         ('Análisis Datos Reales (EDA)',   lambda: run_analisis_datos_reales(DATA_DIR, ANALISIS_DIR)),
         ('Análisis Planchas',             lambda: run_analisis_planchas(ANALISIS_DIR)),
         ('Preparar TOP20',               lambda: run_preparar_top20(DATA_DIR, EDA_DIR)),
+        ('Limpieza y Preprocesamiento',  lambda: run_limpieza_preprocesamiento(EDA_DIR)),
         ('Análisis Pareto',              lambda: run_analisis_pareto(EDA_DIR)),
         ('Agregación + Features',        lambda: run_agregacion_features(EDA_DIR)),
         ('Clustering ADI/CV²',           _run_clustering),

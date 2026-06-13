@@ -63,6 +63,24 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
             continue
         df_prod = df_prod.reset_index(drop=True)
 
+        # Fill missing weeks with linear interpolation (Hyndman & Athanasopoulos 2021)
+        if df_prod["Fecha"].notna().sum() >= 2:
+            full_weeks = pd.date_range(df_prod["Fecha"].min(), df_prod["Fecha"].max(), freq="7D")
+            full_df = pd.DataFrame({
+                "Fecha": full_weeks,
+                "Año": [int(d.isocalendar().year) for d in full_weeks],
+                "Semana": [int(d.isocalendar().week) for d in full_weeks],
+            })
+            df_prod = full_df.merge(df_prod.drop(columns=["Fecha"]), on=["Año", "Semana"], how="left")
+            df_prod["Código"] = codigo
+            df_prod["Salida"] = df_prod["Salida"].interpolate(method="linear").clip(lower=0).fillna(0)
+            for col in ["Empresa_Modo", "Canal_Modo", "Punto_Modo"]:
+                if col in df_prod.columns:
+                    df_prod[col] = df_prod[col].ffill().fillna("Unknown")
+            num_cols = df_prod.select_dtypes(include=[np.number]).columns
+            df_prod[num_cols] = df_prod[num_cols].fillna(0)
+            df_prod = df_prod.reset_index(drop=True)
+
         # Temporal
         df_prod["Mes"] = df_prod["Fecha"].dt.month
         df_prod["Trimestre"] = df_prod["Fecha"].dt.quarter
@@ -78,6 +96,13 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
         salida_shifted = df_prod["Salida"].shift(1)
         for window in [2, 4, 8, 13, 26]:
             df_prod[f"MA_{window}"] = salida_shifted.rolling(window=window, min_periods=1).mean()
+
+        # Anomaly flag: demand drops >30% below recent 4-week MA (Cerqueira et al. 2020)
+        df_prod["Anomalia_Binaria"] = (
+            (df_prod["Salida"] > 0) &
+            (df_prod["MA_4"] > 0) &
+            (df_prod["Salida"] < 0.70 * df_prod["MA_4"])
+        ).astype(int)
 
         # Volatility
         for window in [4, 8, 13]:
