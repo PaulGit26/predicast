@@ -200,7 +200,7 @@ jobs:
           echo 'sudo touch /home/ec2-user/predicast/data/asignaciones.json && sudo chmod 666 /home/ec2-user/predicast/data/asignaciones.json' >> /tmp/deploy.sh
           echo 'sudo chmod -R 777 /home/ec2-user/predicast/data/'                  >> /tmp/deploy.sh
           echo 'docker compose -f docker-compose.prod.yml up -d --remove-orphans'   >> /tmp/deploy.sh
-          echo 'docker compose -f docker-compose.prod.yml restart nginx'            >> /tmp/deploy.sh
+          echo 'docker compose -f docker-compose.prod.yml up -d --force-recreate nginx' >> /tmp/deploy.sh
           echo 'docker image prune -f'                                               >> /tmp/deploy.sh
 
           # SCP both files then execute (ServerAliveInterval keeps connection during long docker pull)
