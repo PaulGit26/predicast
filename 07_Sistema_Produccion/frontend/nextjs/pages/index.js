@@ -173,10 +173,6 @@ function SkuSelect({ skus, value, onChange, pareto }) {
 function TabResumen({ predictions, metadata, pareto, semanal, canal }) {
   const skus = Object.keys(predictions || {})
   const totalForecast = skus.reduce((s, k) => s + (predictions[k] || []).reduce((a, r) => a + r.forecast, 0), 0)
-  const avgR2 = metadata && skus.length
-    ? skus.reduce((s, k) => s + (metadata[k]?.r2 || 0), 0) / skus.length
-    : 0
-
   const skuTotals = skus.map((k, i) => ({
     sku: k,
     total: Math.round((predictions[k] || []).reduce((a, r) => a + r.forecast, 0)),
@@ -190,7 +186,6 @@ function TabResumen({ predictions, metadata, pareto, semanal, canal }) {
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
         <StatCard label="SKUs monitoreados" value={skus.length} sub="Productos activos" color={BLUE} />
         <StatCard label="Demanda total 52s" value={fmt(totalForecast)} sub="Todas las referencias" color={GREEN} />
-        <StatCard label="R² promedio modelos" value={`${fmtDec(avgR2 * 100)}%`} sub="Precisión del sistema" color={PURPLE} />
         <StatCard label="Predicciones generadas" value={fmt(skus.length * 52)} sub="Puntos de forecast" color={ORANGE} />
       </div>
 
@@ -332,7 +327,6 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
 
           <Badge label="MAE CV" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
           <Badge label="RMSE CV" value={`${fmt(model.rmse)} u`} color={PURPLE} />
-          {model.mape != null && <Badge label="MAPE CV" value={model.mape > 150 ? '—' : `${fmtDec(model.mape, 1)}%`} color={model.mape > 150 ? '#888' : model.mape < 20 ? GREEN : model.mape < 40 ? ORANGE : RED} title={model.mape > 150 ? 'Demanda muy errática — MAPE no confiable' : undefined} />}
         </div>
       )}
 
@@ -346,7 +340,6 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
       {trendUp && <Alert type="warning">La demanda proyectada supera el promedio histórico en más del 10% — considerar incrementar producción.</Alert>}
       {trendDown && <Alert type="info">La demanda proyectada está por debajo del histórico — oportunidad de optimizar inventario.</Alert>}
       {stockLow && <Alert type="danger">Stock actual ({fmt(lastStock)} u) es menor a 2 semanas de demanda promedio proyectada — revisar plan de producción urgente.</Alert>}
-      {model?.r2 >= 0.95 && <Alert type="success">Modelo {model.algoritmo} con R²={fmtDec(model.r2, 4)} — alta confianza en las predicciones.</Alert>}
 
       <SectionTitle sub="Últimas 52 semanas históricas + forecast con banda de confianza al 95%">
         Demanda histórica + predicción — {sku}
@@ -2971,8 +2964,6 @@ export default function Home() {
   }
 
   const skus = Object.keys(predictions || {})
-  const avgR2 = skus.length ? skus.reduce((s, k) => s + (metadata[k]?.r2 || 0), 0) / skus.length : 0
-
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
   const firstName = (session?.user?.name || '').split(' ')[0] || 'Usuario'
@@ -3027,7 +3018,6 @@ export default function Home() {
             { icon: '📦', label: `${skus.length} SKUs activos` },
             { icon: '📅', label: '52 sem. de horizonte' },
             { icon: '✅', label: `${(skus.length * 52).toLocaleString('es-PE')} predicciones` },
-            { icon: '🎯', label: `R² ${fmtDec(avgR2 * 100)}%` },
           ].map(b => (
             <span key={b.label} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
