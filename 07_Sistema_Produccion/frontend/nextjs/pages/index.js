@@ -170,7 +170,7 @@ function SkuSelect({ skus, value, onChange, pareto }) {
 
 // ─── Tab: Resumen Ejecutivo ───────────────────────────────────────────────────
 
-function TabResumen({ predictions, metadata, pareto, semanal, canal }) {
+function TabResumen({ predictions, pareto, semanal, canal }) {
   const skus = Object.keys(predictions || {})
   const totalForecast = skus.reduce((s, k) => s + (predictions[k] || []).reduce((a, r) => a + r.forecast, 0), 0)
   const skuTotals = skus.map((k, i) => ({
@@ -324,9 +324,9 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
       {model && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
           <Badge label="Algoritmo" value={model.algoritmo} color={BLUE} />
-
           <Badge label="MAE CV" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
           <Badge label="RMSE CV" value={`${fmt(model.rmse)} u`} color={PURPLE} />
+          {model.r2 != null && <Badge label="R² CV" value={`${fmtDec(model.r2 * 100, 1)}%`} color={model.r2 >= 0.7 ? GREEN : model.r2 >= 0.5 ? ORANGE : RED} />}
         </div>
       )}
 

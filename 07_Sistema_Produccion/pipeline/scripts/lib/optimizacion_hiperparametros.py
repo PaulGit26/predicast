@@ -45,17 +45,17 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
     feature_cols = [col for col in df_features.columns if col not in skip_cols]
 
     param_grid_xgb = {
-        'n_estimators': [50],
-        'max_depth': [3, 4],
-        'learning_rate': [0.1],
+        'n_estimators': [100, 200, 300],
+        'max_depth': [3, 4, 5, 6],
+        'learning_rate': [0.05, 0.1],
         'subsample': [0.8],
         'colsample_bytree': [0.8],
         'min_child_weight': [3]
     }
     param_grid_rf = {
-        'n_estimators': [50],
-        'max_depth': [5],
-        'min_samples_split': [8],
+        'n_estimators': [100, 200],
+        'max_depth': [5, 8],
+        'min_samples_split': [5, 8],
         'min_samples_leaf': [2]
     }
     param_grid_ridge = {'alpha': [1.0, 10.0, 100.0]}
