@@ -768,6 +768,7 @@ function fmtWeekDate(dateStr) {
 function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   const [horizon, setHorizon] = useState(12)
   const [detailSku, setDetailSku] = useState(null)
+  const [viewMode, setViewMode] = useState('completa')
 
   if (!produccion) return (
     <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -781,17 +782,30 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
     <div style={{ padding: 40, color: RED }}>No se encontraron datos de stock para generar el plan.</div>
   )
 
+  // First week index (across all SKUs) where any production is recommended
+  let firstProdIdx = 0
+  {
+    let minIdx = horizon
+    for (const sku of skus) {
+      const cal = produccion[sku]?.calendar || []
+      const idx = cal.findIndex(w => w.produccion > 0)
+      if (idx !== -1 && idx < minIdx) minIdx = idx
+    }
+    firstProdIdx = minIdx < horizon ? minIdx : 0
+  }
+  const startIdx = viewMode === 'produccion' ? firstProdIdx : 0
+
   const activeSku = detailSku && produccion[detailSku] ? detailSku : skus[0]
-  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon) || []
+  const allWeeks = produccion[skus[0]]?.calendar.slice(startIdx, horizon) || []
 
   const totalProduccion = skus.reduce((s, k) => {
-    return s + produccion[k].calendar.slice(0, horizon).reduce((a, w) => a + w.produccion, 0)
+    return s + produccion[k].calendar.slice(startIdx, horizon).reduce((a, w) => a + w.produccion, 0)
   }, 0)
   const urgentSkus = skus.filter(k =>
-    produccion[k].calendar.slice(0, horizon).some(w => w.urgente)
+    produccion[k].calendar.slice(startIdx, horizon).some(w => w.urgente)
   ).length
   const skusConPlan = skus.filter(k =>
-    produccion[k].calendar.slice(0, horizon).some(w => w.produccion > 0)
+    produccion[k].calendar.slice(startIdx, horizon).some(w => w.produccion > 0)
   ).length
 
   const cellColor = (w) => {
@@ -800,7 +814,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
     return '#f1f5f9'
   }
 
-  const detailData = produccion[activeSku]?.calendar.slice(0, horizon).map(w => ({
+  const detailData = produccion[activeSku]?.calendar.slice(startIdx, horizon).map(w => ({
     name: fmtWeekDate(w.fecha),
     stock: w.stock_inicio,
     produccion: w.produccion,
@@ -852,9 +866,25 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
 
       {/* ── Gantt heatmap ── */}
       <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24, overflowX: 'auto' }}>
-        <h3 style={{ margin: '0 0 16px', color: BLUE, fontSize: 15, fontWeight: 700 }}>
-          Calendario de Producción — próximas {horizon} semanas
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+          <h3 style={{ margin: 0, color: BLUE, fontSize: 15, fontWeight: 700 }}>
+            Calendario de Producción — próximas {horizon} semanas
+          </h3>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { value: 'completa', label: 'Vista completa' },
+              { value: 'produccion', label: 'Desde producción' },
+            ].map(opt => (
+              <button key={opt.value} onClick={() => setViewMode(opt.value)} style={{
+                padding: '4px 12px', borderRadius: 14,
+                border: `1px solid ${viewMode === opt.value ? BLUE : '#cbd5e1'}`,
+                background: viewMode === opt.value ? BLUE : '#f8fafc',
+                color: viewMode === opt.value ? '#fff' : '#64748b',
+                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              }}>{opt.label}</button>
+            ))}
+          </div>
+        </div>
         <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10, display: 'flex', gap: 16 }}>
           <span><span style={{ background: '#bbf7d0', padding: '1px 6px', borderRadius: 3 }}>■</span> Producir</span>
           <span><span style={{ background: '#fecaca', padding: '1px 6px', borderRadius: 3 }}>■</span> Urgente (stock bajo 0)</span>
@@ -873,7 +903,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
           </thead>
           <tbody>
             {skus.map(sku => {
-              const weeks = produccion[sku].calendar.slice(0, horizon)
+              const weeks = produccion[sku].calendar.slice(startIdx, horizon)
               return (
                 <tr key={sku} onClick={() => setDetailSku(sku)} style={{ cursor: 'pointer' }}>
                   <td style={{
@@ -911,7 +941,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
           Stock actual: <strong>{fmt(produccion[activeSku]?.stock_actual)}</strong> &nbsp;·&nbsp;
           Stock seguridad: <strong>{fmt(safetyVal)}</strong> &nbsp;·&nbsp;
           Demanda promedio: <strong>{fmt(produccion[activeSku]?.avg_demand)}/sem</strong> &nbsp;·&nbsp;
-          Semanas a producir: <strong>{produccion[activeSku]?.calendar.slice(0, horizon).filter(w => w.produccion > 0).length}</strong>
+          Semanas a producir: <strong>{produccion[activeSku]?.calendar.slice(startIdx, horizon).filter(w => w.produccion > 0).length}</strong>
         </div>
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart data={detailData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
@@ -942,7 +972,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
             </tr>
           </thead>
           <tbody>
-            {produccion[activeSku]?.calendar.slice(0, horizon).map((w, i) => (
+            {produccion[activeSku]?.calendar.slice(startIdx, horizon).map((w, i) => (
               <tr key={i} style={{ background: w.urgente ? '#fff5f5' : w.produccion > 0 ? '#f0fdf4' : 'white' }}>
                 <td style={{ padding: '6px 12px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{fmtWeekDate(w.fecha)}</td>
                 <td style={{ padding: '6px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.demanda)}</td>
