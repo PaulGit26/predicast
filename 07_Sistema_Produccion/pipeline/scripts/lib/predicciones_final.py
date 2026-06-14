@@ -81,13 +81,24 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
         if df_prod.empty:
             continue
 
-        X = df_prod[feature_cols].fillna(0)
-        X_numeric = X.apply(lambda s: pd.to_numeric(s, errors='coerce'))
-        valid_cols = [c for c in X_numeric.columns if X_numeric[c].notna().sum() >= 2]
+        X_all = df_prod[feature_cols].fillna(0)
+        X_all_numeric = X_all.apply(lambda s: pd.to_numeric(s, errors='coerce'))
+        valid_cols = [c for c in X_all_numeric.columns if X_all_numeric[c].notna().sum() >= 2]
         if not valid_cols:
             continue
-        X = X_numeric[valid_cols].fillna(0)
-        y = df_prod['Salida']
+        X_all = X_all_numeric[valid_cols].fillna(0)
+        y_all = df_prod['Salida']
+
+        # Train on last 2 years (~104 weeks) so model reflects current demand level.
+        # Full history is still used for seasonal index and lag buffer (below).
+        # Taieb et al. (2012): recent data reduces level bias in recursive forecasting.
+        TRAIN_WEEKS = 104
+        if len(df_prod) > TRAIN_WEEKS:
+            train_idx = df_prod.index[-TRAIN_WEEKS:]
+            X = X_all.loc[train_idx]
+            y = y_all.loc[train_idx]
+        else:
+            X, y = X_all, y_all
 
         params = params_ganadores[producto]['parametros']
         algo = params_ganadores[producto]['algoritmo']
@@ -110,8 +121,8 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
             'std': float(residuales.std()),
         }
 
-        # Guardar historial real de ventas, std, última fecha y último vector de features
-        historia_real[producto] = y.values.tolist()
+        # Full history for seasonal index and lag buffer
+        historia_real[producto] = y_all.values.tolist()
         residuales_por_producto[producto]['std_ventas'] = float(y.std()) if len(y) > 1 else float(params_ganadores[producto].get('mae', 50))
         last_date = None
         if 'Fecha' in df_prod.columns:
@@ -214,9 +225,8 @@ def run_predicciones_final(features_dir: str, output_dir: str, reporte_path: str
             else:
                 pred = pred_base
 
-            # Confidence bands: CV RMSE scaled by horizon (grows ±50% at W+52)
-            horizon_factor = 1.0 + (semana_num - 1) / 52 * 0.5
-            uncertainty = cv_rmse * horizon_factor
+            # Confidence bands: RMSE × √h — standard error propagation (Hyndman 2021)
+            uncertainty = cv_rmse * np.sqrt(semana_num)
             lower_bound = max(0, pred - 1.96 * uncertainty)
             upper_bound = pred + 1.96 * uncertainty
 
