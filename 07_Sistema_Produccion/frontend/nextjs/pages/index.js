@@ -37,7 +37,6 @@ const MODULES = [
       { id: 'producto',           label: 'Por Producto'          },
       { id: 'analisis_productos', label: 'Análisis de Productos' },
       { id: 'canal_mercado',      label: 'Canal y Mercado'       },
-      { id: 'planificacion',      label: 'Planificación / GAP'   },
     ],
   },
   {
@@ -294,9 +293,18 @@ const RANGE_MENSUAL = [
   { label: 'Todo',   value: 0  },
 ]
 
-function TabProducto({ sku, setSku, historical, pareto }) {
+function TabProducto({ sku, setSku, historical, pareto, gap, eficiencia, predictions }) {
   const skuList = pareto.map(r => r.codigo)
   const [lagMonths, setLagMonths] = useState(36)
+  const [gapWeeks, setGapWeeks] = useState(104)
+
+  const skuEfic = eficiencia.find(r => r.codigo === sku) || null
+  const gapSlice = gapWeeks ? gap.slice(-gapWeeks) : gap
+  const gapTick = gapSlice.length <= 52 ? 6 : gapSlice.length <= 104 ? 8 : gapSlice.length <= 156 ? 12 : 20
+  const forecastData = predictions?.[sku] || []
+  const avgDemanda = forecastData.length ? forecastData.reduce((s, r) => s + r.forecast, 0) / forecastData.length : 0
+  const avgProd = gapSlice.length ? gapSlice.reduce((s, r) => s + r.produccion, 0) / gapSlice.length : 0
+  const gapRatio = avgProd > 0 ? (avgDemanda / avgProd) * 100 : 0
 
   const descMap = useMemo(() => {
     const m = {}
@@ -403,31 +411,8 @@ function TabProducto({ sku, setSku, historical, pareto }) {
       <p style={{ fontSize: 12, color: '#888', marginTop: 6, marginBottom: 24 }}>
         Si la empresa sigue la lógica de producir según ventas del mes anterior, la línea azul debería tener el mismo patrón que las barras verdes desplazadas un mes.
       </p>
-    </div>
-  )
-}
 
-// ─── Tab: Planificación / GAP ─────────────────────────────────────────────────
-
-function TabPlanificacion({ sku, setSku, gap, eficiencia, predictions, pareto }) {
-  const skus = Object.keys(predictions || {})
-  const skuEfic = eficiencia.find(r => r.codigo === sku) || null
-  const [gapWeeks, setGapWeeks] = useState(104)
-  const gapSlice = gapWeeks ? gap.slice(-gapWeeks) : gap
-  const gapTick = gapSlice.length <= 52 ? 6 : gapSlice.length <= 104 ? 8 : gapSlice.length <= 156 ? 12 : 20
-  const forecastData = predictions?.[sku] || []
-
-  const avgDemanda = forecastData.length ? forecastData.reduce((s, r) => s + r.forecast, 0) / forecastData.length : 0
-  const avgProd = gapSlice.length ? gapSlice.reduce((s, r) => s + r.produccion, 0) / gapSlice.length : 0
-  const gapRatio = avgProd > 0 ? (avgDemanda / avgProd) * 100 : 0
-
-  return (
-    <div>
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>PRODUCTO (SKU)</label>
-        <SkuSelect skus={skus} value={sku} onChange={setSku} pareto={pareto} />
-      </div>
-
+      {/* ── GAP / Planificación ───────────────────────────────────────────── */}
       {skuEfic && (
         <>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -450,7 +435,7 @@ function TabPlanificacion({ sku, setSku, gap, eficiencia, predictions, pareto })
         sub={gapSlice[0]?.semana ? `${gapSlice[0].semana} → ${gapSlice[gapSlice.length - 1]?.semana} — comparación semanal ventas vs producción real` : 'Comparación semanal ventas vs producción real'}
         right={<RangeSelector value={gapWeeks} onChange={setGapWeeks} options={RANGE_SEMANAL} />}
       >
-        Ventas vs Producción — {sku}
+        Ventas vs Producción semanal — {sku}
       </SectionTitle>
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 20 }}>
         <ResponsiveContainer width="100%" height={300}>
@@ -466,39 +451,11 @@ function TabPlanificacion({ sku, setSku, gap, eficiencia, predictions, pareto })
         </ResponsiveContainer>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-        <StatCard label="Demanda media proyectada/semana" value={fmt(avgDemanda)} color={BLUE} />
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
         <StatCard label="Producción media histórica/semana" value={fmt(avgProd)} color={ORANGE} />
-        <StatCard label="Cobertura de demanda" value={`${fmtDec(gapRatio)}%`} color={gapRatio >= 100 ? GREEN : RED} sub={gapRatio >= 100 ? 'Producción suficiente' : 'Producción insuficiente'} />
-      </div>
-
-      <SectionTitle sub="Comparativa de eficiencia y costos para todos los SKUs monitoreados">
-        Eficiencia global por producto
-      </SectionTitle>
-      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 8 }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: BLUE }}>
-              {['SKU', 'Producción total', 'Ventas total', 'GAP planchas', 'Eficiencia', 'Ahorro S/'].map(h => (
-                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: 'white', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {eficiencia.map((r, i) => (
-              <tr key={i} style={{ background: r.codigo === sku ? '#eff6ff' : i % 2 === 0 ? '#fafafa' : 'white' }}>
-                <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee', fontWeight: r.codigo === sku ? 700 : 400 }}>{r.codigo}</td>
-                <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee' }}>{fmt(r.produccion_total)}</td>
-                <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee' }}>{fmt(r.ventas_total)}</td>
-                <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee' }}>{fmtDec(r.planchas_gap)}</td>
-                <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee', color: r.eficiencia >= 98 ? GREEN : ORANGE, fontWeight: 600 }}>
-                  {fmtDec(r.eficiencia)}%
-                </td>
-                <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee' }}>S/ {fmt(r.ahorro)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {gapRatio > 0 && (
+          <StatCard label="Cobertura de demanda" value={`${fmtDec(gapRatio)}%`} color={gapRatio >= 100 ? GREEN : RED} sub={gapRatio >= 100 ? 'Producción suficiente' : 'Producción insuficiente'} />
+        )}
       </div>
     </div>
   )
@@ -3143,7 +3100,7 @@ export default function Home() {
       setHasData(null); setLoading(true); loadAllData()
     }
     return (
-      <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
+      <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: '24px 32px' }}>
         <header style={{ borderBottom: `3px solid ${BLUE}`, paddingBottom: 16, marginBottom: 40 }}>
           <h1 style={{ color: BLUE, margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: 1 }}>PREDICAST</h1>
         </header>
@@ -3180,7 +3137,7 @@ export default function Home() {
   const firstName = (session?.user?.name || '').split(' ')[0] || 'Usuario'
 
   return (
-    <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
+    <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: '24px 32px' }}>
       <header style={{ borderBottom: `3px solid ${BLUE}`, paddingBottom: 16, marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
@@ -3281,13 +3238,7 @@ export default function Home() {
             <TabProducto
               sku={sku} setSku={setSku}
               historical={historical} pareto={pareto}
-            />
-          )}
-          {tab === 'planificacion' && (
-            <TabPlanificacion
-              sku={sku} setSku={setSku}
-              gap={gap} eficiencia={eficiencia}
-              predictions={predictions} pareto={pareto}
+              gap={gap} eficiencia={eficiencia} predictions={predictions}
             />
           )}
           {tab === 'analisis_productos' && (
