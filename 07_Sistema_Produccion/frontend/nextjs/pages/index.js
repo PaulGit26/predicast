@@ -272,28 +272,8 @@ function TabResumen({ predictions, pareto, semanal, canal }) {
 
 // ─── Tab: Por Producto ────────────────────────────────────────────────────────
 
-function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, periods, setPeriods }) {
-  const skus = Object.keys(predictions || {})
-  const forecastData = (predictions?.[sku] || []).slice(0, periods)
-  const histSlice = historical.slice(-52)
-  const model = metadata?.[sku]
-
-  const chartData = [
-    ...histSlice.map(h => ({ label: h.semana, ventas: h.ventas, type: 'hist' })),
-    ...forecastData.map(f => ({ label: f.semana, forecast: f.forecast, lower: f.lower || 0, upper: f.upper, type: 'fc' })),
-  ]
-
-  const stockData = histSlice.map(h => ({ label: h.semana, stock: h.stock, produccion: h.produccion }))
-
-  const totalFc = forecastData.reduce((s, r) => s + r.forecast, 0)
-  const avgFc = forecastData.length ? totalFc / forecastData.length : 0
-  const maxFc = forecastData.length ? Math.max(...forecastData.map(r => r.forecast)) : 0
-  const avgHist = histSlice.length ? histSlice.reduce((s, h) => s + h.ventas, 0) / histSlice.length : 0
-  const trendUp = avgFc > avgHist * 1.1
-  const trendDown = avgFc < avgHist * 0.9
-
-  const lastStock = histSlice.length ? histSlice[histSlice.length - 1].stock : 0
-  const stockLow = lastStock < avgFc * 2
+function TabProducto({ sku, setSku, historical, pareto }) {
+  const skuList = pareto.map(r => r.codigo)
 
   const descMap = useMemo(() => {
     const m = {}
@@ -301,105 +281,102 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
     return m
   }, [pareto])
 
+  // Annual ventas vs produccion + overproduction gap
+  const annualData = useMemo(() => {
+    const byYear = {}
+    historical.forEach(h => {
+      const year = h.semana ? h.semana.slice(0, 4) : null
+      if (!year || isNaN(+year)) return
+      if (!byYear[year]) byYear[year] = { year, ventas: 0, produccion: 0 }
+      byYear[year].ventas += h.ventas || 0
+      byYear[year].produccion += h.produccion || 0
+    })
+    return Object.values(byYear)
+      .sort((a, b) => a.year.localeCompare(b.year))
+      .map(r => ({ ...r, ventas: Math.round(r.ventas), produccion: Math.round(r.produccion), gap: Math.round(r.produccion - r.ventas) }))
+  }, [historical])
+
+  // Monthly produccion vs ventas del mes anterior (company production logic)
+  const monthlyLagData = useMemo(() => {
+    const byMonth = {}
+    historical.forEach(h => {
+      const key = h.semana ? h.semana.slice(0, 7) : null
+      if (!key || key.length < 7) return
+      if (!byMonth[key]) byMonth[key] = { label: key, ventas: 0, produccion: 0 }
+      byMonth[key].ventas += h.ventas || 0
+      byMonth[key].produccion += h.produccion || 0
+    })
+    const months = Object.values(byMonth).sort((a, b) => a.label.localeCompare(b.label))
+    return months.map((m, i) => ({
+      label: m.label,
+      produccion: Math.round(m.produccion),
+      ventas_anterior: i > 0 ? Math.round(months[i - 1].ventas) : null,
+    }))
+  }, [historical])
+
+  // Summary stats for annual view
+  const totalOverprod = annualData.reduce((s, r) => s + (r.gap > 0 ? r.gap : 0), 0)
+  const avgGapPct = annualData.length
+    ? annualData.reduce((s, r) => s + (r.ventas > 0 ? (r.gap / r.ventas) * 100 : 0), 0) / annualData.length
+    : 0
+
   return (
     <div>
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 20 }}>
         <div>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>PRODUCTO (SKU)</label>
-          <SkuSelect skus={skus} value={sku} onChange={setSku} pareto={pareto} />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>
-            SEMANAS A MOSTRAR: <strong>{periods}</strong>
-          </label>
-          <input type="range" value={periods} min={4} max={52} step={4} onChange={e => setPeriods(+e.target.value)}
-            style={{ width: 140, cursor: 'pointer' }} />
+          <SkuSelect skus={skuList} value={sku} onChange={setSku} pareto={pareto} />
         </div>
       </div>
 
       {descMap[sku] && (
-        <p style={{ color: '#555', fontSize: 13, marginBottom: 12, fontStyle: 'italic' }}>{descMap[sku]}</p>
+        <p style={{ color: '#555', fontSize: 13, marginBottom: 16, fontStyle: 'italic' }}>{descMap[sku]}</p>
       )}
 
-      {model && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-          <Badge label="Algoritmo" value={model.algoritmo} color={BLUE} />
-          <Badge label="MAE CV" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
-          <Badge label="RMSE CV" value={`${fmt(model.rmse)} u`} color={PURPLE} />
-          {model.r2 != null && <Badge label="R² CV" value={`${fmtDec(model.r2 * 100, 1)}%`} color={model.r2 >= 0.7 ? GREEN : model.r2 >= 0.5 ? ORANGE : RED} />}
-          {model.mape != null && <Badge label="MAPE CV" value={model.mape > 150 ? '—' : `${fmtDec(model.mape, 1)}%`} color={model.mape > 150 ? '#888' : model.mape < 20 ? GREEN : model.mape < 40 ? ORANGE : RED} title={model.mape > 150 ? 'Demanda muy errática — MAPE no confiable' : undefined} />}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-        <StatCard label="Demanda total proyectada" value={fmt(totalFc)} color={BLUE} />
-        <StatCard label="Promedio semanal (fc)" value={fmt(avgFc)} color={BLUE_LIGHT} />
-        <StatCard label="Pico de demanda" value={fmt(maxFc)} color={ORANGE} />
-        <StatCard label="Stock actual" value={fmt(lastStock)} color={stockLow ? RED : GREEN} sub={stockLow ? 'Nivel bajo' : 'Nivel OK'} />
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+        <StatCard label="Sobreproducción acumulada" value={fmt(totalOverprod)} color={totalOverprod > 0 ? ORANGE : GREEN} sub="unidades totales sobre ventas" />
+        <StatCard label="Gap promedio anual" value={`${fmtDec(avgGapPct, 1)}%`} color={avgGapPct > 10 ? ORANGE : GREEN} sub="(producción − ventas) / ventas" />
       </div>
 
-      {trendUp && <Alert type="warning">La demanda proyectada supera el promedio histórico en más del 10% — considerar incrementar producción.</Alert>}
-      {trendDown && <Alert type="info">La demanda proyectada está por debajo del histórico — oportunidad de optimizar inventario.</Alert>}
-      {stockLow && <Alert type="danger">Stock actual ({fmt(lastStock)} u) es menor a 2 semanas de demanda promedio proyectada — revisar plan de producción urgente.</Alert>}
-
-      <SectionTitle sub="Últimas 52 semanas históricas + forecast con banda de confianza al 95%">
-        Demanda histórica + predicción — {sku}
-      </SectionTitle>
-      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 16 }}>
-        <ResponsiveContainer width="100%" height={320}>
-          <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 8 === 0 ? v : ''} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
-            <Tooltip formatter={(v, n) => [fmt(v), { forecast: 'Predicción', ventas: 'Ventas reales', upper: 'Límite sup. 95%', lower: 'Límite inf. 95%' }[n] ?? n]} />
-            <Legend formatter={v => ({ forecast: 'Predicción', ventas: 'Ventas reales', upper: 'Banda confianza', lower: '' }[v] ?? v)} />
-            <Area dataKey="upper" name="upper" stroke="none" fill={BLUE_LIGHT} fillOpacity={0.25} dot={false} legendType="square" />
-            <Area dataKey="lower" name="lower" stroke="none" fill="white" fillOpacity={1} dot={false} legendType="none" />
-            <Line dataKey="ventas" name="ventas" stroke={GREEN} strokeWidth={1.5} dot={false} connectNulls={false} />
-            <Line dataKey="forecast" name="forecast" stroke={BLUE} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-
-      <SectionTitle sub="Evolución del stock e ingresos por producción en el periodo histórico">
-        Stock e ingresos por producción — {sku}
+      <SectionTitle sub="Comparativa anual de ventas totales vs producción ingresada — el gap muestra la sobreproducción de cada año">
+        Ventas vs Producción por año — {sku}
       </SectionTitle>
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 24 }}>
-        <ResponsiveContainer width="100%" height={200}>
-          <ComposedChart data={stockData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={annualData} margin={{ top: 10, right: 40, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 8 === 0 ? v : ''} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
-            <Tooltip formatter={(v, n) => [fmt(v), n === 'stock' ? 'Stock cierre' : 'Producción ingresada']} />
-            <Legend formatter={v => ({ stock: 'Stock cierre', produccion: 'Producción ingresada' }[v] ?? v)} />
-            <Area dataKey="stock" name="stock" stroke={TEAL} fill={TEAL} fillOpacity={0.2} dot={false} />
-            <Line dataKey="produccion" name="produccion" stroke={ORANGE} strokeWidth={1.5} dot={false} />
+            <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+            <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <Tooltip formatter={(v, n) => [fmt(v), { ventas: 'Ventas', produccion: 'Producción', gap: 'Gap (Prod − Ventas)' }[n] ?? n]} />
+            <Legend formatter={v => ({ ventas: 'Ventas', produccion: 'Producción', gap: 'Gap sobreproducción' }[v] ?? v)} />
+            <Bar yAxisId="left" dataKey="ventas" name="ventas" fill={GREEN} opacity={0.85} />
+            <Bar yAxisId="left" dataKey="produccion" name="produccion" fill={BLUE_LIGHT} opacity={0.85} />
+            <Line yAxisId="right" dataKey="gap" name="gap" stroke={ORANGE} strokeWidth={2.5} dot={{ r: 5, fill: ORANGE }} />
+            <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="4 4" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      <SectionTitle>Detalle semanal de predicción — {sku}</SectionTitle>
-      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 8 }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: BLUE }}>
-              {['Semana', 'Predicción (u)', 'Límite inferior 95%', 'Límite superior 95%'].map(h => (
-                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: 'white', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {forecastData.map((row, i) => (
-              <tr key={i} style={{ background: i % 2 === 0 ? '#fafafa' : 'white' }}>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>{row.semana}</td>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{fmt(row.forecast)}</td>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', color: '#666' }}>{row.lower > 0 ? fmt(row.lower) : '—'}</td>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', color: '#666' }}>{fmt(row.upper)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <SectionTitle sub="Producción mensual (línea) vs ventas del mes anterior (barras) — si la empresa produce en base a ventas previas + % crecimiento, ambas curvas deben seguir el mismo patrón">
+        Lógica de producción mensual — {sku}
+      </SectionTitle>
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 8 }}>
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={monthlyLagData.slice(-36)} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 3 === 0 ? v : ''} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <Tooltip formatter={(v, n) => [fmt(v), { produccion: 'Producción (mes t)', ventas_anterior: 'Ventas mes anterior (t−1)' }[n] ?? n]} />
+            <Legend formatter={v => ({ produccion: 'Producción (mes t)', ventas_anterior: 'Ventas mes anterior (t−1)' }[v] ?? v)} />
+            <Bar dataKey="ventas_anterior" name="ventas_anterior" fill={GREEN} opacity={0.6} />
+            <Line dataKey="produccion" name="produccion" stroke={BLUE} strokeWidth={2} dot={false} connectNulls />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
+      <p style={{ fontSize: 12, color: '#888', marginTop: 6, marginBottom: 24 }}>
+        Si la empresa sigue la lógica de producir según ventas del mes anterior, la línea azul debería tener el mismo patrón que las barras verdes desplazadas un mes.
+      </p>
     </div>
   )
 }
@@ -3070,9 +3047,7 @@ export default function Home() {
           {tab === 'producto' && (
             <TabProducto
               sku={sku} setSku={setSku}
-              predictions={predictions} metadata={metadata}
               historical={historical} pareto={pareto}
-              periods={periods} setPeriods={setPeriods}
             />
           )}
           {tab === 'planificacion' && (
