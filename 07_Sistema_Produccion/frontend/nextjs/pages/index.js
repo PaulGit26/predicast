@@ -117,11 +117,33 @@ function StatCard({ label, value, sub, color = BLUE, bg = '#f0f4ff' }) {
   )
 }
 
-function SectionTitle({ children, sub }) {
+function SectionTitle({ children, sub, right }) {
   return (
-    <div style={{ marginBottom: 12, marginTop: 24 }}>
-      <h2 style={{ color: BLUE, margin: 0, fontSize: 17, fontWeight: 700 }}>{children}</h2>
-      {sub && <p style={{ color: '#666', margin: '4px 0 0', fontSize: 13 }}>{sub}</p>}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, marginTop: 24 }}>
+      <div>
+        <h2 style={{ color: BLUE, margin: 0, fontSize: 17, fontWeight: 700 }}>{children}</h2>
+        {sub && <p style={{ color: '#666', margin: '4px 0 0', fontSize: 13 }}>{sub}</p>}
+      </div>
+      {right && <div style={{ flexShrink: 0, marginLeft: 12, marginTop: 4 }}>{right}</div>}
+    </div>
+  )
+}
+
+function RangeSelector({ value, onChange, options }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+      {options.map(opt => (
+        <button key={opt.label} onClick={() => onChange(opt.value)}
+          style={{
+            padding: '3px 10px', borderRadius: 14,
+            border: `1px solid ${value === opt.value ? BLUE : '#cbd5e1'}`,
+            background: value === opt.value ? BLUE : '#f8fafc',
+            color: value === opt.value ? '#fff' : '#64748b',
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+          }}>
+          {opt.label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -162,6 +184,13 @@ function SkuSelect({ skus, value, onChange, pareto }) {
 
 // ─── Tab: Resumen Ejecutivo ───────────────────────────────────────────────────
 
+const RANGE_SEMANAL = [
+  { label: '1 año',  value: 52  },
+  { label: '2 años', value: 104 },
+  { label: '3 años', value: 156 },
+  { label: 'Todo',   value: 0   },
+]
+
 function TabResumen({ predictions, pareto, semanal, canal }) {
   const skus = Object.keys(predictions || {})
   const totalForecast = skus.reduce((s, k) => s + (predictions[k] || []).reduce((a, r) => a + r.forecast, 0), 0)
@@ -171,7 +200,11 @@ function TabResumen({ predictions, pareto, semanal, canal }) {
     fill: SKU_COLORS[i % SKU_COLORS.length],
   })).sort((a, b) => b.total - a.total)
 
-  const semanalSlice = semanal.slice(-104)
+  const [semWeeks, setSemWeeks] = useState(104)
+  const semanalSlice = semWeeks ? semanal.slice(-semWeeks) : semanal
+  const semTick = semanalSlice.length <= 52 ? 6 : semanalSlice.length <= 104 ? 12 : semanalSlice.length <= 156 ? 18 : 26
+  const semFrom = semanalSlice[0]?.semana || ''
+  const semTo   = semanalSlice[semanalSlice.length - 1]?.semana || ''
 
   return (
     <div>
@@ -181,14 +214,17 @@ function TabResumen({ predictions, pareto, semanal, canal }) {
         <StatCard label="Predicciones generadas" value={fmt(skus.length * 52)} sub="Puntos de forecast" color={ORANGE} />
       </div>
 
-      <SectionTitle sub="Últimas 2 años — ventas y producción global consolidadas">
+      <SectionTitle
+        sub={semFrom ? `${semFrom} → ${semTo} — ventas y producción global consolidadas` : 'Ventas y producción global consolidadas'}
+        right={<RangeSelector value={semWeeks} onChange={setSemWeeks} options={RANGE_SEMANAL} />}
+      >
         Serie histórica global
       </SectionTitle>
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px' }}>
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart data={semanalSlice} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 12 === 0 ? v : ''} />
+            <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % semTick === 0 ? v : ''} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
             <Tooltip formatter={(v, n) => [fmt(v), n === 'ventas' ? 'Ventas' : n === 'produccion' ? 'Producción' : 'Stock']} />
             <Legend formatter={v => ({ ventas: 'Ventas', produccion: 'Producción', stock: 'Stock' }[v] ?? v)} />
@@ -264,8 +300,16 @@ function TabResumen({ predictions, pareto, semanal, canal }) {
 
 // ─── Tab: Por Producto ────────────────────────────────────────────────────────
 
+const RANGE_MENSUAL = [
+  { label: '1 año',  value: 12 },
+  { label: '2 años', value: 24 },
+  { label: '3 años', value: 36 },
+  { label: 'Todo',   value: 0  },
+]
+
 function TabProducto({ sku, setSku, historical, pareto }) {
   const skuList = pareto.map(r => r.codigo)
+  const [lagMonths, setLagMonths] = useState(36)
 
   const descMap = useMemo(() => {
     const m = {}
@@ -350,12 +394,15 @@ function TabProducto({ sku, setSku, historical, pareto }) {
         </ResponsiveContainer>
       </div>
 
-      <SectionTitle sub="Producción mensual (línea) vs ventas del mes anterior (barras) — si la empresa produce en base a ventas previas + % crecimiento, ambas curvas deben seguir el mismo patrón">
+      <SectionTitle
+        sub="Producción mensual (línea) vs ventas del mes anterior (barras) — si la empresa produce en base a ventas previas + % crecimiento, ambas curvas deben seguir el mismo patrón"
+        right={<RangeSelector value={lagMonths} onChange={setLagMonths} options={RANGE_MENSUAL} />}
+      >
         Lógica de producción mensual — {sku}
       </SectionTitle>
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 8 }}>
         <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={monthlyLagData.slice(-36)} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+          <ComposedChart data={lagMonths ? monthlyLagData.slice(-lagMonths) : monthlyLagData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 3 === 0 ? v : ''} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
@@ -378,7 +425,9 @@ function TabProducto({ sku, setSku, historical, pareto }) {
 function TabPlanificacion({ sku, setSku, gap, eficiencia, predictions, pareto }) {
   const skus = Object.keys(predictions || {})
   const skuEfic = eficiencia.find(r => r.codigo === sku) || null
-  const gapSlice = gap.slice(-78)
+  const [gapWeeks, setGapWeeks] = useState(104)
+  const gapSlice = gapWeeks ? gap.slice(-gapWeeks) : gap
+  const gapTick = gapSlice.length <= 52 ? 6 : gapSlice.length <= 104 ? 8 : gapSlice.length <= 156 ? 12 : 20
   const forecastData = predictions?.[sku] || []
 
   const avgDemanda = forecastData.length ? forecastData.reduce((s, r) => s + r.forecast, 0) / forecastData.length : 0
@@ -410,14 +459,17 @@ function TabPlanificacion({ sku, setSku, gap, eficiencia, predictions, pareto })
         </>
       )}
 
-      <SectionTitle sub="Comparación semanal ventas vs producción real (últimas 78 semanas)">
+      <SectionTitle
+        sub={gapSlice[0]?.semana ? `${gapSlice[0].semana} → ${gapSlice[gapSlice.length - 1]?.semana} — comparación semanal ventas vs producción real` : 'Comparación semanal ventas vs producción real'}
+        right={<RangeSelector value={gapWeeks} onChange={setGapWeeks} options={RANGE_SEMANAL} />}
+      >
         Ventas vs Producción — {sku}
       </SectionTitle>
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 20 }}>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={gapSlice} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 8 === 0 ? v : ''} />
+            <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % gapTick === 0 ? v : ''} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
             <Tooltip formatter={(v, n) => [fmt(v), { ventas: 'Ventas', produccion: 'Producción' }[n] ?? n]} />
             <Legend formatter={v => ({ ventas: 'Ventas reales', produccion: 'Producción ingresada' }[v] ?? v)} />
