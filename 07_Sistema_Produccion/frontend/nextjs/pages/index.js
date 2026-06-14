@@ -327,6 +327,7 @@ function TabProducto({ sku, setSku, predictions, metadata, historical, pareto, p
           <Badge label="MAE CV" value={`${fmt(model.mae)} u`} color={BLUE_LIGHT} />
           <Badge label="RMSE CV" value={`${fmt(model.rmse)} u`} color={PURPLE} />
           {model.r2 != null && <Badge label="R² CV" value={`${fmtDec(model.r2 * 100, 1)}%`} color={model.r2 >= 0.7 ? GREEN : model.r2 >= 0.5 ? ORANGE : RED} />}
+          {model.mape != null && <Badge label="MAPE CV" value={model.mape > 150 ? '—' : `${fmtDec(model.mape, 1)}%`} color={model.mape > 150 ? '#888' : model.mape < 20 ? GREEN : model.mape < 40 ? ORANGE : RED} title={model.mape > 150 ? 'Demanda muy errática — MAPE no confiable' : undefined} />}
         </div>
       )}
 
