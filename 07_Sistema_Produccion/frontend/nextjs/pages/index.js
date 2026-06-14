@@ -191,14 +191,17 @@ const RANGE_SEMANAL = [
   { label: 'Todo',   value: 0   },
 ]
 
-function TabResumen({ predictions, pareto, semanal, canal }) {
-  const skus = Object.keys(predictions || {})
-  const totalForecast = skus.reduce((s, k) => s + (predictions[k] || []).reduce((a, r) => a + r.forecast, 0), 0)
-  const skuTotals = skus.map((k, i) => ({
-    sku: k,
-    total: Math.round((predictions[k] || []).reduce((a, r) => a + r.forecast, 0)),
+function TabResumen({ pareto, semanal, canal }) {
+  const totalVentas = semanal.reduce((s, r) => s + (r.ventas || 0), 0)
+  const totalProd   = semanal.reduce((s, r) => s + (r.produccion || 0), 0)
+  const periodoDesde = semanal[0]?.semana || ''
+  const periodoHasta = semanal[semanal.length - 1]?.semana || ''
+
+  const skuTotals = pareto.slice(0, 7).map((p, i) => ({
+    sku: p.codigo,
+    total: Math.round(p.ventas),
     fill: SKU_COLORS[i % SKU_COLORS.length],
-  })).sort((a, b) => b.total - a.total)
+  }))
 
   const [semWeeks, setSemWeeks] = useState(104)
   const semanalSlice = semWeeks ? semanal.slice(-semWeeks) : semanal
@@ -209,9 +212,9 @@ function TabResumen({ predictions, pareto, semanal, canal }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
-        <StatCard label="SKUs monitoreados" value={skus.length} sub="Productos activos" color={BLUE} />
-        <StatCard label="Demanda total 52s" value={fmt(totalForecast)} sub="Todas las referencias" color={GREEN} />
-        <StatCard label="Predicciones generadas" value={fmt(skus.length * 52)} sub="Puntos de forecast" color={ORANGE} />
+        <StatCard label="SKUs monitoreados" value={pareto.length} sub="Productos activos" color={BLUE} />
+        <StatCard label="Total ventas históricas" value={fmt(totalVentas)} sub={periodoDesde ? `${periodoDesde} → ${periodoHasta}` : 'acumulado'} color={GREEN} />
+        <StatCard label="Total producción histórica" value={fmt(totalProd)} sub="unidades ingresadas" color={ORANGE} />
       </div>
 
       <SectionTitle
@@ -237,17 +240,21 @@ function TabResumen({ predictions, pareto, semanal, canal }) {
 
       <div style={{ display: 'flex', gap: 20, marginTop: 8, flexWrap: 'wrap' }}>
         <div style={{ flex: 2, minWidth: 300 }}>
-          <SectionTitle sub="Demanda proyectada total 52 semanas por referencia">
-            Forecast por SKU
+          <SectionTitle sub="Volumen total de ventas históricas por referencia (Pareto)">
+            Ventas por producto
           </SectionTitle>
           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px' }}>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart layout="vertical" data={skuTotals} margin={{ left: 10, right: 30 }}>
+              <BarChart layout="vertical" data={skuTotals} margin={{ left: 10, right: 50 }}>
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
                 <YAxis type="category" dataKey="sku" width={70} tick={{ fontSize: 12, fontWeight: 600 }} />
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <Tooltip formatter={v => [fmt(v), 'Demanda proyectada']} />
-                <Bar dataKey="total" name="Demanda 52s" radius={[0, 4, 4, 0]}>
+                <Tooltip formatter={(v, n) => [fmt(v), 'Ventas históricas (u)']} labelFormatter={label => {
+                  const p = pareto.find(r => r.codigo === label)
+                  return p ? `${label} — ${p.descripcion.slice(0, 40)}` : label
+                }} />
+                <Bar dataKey="total" name="Ventas históricas" radius={[0, 4, 4, 0]}
+                  label={{ position: 'right', formatter: fmt, fontSize: 10, fill: '#555' }}>
                   {skuTotals.map((e, i) => <Cell key={i} fill={e.fill} />)}
                 </Bar>
               </BarChart>
@@ -273,26 +280,6 @@ function TabResumen({ predictions, pareto, semanal, canal }) {
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
-
-      <SectionTitle sub="Análisis de Pareto — volumen de ventas históricas por referencia">
-        Ventas históricas por producto
-      </SectionTitle>
-      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px' }}>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={pareto.slice(0, 7)} margin={{ left: 10, right: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="codigo" tick={{ fontSize: 12, fontWeight: 600 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
-            <Tooltip formatter={(v, n) => [fmt(v), n === 'ventas' ? 'Ventas históricas' : n]} labelFormatter={label => {
-              const p = pareto.find(r => r.codigo === label)
-              return p ? `${label} — ${p.descripcion.slice(0, 40)}` : label
-            }} />
-            <Bar dataKey="ventas" name="ventas" radius={[4, 4, 0, 0]}>
-              {pareto.slice(0, 7).map((_, i) => <Cell key={i} fill={SKU_COLORS[i % SKU_COLORS.length]} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
       </div>
     </div>
   )
@@ -595,37 +582,6 @@ function TabAnalisisProductos({ resumenProductos, pareto }) {
         </ResponsiveContainer>
       </div>
 
-      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 8, marginBottom: 32 }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: BLUE }}>
-              {['Producto', 'Total Vendido (u)', 'Total Producido (u)', 'Unidades sin vender', 'Eficiencia'].map(h => (
-                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#fff', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {enriched.map((p, i) => (
-              <tr key={p.codigo} style={{ background: i % 2 === 0 ? '#fafafa' : '#fff' }}>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{p.codigo}</td>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>{fmt(p.total_ventas)}</td>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>{fmt(p.total_produccion)}</td>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', color: p.gap_unidades > 0 ? ORANGE : GREEN, fontWeight: 600 }}>
-                  {p.gap_unidades > 0 ? `+${fmt(p.gap_unidades)}` : fmt(p.gap_unidades)}
-                </td>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>
-                  <span style={{
-                    background: p.eficiencia >= 95 ? '#dcfce7' : p.eficiencia >= 85 ? '#fef3c7' : '#fee2e2',
-                    color:      p.eficiencia >= 95 ? '#166534' : p.eficiencia >= 85 ? '#92400e' : '#991b1b',
-                    padding: '2px 8px', borderRadius: 10, fontSize: 12, fontWeight: 700,
-                  }}>{p.eficiencia}%</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
       {/* ── 2. Estacionalidad ───────────────────────────────────────────────── */}
       <SectionTitle sub="Índice 100 = demanda promedio mensual del producto — valores superiores indican meses de alta demanda relativa">
         Estacionalidad mensual por producto
@@ -776,32 +732,6 @@ function TabCanalMercado({ canalClientes, bodega, canal }) {
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
-
-      {/* Canal % table */}
-      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 8, marginBottom: 32 }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: BLUE }}>
-              {['Producto', ...canales, 'Total'].map(h => (
-                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#fff', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {stackedData.map((row, i) => (
-              <tr key={row.sku} style={{ background: i % 2 === 0 ? '#fafafa' : '#fff' }}>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{row.sku}</td>
-                {canales.map(c => (
-                  <td key={c} style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>
-                    {fmt(row[c])} <span style={{ color: '#999', fontSize: 11 }}>({row[`${c}_pct`]}%)</span>
-                  </td>
-                ))}
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{fmt(row.total)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
       {/* ── 2. Concentración de clientes ─────────────────────────────────── */}
@@ -3345,7 +3275,7 @@ export default function Home() {
           </div>
 
           {tab === 'resumen' && (
-            <TabResumen predictions={predictions} metadata={metadata} pareto={pareto} semanal={semanal} canal={canal} />
+            <TabResumen pareto={pareto} semanal={semanal} canal={canal} />
           )}
           {tab === 'producto' && (
             <TabProducto
