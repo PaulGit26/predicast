@@ -33,10 +33,11 @@ const MODULES = [
     icon: '📊',
     roles: ['admin', 'gerente_financiero'],
     tabs: [
-      { id: 'resumen',       label: 'Resumen Ejecutivo' },
-      { id: 'producto',      label: 'Por Producto' },
-      { id: 'exploracion',   label: 'Exploración de Datos' },
-      { id: 'planificacion', label: 'Planificación / GAP' },
+      { id: 'resumen',            label: 'Resumen Ejecutivo'     },
+      { id: 'producto',           label: 'Por Producto'          },
+      { id: 'analisis_productos', label: 'Análisis de Productos' },
+      { id: 'canal_mercado',      label: 'Canal y Mercado'       },
+      { id: 'planificacion',      label: 'Planificación / GAP'   },
     ],
   },
   {
@@ -112,15 +113,6 @@ function StatCard({ label, value, sub, color = BLUE, bg = '#f0f4ff' }) {
       <div style={{ fontSize: 11, color: '#666', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{sub}</div>}
-    </div>
-  )
-}
-
-function Badge({ label, value, color = BLUE }) {
-  return (
-    <div style={{ background: '#fff', border: `1px solid ${color}`, borderRadius: 8, padding: '10px 16px', textAlign: 'center', minWidth: 120 }}>
-      <div style={{ fontSize: 10, color: '#888', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
     </div>
   )
 }
@@ -473,98 +465,354 @@ function TabPlanificacion({ sku, setSku, gap, eficiencia, predictions, pareto })
   )
 }
 
-// ─── Tab: Exploración de Datos ────────────────────────────────────────────────
+// ─── Tab: Análisis de Productos ──────────────────────────────────────────────
 
-function TabExploracion({ tendencia, bodega, canal }) {
-  const anios = [...new Set(tendencia.map(r => r.anio))].sort()
-  const [anioSel, setAnioSel] = useState(null)
-  const anioFinal = anioSel || anios[anios.length - 1]
-  const tendFiltrada = anio => tendencia.filter(r => r.anio === anio)
-  const tendGlobal = tendencia.slice(-60)
+const MESES_LABEL = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+const SKU_LINE_COLORS = [BLUE, GREEN, ORANGE, RED, PURPLE, TEAL, '#f97316']
+
+function TabAnalisisProductos({ resumenProductos, pareto }) {
+  const descMap = useMemo(() => {
+    const m = {}
+    pareto.forEach(r => { m[r.codigo.trim()] = r.descripcion })
+    return m
+  }, [pareto])
+
+  const enriched = resumenProductos.map(p => ({
+    ...p,
+    descripcion: descMap[p.codigo.trim()] || descMap[p.codigo.replace(/\s+/g, '')] || p.codigo,
+  }))
+
+  // Estacionalidad: normalized demand index per month (100 = annual avg)
+  const estacionalData = MESES_LABEL.slice(1).map((label, i) => {
+    const m = i + 1
+    const row = { mes: label }
+    enriched.forEach(p => {
+      const total12 = p.por_mes.reduce((s, d) => s + d.ventas, 0)
+      const avg = total12 / 12
+      const mesVal = (p.por_mes.find(d => d.mes === m) || {}).ventas || 0
+      row[p.codigo] = avg > 0 ? Math.round((mesVal / avg) * 100) : 0
+    })
+    return row
+  })
+
+  // Annual comparison: all skus by year
+  const allAnios = [...new Set(enriched.flatMap(p => p.por_anio.map(a => a.anio)))].sort()
+  const anualData = allAnios.map(anio => {
+    const row = { anio }
+    enriched.forEach(p => {
+      const d = p.por_anio.find(a => a.anio === anio)
+      row[p.codigo] = d ? d.ventas : null
+    })
+    return row
+  })
+
+  if (!enriched.length) return (
+    <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>
+      <div style={{ fontWeight: 600 }}>Ejecuta el pipeline para generar el análisis de productos.</div>
+    </div>
+  )
 
   return (
     <div>
-      <SectionTitle sub="Evolución mensual de ventas totales de la empresa — últimos 5 años">
-        Tendencia mensual de ventas
+      {/* ── 1. Impacto e Inversión ───────────────────────────────────────────── */}
+      <SectionTitle sub="Total de unidades vendidas vs producidas por producto acumulado en todo el histórico — la brecha muestra cuánto se produjo sin lograr vender">
+        Impacto por producto — ventas vs producción acumulada
       </SectionTitle>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        {anios.map(a => (
-          <button key={a} onClick={() => setAnioSel(a === anioFinal && anioSel ? null : a)}
-            style={{
-              padding: '5px 14px', borderRadius: 20, border: `1px solid ${BLUE}`,
-              background: anioFinal === a ? BLUE : 'white',
-              color: anioFinal === a ? 'white' : BLUE,
-              cursor: 'pointer', fontSize: 13, fontWeight: 600,
-            }}>
-            {a}
-          </button>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+        {enriched.map(p => (
+          <StatCard key={p.codigo} label={p.codigo}
+            value={`${p.eficiencia}%`}
+            color={p.eficiencia >= 95 ? GREEN : p.eficiencia >= 85 ? ORANGE : RED}
+            sub="eficiencia ventas/producción" />
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <div style={{ flex: 2, minWidth: 300 }}>
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#555', marginBottom: 8, paddingLeft: 8 }}>
-              Ventas mensuales — {anioFinal}
-            </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={tendFiltrada(anioFinal)} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="mes" tickFormatter={m => ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m] || m} tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
-                <Tooltip formatter={(v, n) => [fmt(v), n === 'ventas' ? 'Salida total' : 'Transacciones']} labelFormatter={m => ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m] || m} />
-                <Bar dataKey="ventas" name="ventas" fill={BLUE} radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 16 }}>
+        <ResponsiveContainer width="100%" height={Math.max(260, enriched.length * 58)}>
+          <BarChart layout="vertical" data={enriched} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <YAxis type="category" dataKey="codigo" width={80} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, n) => [fmt(v), { total_produccion: 'Total producido (u)', total_ventas: 'Total vendido (u)' }[n] ?? n]} />
+            <Legend formatter={v => ({ total_produccion: 'Total producido', total_ventas: 'Total vendido' }[v] ?? v)} />
+            <Bar dataKey="total_produccion" name="total_produccion" fill={BLUE_LIGHT} opacity={0.75} radius={[0, 3, 3, 0]} />
+            <Bar dataKey="total_ventas"     name="total_ventas"     fill={GREEN}      opacity={0.9}  radius={[0, 3, 3, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
+      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 8, marginBottom: 32 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: BLUE }}>
+              {['Producto', 'Total Vendido (u)', 'Total Producido (u)', 'Unidades sin vender', 'Eficiencia'].map(h => (
+                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#fff', fontWeight: 600 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {enriched.map((p, i) => (
+              <tr key={p.codigo} style={{ background: i % 2 === 0 ? '#fafafa' : '#fff' }}>
+                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{p.codigo}</td>
+                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>{fmt(p.total_ventas)}</td>
+                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>{fmt(p.total_produccion)}</td>
+                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', color: p.gap_unidades > 0 ? ORANGE : GREEN, fontWeight: 600 }}>
+                  {p.gap_unidades > 0 ? `+${fmt(p.gap_unidades)}` : fmt(p.gap_unidades)}
+                </td>
+                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>
+                  <span style={{
+                    background: p.eficiencia >= 95 ? '#dcfce7' : p.eficiencia >= 85 ? '#fef3c7' : '#fee2e2',
+                    color:      p.eficiencia >= 95 ? '#166534' : p.eficiencia >= 85 ? '#92400e' : '#991b1b',
+                    padding: '2px 8px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+                  }}>{p.eficiencia}%</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── 2. Estacionalidad ───────────────────────────────────────────────── */}
+      <SectionTitle sub="Índice 100 = demanda promedio mensual del producto — valores superiores indican meses de alta demanda relativa">
+        Estacionalidad mensual por producto
+      </SectionTitle>
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 8 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <ComposedChart data={estacionalData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${v}`} domain={[0, 'auto']} />
+            <Tooltip formatter={(v, n) => [`${v} (índice)`, n]} />
+            <Legend />
+            <ReferenceLine y={100} stroke="#bbb" strokeDasharray="5 4" />
+            {enriched.map((p, i) => (
+              <Line key={p.codigo} dataKey={p.codigo} name={p.codigo}
+                stroke={SKU_LINE_COLORS[i % SKU_LINE_COLORS.length]}
+                strokeWidth={2} dot={{ r: 3 }} connectNulls />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <p style={{ fontSize: 12, color: '#888', marginTop: 6, marginBottom: 32 }}>
+        La línea punteada marca el índice 100 (promedio). Un producto en 150 en julio significa que ese mes vende 50% más que su promedio.
+      </p>
+
+      {/* ── 3. Tendencia anual por SKU ──────────────────────────────────────── */}
+      <SectionTitle sub="Evolución del volumen de ventas anuales por producto — permite identificar cuáles SKUs crecen, decrecen o se mantienen estables">
+        Tendencia anual de ventas por producto
+      </SectionTitle>
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 32 }}>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={anualData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="anio" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <Tooltip formatter={(v, n) => [fmt(v), n]} />
+            <Legend />
+            {enriched.map((p, i) => (
+              <Line key={p.codigo} dataKey={p.codigo} name={p.codigo}
+                stroke={SKU_LINE_COLORS[i % SKU_LINE_COLORS.length]}
+                strokeWidth={2} dot={{ r: 5, fill: SKU_LINE_COLORS[i % SKU_LINE_COLORS.length] }} connectNulls />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── 4. Rotación de inventario ────────────────────────────────────────── */}
+      <SectionTitle sub="Número de veces que el inventario promedio se renueva anualmente — mayor rotación indica mayor eficiencia operativa">
+        Rotación de inventario por producto
+      </SectionTitle>
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 24 }}>
+        <ResponsiveContainer width="100%" height={Math.max(180, enriched.length * 44)}>
+          <BarChart layout="vertical" data={[...enriched].sort((a, b) => b.rotacion - a.rotacion)} margin={{ top: 5, right: 40, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11 }} unit="×" />
+            <YAxis type="category" dataKey="codigo" width={80} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={v => [`${v}×`, 'Rotación anual']} />
+            <Bar dataKey="rotacion" name="Rotación" radius={[0, 4, 4, 0]}
+              label={{ position: 'right', formatter: v => `${v}×`, fontSize: 11, fill: '#555' }}>
+              {[...enriched].sort((a, b) => b.rotacion - a.rotacion).map((_, i) => (
+                <Cell key={i} fill={SKU_LINE_COLORS[i % SKU_LINE_COLORS.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+// ─── Tab: Canal y Mercado ─────────────────────────────────────────────────────
+
+function TabCanalMercado({ canalClientes, bodega, canal }) {
+  const { canal_por_producto = [], top_clientes = [] } = canalClientes
+
+  // Build per-product stacked data
+  const skuCanalMap = useMemo(() => {
+    const m = {}
+    canal_por_producto.forEach(r => {
+      if (!m[r.codigo]) m[r.codigo] = {}
+      m[r.codigo][r.canal] = (m[r.codigo][r.canal] || 0) + r.ventas
+    })
+    return m
+  }, [canal_por_producto])
+
+  const canales = [...new Set(canal_por_producto.map(r => r.canal))].filter(Boolean).sort()
+  const CANAL_COLORS = { Online: BLUE, Presencial: GREEN }
+
+  const stackedData = Object.entries(skuCanalMap).map(([sku, vals]) => {
+    const total = Object.values(vals).reduce((s, v) => s + v, 0)
+    const row = { sku, total }
+    canales.forEach(c => {
+      row[c] = vals[c] || 0
+      row[`${c}_pct`] = total > 0 ? Math.round((row[c] / total) * 100) : 0
+    })
+    return row
+  }).sort((a, b) => b.total - a.total)
+
+  const totalClientes = top_clientes.reduce((s, c) => s + c.ventas, 0)
+
+  if (!canal_por_producto.length) return (
+    <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
+      <div style={{ fontWeight: 600 }}>Ejecuta el pipeline para generar el análisis de canal y clientes.</div>
+    </div>
+  )
+
+  return (
+    <div>
+      {/* ── 1. Canal por producto ─────────────────────────────────────────── */}
+      <SectionTitle sub="Volumen de ventas por canal (Online vs Presencial) desglosado por producto — identifica qué canales potenciar por SKU">
+        Canal de ventas por producto
+      </SectionTitle>
+
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
+        <div style={{ flex: 2, minWidth: 300 }}>
           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#555', marginBottom: 8, paddingLeft: 8 }}>
-              Tendencia histórica completa
-            </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <ComposedChart data={tendGlobal} margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v, i) => i % 6 === 0 ? v : ''} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
-                <Tooltip formatter={(v, n) => [fmt(v), n === 'ventas' ? 'Salida total' : 'Transacciones']} />
-                <Area dataKey="ventas" name="ventas" stroke={BLUE} fill={BLUE} fillOpacity={0.15} dot={false} />
-              </ComposedChart>
+            <ResponsiveContainer width="100%" height={Math.max(240, stackedData.length * 52)}>
+              <BarChart layout="vertical" data={stackedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+                <YAxis type="category" dataKey="sku" width={80} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v, n) => [fmt(v), n]} />
+                <Legend />
+                {canales.map(c => (
+                  <Bar key={c} dataKey={c} name={c} stackId="a"
+                    fill={CANAL_COLORS[c] || ORANGE}
+                    label={canales.indexOf(c) === canales.length - 1
+                      ? { position: 'right', formatter: (_, __, idx) => `${stackedData[idx]?.[`${c}_pct`] ?? ''}%`, fontSize: 10, fill: '#666' }
+                      : false} />
+                ))}
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <SectionTitle sub="Distribución de ventas por canal">Canal de ventas</SectionTitle>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <SectionTitle sub="Distribución global por canal">Canal global</SectionTitle>
           <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 16 }}>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={canal} dataKey="ventas" nameKey="canal" cx="50%" cy="50%" outerRadius={75}
-                  label={({ canal: c, percent }) => `${c}: ${(percent * 100).toFixed(0)}%`}>
-                  {canal.map((_, i) => <Cell key={i} fill={[BLUE, GREEN][i % 2]} />)}
+                <Pie data={canal} dataKey="ventas" nameKey="canal" cx="50%" cy="50%" outerRadius={72}
+                  label={({ canal: c, percent }) => `${c}: ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                  {canal.map((_, i) => <Cell key={i} fill={[BLUE, GREEN, ORANGE][i % 3]} />)}
                 </Pie>
                 <Tooltip formatter={v => [fmt(v), 'Ventas']} />
-                <Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
-
-          <SectionTitle sub="Ventas por almacén / punto de venta">Ventas por bodega</SectionTitle>
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px' }}>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart layout="vertical" data={bodega} margin={{ left: 10, right: 20 }}>
-                <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={fmt} />
-                <YAxis type="category" dataKey="bodega" width={130} tick={{ fontSize: 10 }} tickFormatter={v => v.length > 18 ? v.slice(0, 18) + '…' : v} />
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <Tooltip formatter={v => [fmt(v), 'Ventas']} labelFormatter={v => v} />
-                <Bar dataKey="ventas" name="Ventas" radius={[0, 4, 4, 0]}>
-                  {bodega.map((_, i) => <Cell key={i} fill={SKU_COLORS[i % SKU_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
         </div>
+      </div>
+
+      {/* Canal % table */}
+      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 8, marginBottom: 32 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: BLUE }}>
+              {['Producto', ...canales, 'Total'].map(h => (
+                <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#fff', fontWeight: 600 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {stackedData.map((row, i) => (
+              <tr key={row.sku} style={{ background: i % 2 === 0 ? '#fafafa' : '#fff' }}>
+                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{row.sku}</td>
+                {canales.map(c => (
+                  <td key={c} style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>
+                    {fmt(row[c])} <span style={{ color: '#999', fontSize: 11 }}>({row[`${c}_pct`]}%)</span>
+                  </td>
+                ))}
+                <td style={{ padding: '6px 12px', borderBottom: '1px solid #eee', fontWeight: 600 }}>{fmt(row.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── 2. Concentración de clientes ─────────────────────────────────── */}
+      <SectionTitle sub="Top 15 clientes por volumen total comprado — la curva naranja muestra el % acumulado (Pareto de clientes)">
+        Concentración de clientes
+      </SectionTitle>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        {top_clientes[0] && (
+          <StatCard label="Cliente #1" value={top_clientes[0].cliente}
+            color={BLUE} sub={`${fmt(top_clientes[0].ventas)} u — ${top_clientes[0].acumulado_pct}% del total`} />
+        )}
+        {top_clientes[2] && (
+          <StatCard label="Top 3 clientes" value={`${top_clientes[2].acumulado_pct}% del total`}
+            color={ORANGE} sub="concentración en 3 clientes" />
+        )}
+        {top_clientes[4] && (
+          <StatCard label="Top 5 clientes" value={`${top_clientes[4].acumulado_pct}% del total`}
+            color={top_clientes[4].acumulado_pct >= 80 ? RED : GREEN}
+            sub={top_clientes[4].acumulado_pct >= 80 ? 'alta concentración — riesgo' : 'concentración moderada'} />
+        )}
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 32 }}>
+        <ResponsiveContainer width="100%" height={Math.max(300, top_clientes.length * 26)}>
+          <BarChart layout="vertical" data={top_clientes} margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <YAxis type="category" dataKey="cliente" width={160} tick={{ fontSize: 10 }}
+              tickFormatter={v => v.length > 22 ? v.slice(0, 22) + '…' : v} />
+            <Tooltip formatter={(v, n) => [n === 'ventas' ? fmt(v) : `${v}%`, n === 'ventas' ? 'Ventas (u)' : '% acumulado']} />
+            <Legend formatter={v => ({ ventas: 'Ventas (u)' }[v] ?? v)} />
+            <Bar dataKey="ventas" name="ventas" radius={[0, 4, 4, 0]}
+              label={{ position: 'right', formatter: (_, __, idx) => `${top_clientes[idx]?.acumulado_pct ?? ''}%`, fontSize: 10, fill: '#777' }}>
+              {top_clientes.map((r, i) => (
+                <Cell key={i} fill={r.acumulado_pct <= 50 ? RED : r.acumulado_pct <= 80 ? ORANGE : GREEN} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <p style={{ fontSize: 11, color: '#aaa', marginTop: 4, textAlign: 'center' }}>
+          Rojo = clientes que concentran el 50% del volumen · Naranja = hasta 80% · Verde = resto
+        </p>
+      </div>
+
+      {/* ── 3. Ventas por bodega ──────────────────────────────────────────── */}
+      <SectionTitle sub="Volumen total de ventas por almacén / punto de venta — útil para entender dónde se despacha más">
+        Ventas por bodega / punto de venta
+      </SectionTitle>
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 24 }}>
+        <ResponsiveContainer width="100%" height={Math.max(160, bodega.length * 44)}>
+          <BarChart layout="vertical" data={bodega} margin={{ left: 10, right: 40 }}>
+            <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={fmt} />
+            <YAxis type="category" dataKey="bodega" width={170} tick={{ fontSize: 10 }}
+              tickFormatter={v => v.length > 24 ? v.slice(0, 24) + '…' : v} />
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <Tooltip formatter={v => [fmt(v), 'Ventas (u)']} />
+            <Bar dataKey="ventas" name="Ventas" radius={[0, 4, 4, 0]}
+              label={{ position: 'right', formatter: fmt, fontSize: 11, fill: '#555' }}>
+              {bodega.map((_, i) => <Cell key={i} fill={SKU_COLORS[i % SKU_COLORS.length]} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   )
@@ -2759,12 +3007,11 @@ export default function Home() {
   const [currentModule, setCurrentModule] = useState(null)
   const [tab, setTab] = useState(null)
   const [sku, setSku] = useState(null)
-  const [periods, setPeriods] = useState(52)
+
 
   const [predictions, setPredictions] = useState(null)
   const [metadata, setMetadata] = useState({})
   const [pareto, setPareto] = useState([])
-  const [tendencia, setTendencia] = useState([])
   const [canal, setCanal] = useState([])
   const [bodega, setBodega] = useState([])
   const [semanal, setSemanal] = useState([])
@@ -2772,6 +3019,8 @@ export default function Home() {
 
   const [historical, setHistorical] = useState([])
   const [gap, setGap] = useState([])
+  const [resumenProductos, setResumenProductos] = useState([])
+  const [canalClientes, setCanalClientes] = useState({ canal_por_producto: [], top_clientes: [] })
 
   const [loading, setLoading] = useState(true)
   const [hasData, setHasData] = useState(null)
@@ -2808,25 +3057,27 @@ export default function Home() {
         return
       }
       setHasData(true)
-      const [meta, par, tend, can, bod, sem, efic, bt] = await Promise.all([
+      const [meta, par, can, bod, sem, efic, bt, rp, cc] = await Promise.all([
         fetch('/api/metadata').then(r => r.json()),
         fetch('/api/pareto').then(r => r.json()),
-        fetch('/api/tendencia').then(r => r.json()),
         fetch('/api/canal').then(r => r.json()),
         fetch('/api/bodega').then(r => r.json()),
         fetch('/api/semanal').then(r => r.json()),
         fetch('/api/eficiencia').then(r => r.json()),
         fetch('/api/backtest').then(r => r.json()),
+        fetch('/api/analisis/resumen-productos').then(r => r.json()).catch(() => []),
+        fetch('/api/analisis/canal-clientes').then(r => r.json()).catch(() => ({})),
       ])
       setPredictions(pred)
       setMetadata(meta || {})
       setPareto(Array.isArray(par) ? par : [])
-      setTendencia(Array.isArray(tend) ? tend : [])
       setCanal(Array.isArray(can) ? can : [])
       setBodega(Array.isArray(bod) ? bod : [])
       setSemanal(Array.isArray(sem) ? sem : [])
       setEficiencia(Array.isArray(efic) ? efic : [])
       setBacktest(bt?.skus ? bt : null)
+      setResumenProductos(Array.isArray(rp) ? rp : [])
+      setCanalClientes(cc?.canal_por_producto ? cc : { canal_por_producto: [], top_clientes: [] })
       const skus = Object.keys(pred)
       if (skus.length) setSku(s => s || skus[0])
       setLoading(false)
@@ -3057,8 +3308,11 @@ export default function Home() {
               predictions={predictions} pareto={pareto}
             />
           )}
-          {tab === 'exploracion' && (
-            <TabExploracion tendencia={tendencia} bodega={bodega} canal={canal} />
+          {tab === 'analisis_productos' && (
+            <TabAnalisisProductos resumenProductos={resumenProductos} pareto={pareto} />
+          )}
+          {tab === 'canal_mercado' && (
+            <TabCanalMercado canalClientes={canalClientes} bodega={bodega} canal={canal} />
           )}
           {tab === 'costo_planchas' && (
             <TabCostoPlanchas
