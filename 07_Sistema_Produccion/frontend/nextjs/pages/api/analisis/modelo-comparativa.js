@@ -16,6 +16,7 @@ export default function handler(_req, res) {
       const getR2 = (algo) => comp[algo]?.R2_CV ?? comp[algo]?.R2 ?? null
       const getMAE = (algo) => comp[algo]?.MAE ?? null
 
+      const mape = data.metricas_test?.MAPE ?? null
       return {
         sku,
         ganador: data.algoritmo_ganador || '—',
@@ -24,6 +25,7 @@ export default function handler(_req, res) {
           r2:   data.metricas_test?.R2   ?? null,
           mae:  data.metricas_test?.MAE  ?? null,
           rmse: data.metricas_test?.RMSE ?? null,
+          mape: (mape != null && mape > 0) ? mape : null,
         },
         comparativa: {
           Ridge:        { r2: getR2('Ridge'),        mae: getMAE('Ridge')        },

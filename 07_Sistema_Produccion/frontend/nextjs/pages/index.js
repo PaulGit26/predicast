@@ -597,7 +597,7 @@ function TabModeloComparativa({ modeloComparativa }) {
 
       {/* ── Hyperparameters detail ── */}
       {detail && (
-        <div style={{ background: '#fff', border: `2px solid ${ALGO_COLORS[detail.ganador] ?? BLUE}`, borderRadius: 10, padding: 20 }}>
+        <div style={{ background: '#fff', border: `2px solid ${ALGO_COLORS[detail.ganador] ?? BLUE}`, borderRadius: 10, padding: 20, marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <h3 style={{ margin: 0, color: ALGO_COLORS[detail.ganador] ?? BLUE, fontSize: 15, fontWeight: 700 }}>
               {detail.sku} — Hiperparámetros ganadores ({detail.ganador})
@@ -615,9 +615,44 @@ function TabModeloComparativa({ modeloComparativa }) {
             <StatCard label="R² validación" value={detail.metricas.r2?.toFixed(4) ?? '—'} color={ALGO_COLORS[detail.ganador] ?? BLUE} />
             <StatCard label="MAE" value={detail.metricas.mae?.toFixed(1) ?? '—'} sub="unidades" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
             <StatCard label="RMSE" value={detail.metricas.rmse?.toFixed(1) ?? '—'} sub="unidades" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
+            {detail.metricas.mape != null && (
+              <StatCard label="MAPE" value={(detail.metricas.mape * 100).toFixed(1) + '%'} sub="error porcentual" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
+            )}
           </div>
         </div>
       )}
+
+      {/* ── Métricas finales del ganador por producto ── */}
+      <SectionTitle sub="Métricas de test del modelo seleccionado para cada SKU">
+        Métricas del modelo ganador por producto
+      </SectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16, marginBottom: 24 }}>
+        {modeloComparativa.map(d => {
+          const color = ALGO_COLORS[d.ganador] ?? BLUE
+          return (
+            <div key={d.sku} style={{ background: '#fff', border: `1px solid ${color}30`, borderLeft: `4px solid ${color}`, borderRadius: 10, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontWeight: 800, fontSize: 15, color: '#1e293b' }}>{d.sku}</span>
+                <span style={{ background: color, color: '#fff', borderRadius: 10, padding: '2px 10px', fontWeight: 700, fontSize: 11 }}>{d.ganador}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {[
+                  { label: 'R²',   value: d.metricas.r2   != null ? d.metricas.r2.toFixed(4)              : '—', sub: 'coef. determinación' },
+                  { label: 'MAE',  value: d.metricas.mae  != null ? d.metricas.mae.toFixed(1)             : '—', sub: 'unidades'            },
+                  { label: 'RMSE', value: d.metricas.rmse != null ? d.metricas.rmse.toFixed(1)            : '—', sub: 'unidades'            },
+                  { label: 'MAPE', value: d.metricas.mape != null ? (d.metricas.mape * 100).toFixed(1) + '%' : '—', sub: 'error porcentual' },
+                ].map(m => (
+                  <div key={m.label} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}>
+                    <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color }}>{m.value}</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>{m.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
