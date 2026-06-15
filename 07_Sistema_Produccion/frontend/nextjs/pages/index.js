@@ -735,32 +735,7 @@ function TabAnalisisProductos({ resumenProductos, pareto }) {
         </ResponsiveContainer>
       </div>
 
-      {/* ── 2. Estacionalidad ───────────────────────────────────────────────── */}
-      <SectionTitle sub="Índice 100 = demanda promedio mensual del producto — valores superiores indican meses de alta demanda relativa">
-        Estacionalidad mensual por producto
-      </SectionTitle>
-      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 8 }}>
-        <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={estacionalData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${v}`} domain={[0, 'auto']} />
-            <Tooltip formatter={(v, n) => [`${v} (índice)`, n]} />
-            <Legend />
-            <ReferenceLine y={100} stroke="#bbb" strokeDasharray="5 4" />
-            {enriched.map((p, i) => (
-              <Line key={p.codigo} dataKey={p.codigo} name={p.codigo}
-                stroke={SKU_LINE_COLORS[i % SKU_LINE_COLORS.length]}
-                strokeWidth={2} dot={{ r: 3 }} connectNulls />
-            ))}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-      <p style={{ fontSize: 12, color: '#888', marginTop: 6, marginBottom: 32 }}>
-        La línea punteada marca el índice 100 (promedio). Un producto en 150 en julio significa que ese mes vende 50% más que su promedio.
-      </p>
-
-      {/* ── 3. Tendencia anual por SKU ──────────────────────────────────────── */}
+      {/* ── 2. Tendencia anual por SKU ──────────────────────────────────────── */}
       <SectionTitle sub="Evolución del volumen de ventas anuales por producto — permite identificar cuáles SKUs crecen, decrecen o se mantienen estables">
         Tendencia anual de ventas por producto
       </SectionTitle>
@@ -781,26 +756,6 @@ function TabAnalisisProductos({ resumenProductos, pareto }) {
         </ResponsiveContainer>
       </div>
 
-      {/* ── 4. Rotación de inventario ────────────────────────────────────────── */}
-      <SectionTitle sub="Número de veces que el inventario promedio se renueva anualmente — mayor rotación indica mayor eficiencia operativa">
-        Rotación de inventario por producto
-      </SectionTitle>
-      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 24 }}>
-        <ResponsiveContainer width="100%" height={Math.max(180, enriched.length * 44)}>
-          <BarChart layout="vertical" data={[...enriched].sort((a, b) => b.rotacion - a.rotacion)} margin={{ top: 5, right: 40, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} unit="×" />
-            <YAxis type="category" dataKey="codigo" width={80} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={v => [`${v}×`, 'Rotación anual']} />
-            <Bar dataKey="rotacion" name="Rotación" radius={[0, 4, 4, 0]}
-              label={{ position: 'right', formatter: v => `${v}×`, fontSize: 11, fill: '#555' }}>
-              {[...enriched].sort((a, b) => b.rotacion - a.rotacion).map((_, i) => (
-                <Cell key={i} fill={SKU_LINE_COLORS[i % SKU_LINE_COLORS.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
     </div>
   )
 }
