@@ -35,8 +35,9 @@ const MODULES = [
     tabs: [
       { id: 'resumen',            label: 'Resumen Ejecutivo'     },
       { id: 'producto',           label: 'Por Producto'          },
-      { id: 'analisis_productos', label: 'Análisis de Productos' },
-      { id: 'canal_mercado',      label: 'Canal y Mercado'       },
+      { id: 'analisis_productos',  label: 'Análisis de Productos'   },
+      { id: 'canal_mercado',       label: 'Canal y Mercado'         },
+      { id: 'modelo_comparativa',  label: 'Comparativa de Modelos'  },
     ],
   },
   {
@@ -457,6 +458,166 @@ function TabProducto({ sku, setSku, historical, pareto, gap, eficiencia, predict
           <StatCard label="Cobertura de demanda" value={`${fmtDec(gapRatio)}%`} color={gapRatio >= 100 ? GREEN : RED} sub={gapRatio >= 100 ? 'Producción suficiente' : 'Producción insuficiente'} />
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── Tab: Comparativa de Modelos ─────────────────────────────────────────────
+
+const ALGO_COLORS = { XGBoost: '#1d4ed8', RandomForest: '#16a34a', Ridge: '#d97706' }
+const ALGO_LABELS = { XGBoost: 'XGBoost', RandomForest: 'Random Forest', Ridge: 'Ridge' }
+const ALGOS = ['XGBoost', 'RandomForest', 'Ridge']
+
+function TabModeloComparativa({ modeloComparativa }) {
+  const [selectedSku, setSelectedSku] = useState(null)
+
+  if (!modeloComparativa.length) return (
+    <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>🤖</div>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>No hay reporte de optimización disponible.</div>
+      <div style={{ fontSize: 13 }}>Ejecuta el pipeline desde Actualización de Datos para generar los resultados.</div>
+    </div>
+  )
+
+  const r2Min = Math.min(...modeloComparativa.flatMap(d => ALGOS.map(a => d.comparativa[a]?.r2 ?? 1)))
+  const yDomain = [Math.max(0, Math.floor(r2Min * 100 - 2) / 100), 1]
+
+  const chartData = modeloComparativa.map(d => ({
+    sku: d.sku,
+    XGBoost:      d.comparativa.XGBoost?.r2      ?? null,
+    RandomForest: d.comparativa.RandomForest?.r2  ?? null,
+    Ridge:        d.comparativa.Ridge?.r2          ?? null,
+  }))
+
+  const ganadorCount = {}
+  modeloComparativa.forEach(d => { ganadorCount[d.ganador] = (ganadorCount[d.ganador] || 0) + 1 })
+  const topGanador = Object.entries(ganadorCount).sort((a, b) => b[1] - a[1])[0]
+
+  const avgR2 = v => {
+    const vals = modeloComparativa.map(d => d.comparativa[v]?.r2).filter(x => x != null)
+    return vals.length ? vals.reduce((s, x) => s + x, 0) / vals.length : null
+  }
+
+  const detail = selectedSku ? modeloComparativa.find(d => d.sku === selectedSku) : null
+
+  return (
+    <div>
+      {/* ── Summary cards ── */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
+        <StatCard label="Algoritmo ganador" value={topGanador?.[0] ?? '—'} color={ALGO_COLORS[topGanador?.[0]] ?? BLUE}
+          sub={`${topGanador?.[1] ?? 0} de ${modeloComparativa.length} SKUs`} />
+        {ALGOS.map(a => {
+          const avg = avgR2(a)
+          return (
+            <StatCard key={a} label={`R² promedio — ${ALGO_LABELS[a]}`}
+              value={avg != null ? avg.toFixed(4) : '—'}
+              color={ALGO_COLORS[a]}
+              sub="validación cruzada (k=5)" />
+          )
+        })}
+      </div>
+
+      {/* ── Grouped bar chart ── */}
+      <SectionTitle sub="R² de validación cruzada (TimeSeriesSplit k=5) — eje Y recortado para ampliar diferencias entre algoritmos">
+        Comparación de R² por SKU y algoritmo
+      </SectionTitle>
+      <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'flex-end', marginBottom: 8, paddingRight: 16 }}>
+          {ALGOS.map(a => (
+            <span key={a} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#374151' }}>
+              <span style={{ width: 12, height: 12, borderRadius: 2, background: ALGO_COLORS[a], display: 'inline-block' }} />
+              {ALGO_LABELS[a]}
+            </span>
+          ))}
+        </div>
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="sku" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" interval={0} />
+            <YAxis domain={yDomain} tick={{ fontSize: 11 }} tickFormatter={v => v.toFixed(3)} />
+            <Tooltip formatter={(v, n) => [v?.toFixed(4) ?? '—', ALGO_LABELS[n] ?? n]} />
+            {ALGOS.map(a => (
+              <Bar key={a} dataKey={a} name={a} fill={ALGO_COLORS[a]} radius={[3, 3, 0, 0]} opacity={0.88} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Comparison table ── */}
+      <SectionTitle sub="Haz clic en una fila para ver los hiperparámetros del modelo ganador">
+        Métricas por producto — modelo ganador vs. alternativas
+      </SectionTitle>
+      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 8, marginBottom: 24 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: BLUE }}>
+              {['SKU', 'Ganador', 'R² XGBoost', 'R² Random Forest', 'R² Ridge', 'MAE (ganador)', 'RMSE (ganador)'].map(h => (
+                <th key={h} style={{ padding: '8px 12px', textAlign: 'center', color: '#fff', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {modeloComparativa.map((d, i) => {
+              const isSelected = selectedSku === d.sku
+              return (
+                <tr key={d.sku} onClick={() => setSelectedSku(isSelected ? null : d.sku)}
+                  style={{ background: isSelected ? '#eff6ff' : i % 2 === 0 ? '#fafafa' : '#fff', cursor: 'pointer' }}>
+                  <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee', fontWeight: 700, color: isSelected ? BLUE : '#374151', whiteSpace: 'nowrap' }}>{d.sku}</td>
+                  <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                    <span style={{ background: ALGO_COLORS[d.ganador] ?? '#e2e8f0', color: '#fff', borderRadius: 10, padding: '2px 10px', fontWeight: 700, fontSize: 11 }}>
+                      {d.ganador}
+                    </span>
+                  </td>
+                  {ALGOS.map(a => {
+                    const r2 = d.comparativa[a]?.r2
+                    const isWinner = d.ganador === a
+                    return (
+                      <td key={a} style={{ padding: '7px 12px', borderBottom: '1px solid #eee', textAlign: 'center',
+                        fontWeight: isWinner ? 800 : 400,
+                        color: isWinner ? ALGO_COLORS[a] : '#374151',
+                        background: isWinner ? (a === 'XGBoost' ? '#eff6ff' : a === 'RandomForest' ? '#f0fdf4' : '#fffbeb') : 'transparent',
+                      }}>
+                        {r2 != null ? r2.toFixed(4) : '—'}
+                        {isWinner && <span style={{ marginLeft: 4, fontSize: 10 }}>✓</span>}
+                      </td>
+                    )
+                  })}
+                  <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                    {d.metricas.mae != null ? d.metricas.mae.toFixed(1) : '—'}
+                  </td>
+                  <td style={{ padding: '7px 12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                    {d.metricas.rmse != null ? d.metricas.rmse.toFixed(1) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Hyperparameters detail ── */}
+      {detail && (
+        <div style={{ background: '#fff', border: `2px solid ${ALGO_COLORS[detail.ganador] ?? BLUE}`, borderRadius: 10, padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <h3 style={{ margin: 0, color: ALGO_COLORS[detail.ganador] ?? BLUE, fontSize: 15, fontWeight: 700 }}>
+              {detail.sku} — Hiperparámetros ganadores ({detail.ganador})
+            </h3>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {Object.entries(detail.hiperparametros).map(([k, v]) => (
+              <div key={k} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 14px', minWidth: 120 }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>{k}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: ALGO_COLORS[detail.ganador] ?? BLUE }}>{String(v)}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+            <StatCard label="R² validación" value={detail.metricas.r2?.toFixed(4) ?? '—'} color={ALGO_COLORS[detail.ganador] ?? BLUE} />
+            <StatCard label="MAE" value={detail.metricas.mae?.toFixed(1) ?? '—'} sub="unidades" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
+            <StatCard label="RMSE" value={detail.metricas.rmse?.toFixed(1) ?? '—'} sub="unidades" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2990,6 +3151,7 @@ export default function Home() {
   const [gap, setGap] = useState([])
   const [resumenProductos, setResumenProductos] = useState([])
   const [canalClientes, setCanalClientes] = useState({ canal_por_producto: [], top_clientes: [] })
+  const [modeloComparativa, setModeloComparativa] = useState([])
 
   const [loading, setLoading] = useState(true)
   const [hasData, setHasData] = useState(null)
@@ -3026,7 +3188,7 @@ export default function Home() {
         return
       }
       setHasData(true)
-      const [meta, par, can, bod, sem, efic, bt, rp, cc] = await Promise.all([
+      const [meta, par, can, bod, sem, efic, bt, rp, cc, mc] = await Promise.all([
         fetch('/api/metadata').then(r => r.json()),
         fetch('/api/pareto').then(r => r.json()),
         fetch('/api/canal').then(r => r.json()),
@@ -3036,6 +3198,7 @@ export default function Home() {
         fetch('/api/backtest').then(r => r.json()),
         fetch('/api/analisis/resumen-productos').then(r => r.json()).catch(() => []),
         fetch('/api/analisis/canal-clientes').then(r => r.json()).catch(() => ({})),
+        fetch('/api/analisis/modelo-comparativa').then(r => r.json()).catch(() => []),
       ])
       setPredictions(pred)
       setMetadata(meta || {})
@@ -3047,6 +3210,7 @@ export default function Home() {
       setBacktest(bt?.skus ? bt : null)
       setResumenProductos(Array.isArray(rp) ? rp : [])
       setCanalClientes(cc?.canal_por_producto ? cc : { canal_por_producto: [], top_clientes: [] })
+      setModeloComparativa(Array.isArray(mc) ? mc : [])
       const skus = Object.keys(pred)
       if (skus.length) setSku(s => s || skus[0])
       setLoading(false)
@@ -3276,6 +3440,9 @@ export default function Home() {
           )}
           {tab === 'canal_mercado' && (
             <TabCanalMercado canalClientes={canalClientes} bodega={bodega} canal={canal} />
+          )}
+          {tab === 'modelo_comparativa' && (
+            <TabModeloComparativa modeloComparativa={modeloComparativa} />
           )}
           {tab === 'costo_planchas' && (
             <TabCostoPlanchas
