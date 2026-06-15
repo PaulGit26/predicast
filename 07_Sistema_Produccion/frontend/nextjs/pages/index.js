@@ -807,18 +807,23 @@ function TabAnalisisProductos({ resumenProductos, pareto }) {
 
 // ─── Tab: Canal y Mercado ─────────────────────────────────────────────────────
 
-function TabCanalMercado({ canalClientes, bodega, canal }) {
+function TabCanalMercado({ canalClientes, bodega, pareto }) {
   const { canal_por_producto = [], top_clientes = [] } = canalClientes
 
-  // Build per-product stacked data
+  // Pareto SKU set (normalized, no spaces)
+  const paretoSet = useMemo(() => new Set((pareto || []).map(p => p.codigo.replace(/\s+/g, ''))), [pareto])
+
+  // Build per-product stacked data — filtered to Pareto SKUs only
   const skuCanalMap = useMemo(() => {
     const m = {}
     canal_por_producto.forEach(r => {
-      if (!m[r.codigo]) m[r.codigo] = {}
-      m[r.codigo][r.canal] = (m[r.codigo][r.canal] || 0) + r.ventas
+      const cod = r.codigo.replace(/\s+/g, '')
+      if (paretoSet.size > 0 && !paretoSet.has(cod)) return
+      if (!m[cod]) m[cod] = {}
+      m[cod][r.canal] = (m[cod][r.canal] || 0) + r.ventas
     })
     return m
-  }, [canal_por_producto])
+  }, [canal_por_producto, paretoSet])
 
   const canales = [...new Set(canal_por_producto.map(r => r.canal))].filter(Boolean).sort()
   const CANAL_COLORS = { Online: BLUE, Presencial: GREEN }
@@ -833,7 +838,6 @@ function TabCanalMercado({ canalClientes, bodega, canal }) {
     return row
   }).sort((a, b) => b.total - a.total)
 
-  const totalClientes = top_clientes.reduce((s, c) => s + c.ventas, 0)
 
   if (!canal_por_producto.length) return (
     <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -849,41 +853,24 @@ function TabCanalMercado({ canalClientes, bodega, canal }) {
         Canal de ventas por producto
       </SectionTitle>
 
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ flex: 2, minWidth: 300 }}>
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px' }}>
-            <ResponsiveContainer width="100%" height={Math.max(240, stackedData.length * 52)}>
-              <BarChart layout="vertical" data={stackedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
-                <YAxis type="category" dataKey="sku" width={80} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v, n) => [fmt(v), n]} />
-                <Legend />
-                {canales.map(c => (
-                  <Bar key={c} dataKey={c} name={c} stackId="a"
-                    fill={CANAL_COLORS[c] || ORANGE}
-                    label={canales.indexOf(c) === canales.length - 1
-                      ? { position: 'right', formatter: (_, __, idx) => `${stackedData[idx]?.[`${c}_pct`] ?? ''}%`, fontSize: 10, fill: '#666' }
-                      : false} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <SectionTitle sub="Distribución global por canal">Canal global</SectionTitle>
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 16 }}>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={canal} dataKey="ventas" nameKey="canal" cx="50%" cy="50%" outerRadius={72}
-                  label={({ canal: c, percent }) => `${c}: ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                  {canal.map((_, i) => <Cell key={i} fill={[BLUE, GREEN, ORANGE][i % 3]} />)}
-                </Pie>
-                <Tooltip formatter={v => [fmt(v), 'Ventas']} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px' }}>
+          <ResponsiveContainer width="100%" height={Math.max(240, stackedData.length * 56)}>
+            <BarChart layout="vertical" data={stackedData} margin={{ top: 5, right: 50, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+              <YAxis type="category" dataKey="sku" width={80} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v, n) => [fmt(v), n]} />
+              <Legend />
+              {canales.map(c => (
+                <Bar key={c} dataKey={c} name={c} stackId="a"
+                  fill={CANAL_COLORS[c] || ORANGE}
+                  label={canales.indexOf(c) === canales.length - 1
+                    ? { position: 'right', formatter: (_, __, idx) => `${stackedData[idx]?.[`${c}_pct`] ?? ''}%`, fontSize: 10, fill: '#666' }
+                    : false} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -3474,7 +3461,7 @@ export default function Home() {
             <TabAnalisisProductos resumenProductos={resumenProductos} pareto={pareto} />
           )}
           {tab === 'canal_mercado' && (
-            <TabCanalMercado canalClientes={canalClientes} bodega={bodega} canal={canal} />
+            <TabCanalMercado canalClientes={canalClientes} bodega={bodega} pareto={pareto} />
           )}
           {tab === 'modelo_comparativa' && (
             <TabModeloComparativa modeloComparativa={modeloComparativa} />
