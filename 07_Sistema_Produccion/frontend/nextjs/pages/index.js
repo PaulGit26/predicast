@@ -616,7 +616,7 @@ function TabModeloComparativa({ modeloComparativa }) {
             <StatCard label="MAE" value={detail.metricas.mae?.toFixed(1) ?? '—'} sub="unidades" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
             <StatCard label="RMSE" value={detail.metricas.rmse?.toFixed(1) ?? '—'} sub="unidades" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
             {detail.metricas.mape != null && (
-              <StatCard label="MAPE" value={(detail.metricas.mape * 100).toFixed(1) + '%'} sub="error porcentual" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
+              <StatCard label="MAPE" value={detail.metricas.mape.toFixed(1) + '%'} sub="error porcentual" color={ALGO_COLORS[detail.ganador] ?? BLUE} />
             )}
           </div>
         </div>
@@ -640,7 +640,7 @@ function TabModeloComparativa({ modeloComparativa }) {
                   { label: 'R²',   value: d.metricas.r2   != null ? d.metricas.r2.toFixed(4)              : '—', sub: 'coef. determinación' },
                   { label: 'MAE',  value: d.metricas.mae  != null ? d.metricas.mae.toFixed(1)             : '—', sub: 'unidades'            },
                   { label: 'RMSE', value: d.metricas.rmse != null ? d.metricas.rmse.toFixed(1)            : '—', sub: 'unidades'            },
-                  { label: 'MAPE', value: d.metricas.mape != null ? (d.metricas.mape * 100).toFixed(1) + '%' : '—', sub: 'error porcentual' },
+                  { label: 'MAPE', value: d.metricas.mape != null ? d.metricas.mape.toFixed(1) + '%' : '—', sub: 'error porcentual' },
                 ].map(m => (
                   <div key={m.label} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px' }}>
                     <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: 2 }}>{m.label}</div>
