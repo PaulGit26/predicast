@@ -904,7 +904,7 @@ function fmtWeekDate(dateStr) {
 }
 
 function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
-  const [horizon, setHorizon] = useState(12)
+  const [horizon, setHorizon] = useState(52)
   const [detailSku, setDetailSku] = useState(null)
   const [viewMode, setViewMode] = useState('completa')
 
@@ -1096,39 +1096,6 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
         </ResponsiveContainer>
       </div>
 
-      {/* ── Detail table ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', overflowX: 'auto' }}>
-        <h3 style={{ margin: '0 0 12px', color: BLUE, fontSize: 15, fontWeight: 700 }}>
-          Tabla detallada — {activeSku}
-        </h3>
-        <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc' }}>
-              {['Fecha', 'Demanda', 'Producción', 'Stock inicio', 'Stock fin', 'Estado'].map(h => (
-                <th key={h} style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#374151', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {produccion[activeSku]?.calendar.slice(startIdx, horizon).map((w, i) => (
-              <tr key={i} style={{ background: w.urgente ? '#fff5f5' : w.produccion > 0 ? '#f0fdf4' : 'white' }}>
-                <td style={{ padding: '6px 12px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{fmtWeekDate(w.fecha)}</td>
-                <td style={{ padding: '6px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.demanda)}</td>
-                <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: w.produccion > 0 ? 700 : 400, color: w.produccion > 0 ? GREEN : '#94a3b8', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.produccion)}</td>
-                <td style={{ padding: '6px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.stock_inicio)}</td>
-                <td style={{ padding: '6px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmt(w.stock_fin)}</td>
-                <td style={{ padding: '6px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>
-                  {w.urgente
-                    ? <span style={{ color: RED, fontWeight: 700 }}>⚠ Urgente</span>
-                    : w.produccion > 0
-                      ? <span style={{ color: GREEN, fontWeight: 600 }}>✓ Producir</span>
-                      : <span style={{ color: '#94a3b8' }}>—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   )
 }
@@ -1139,7 +1106,7 @@ const TEAL_DARK = '#0e7490'
 const TEAL_LIGHT = '#06b6d4'
 
 function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, setPrecios, skuPlancha }) {
-  const [horizon, setHorizon] = useState(12)
+  const [horizon, setHorizon] = useState(52)
   const [editando, setEditando] = useState(false)
   const [preciosTemp, setPreciosTemp] = useState(precios)
 
