@@ -1,10 +1,12 @@
 """
 Wrapper para el análisis Pareto. Exporta `run_analisis_pareto(output_dir, datos_top20_path=None)`
 """
-import os
 import json
-import pandas as pd
+import os
+
 import matplotlib
+import pandas as pd
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -58,7 +60,7 @@ def run_analisis_pareto(output_dir: str, datos_top20_path: str = None):
     plt.savefig(graf_path, dpi=300, bbox_inches="tight")
 
     pareto_result = {
-        "total_top20": int(len(vendas_por_producto)),
+        "total_top20": len(vendas_por_producto),
         "productos_80pct": int(productos_80),
         "productos_90pct": int(productos_90),
         "cobertura_80pct": f"{productos_80/len(vendas_por_producto)*100:.1f}%",

@@ -2,16 +2,16 @@
 Wrapper para optimización de hiperparámetros por producto.
 Provee `run_optimizacion_hiperparametros(features_dir, output_dir, clustering_metadata_path=None)`
 """
-import os
 import json
+import os
+
 import numpy as np
 import pandas as pd
-
-from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 from xgboost import XGBRegressor
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 
 def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, clustering_metadata_path: str = None):

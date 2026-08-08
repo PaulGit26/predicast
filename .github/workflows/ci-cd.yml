@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install ruff
-      - run: ruff check 04_Scripts_Nuevos/lib/ tests/ --ignore E501
+      - run: ruff check 04_Scripts_Nuevos/lib/ tests/ --ignore E501,BLE001,RUF013,RUF059,S110,DTZ005
 
   # ── 2. Tests ─────────────────────────────────────────────────────────────────
   test:

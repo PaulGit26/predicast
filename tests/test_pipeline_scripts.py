@@ -1,7 +1,8 @@
 import importlib.util
-import pytest
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+import pytest
 
 repo_root = Path(__file__).resolve().parent.parent
 

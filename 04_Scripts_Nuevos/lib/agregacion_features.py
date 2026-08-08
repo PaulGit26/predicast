@@ -2,11 +2,12 @@
 Wrapper para agregación semanal y feature engineering.
 Provee `run_agregacion_features(output_dir, datos_top20_path=None, pareto_result_path=None)`
 """
-import os
 import json
+import os
 from datetime import datetime
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 def _week_to_date(year: int, week: int):
@@ -144,7 +145,7 @@ def run_agregacion_features(output_dir: str, datos_top20_path: str = None, paret
     # Metadata
     feature_metadata = {
         "productos_criticos": productos_criticos,
-        "total_registros": int(len(df_features)),
+        "total_registros": len(df_features),
         "total_features": len(feature_cols),
         "feature_names": feature_cols
     }

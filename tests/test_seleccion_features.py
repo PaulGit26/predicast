@@ -1,9 +1,10 @@
 import importlib.util
 import json
-import pytest
-import pandas as pd
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
 
 repo_root = Path(__file__).resolve().parent.parent
 

@@ -1,8 +1,9 @@
-from pathlib import Path
-import pandas as pd
-import os
 import json
+import os
 from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
 
 
 def run_preparar_top20(data_dir: str, output_dir: str):
@@ -83,12 +84,12 @@ def run_preparar_top20(data_dir: str, output_dir: str):
 
     resumen = {
         "timestamp": datetime.now().isoformat(),
-        "datos_raw": int(len(df_raw)),
-        "datos_limpios": int(len(df_clean)),
-        "registros_venta": int(len(df_ventas)),
+        "datos_raw": len(df_raw),
+        "datos_limpios": len(df_clean),
+        "registros_venta": len(df_ventas),
         "productos_totales": int(ventas_por_producto.shape[0]) if len(ventas_por_producto) else 0,
         "top20_productos": top20_codigos,
-        "registros_top20": int(len(df_top20))
+        "registros_top20": len(df_top20)
     }
 
     with open(output_dir / "RESUMEN_LIMPIEZA.json", "w", encoding="utf-8") as f:
