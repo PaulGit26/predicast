@@ -1,25 +1,27 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from typing import List
-from datetime import datetime
-from pathlib import Path
-import uuid
 import json
 import logging
+import uuid
+from datetime import datetime
+from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
+from fastapi import APIRouter, BackgroundTasks
+
+from src.config import settings
+from src.ml.inference.mlflow_loader import MLFlowLoader
+from src.services.forecast_service.csv_reader import get_csv_forecasts, invalidate_cache
+from src.services.forecast_service.pipeline import run_forecast_training_pipeline
 from src.shared.contracts.schemas import (
+    ConfidenceInterval,
+    ForecastPoint,
     ForecastRequestInput,
     ForecastResponse,
-    ForecastPoint,
-    ConfidenceInterval,
-    RecommendationResponse,
+    PipelineRunResponse,
     ProductionRecommendation,
     RecommendationLevel,
-    PipelineRunResponse,
+    RecommendationResponse,
 )
-from src.config import settings
-from src.services.forecast_service.csv_reader import get_csv_forecasts, invalidate_cache
-from src.ml.inference.mlflow_loader import MLFlowLoader
-from src.services.forecast_service.pipeline import run_forecast_training_pipeline
 
 router = APIRouter()
 
@@ -31,7 +33,7 @@ def _cache_key(product_id: str, periods: int) -> str:
     return f"forecast:{product_id}:p{periods}"
 
 
-def _build_forecasts_from_csv(points: List[dict], include_confidence: bool) -> List[ForecastPoint]:
+def _build_forecasts_from_csv(points: list[dict], include_confidence: bool) -> list[ForecastPoint]:
     return [
         ForecastPoint(
             period=p["period"],
@@ -46,7 +48,7 @@ def _build_forecasts_from_csv(points: List[dict], include_confidence: bool) -> L
     ]
 
 
-def _build_forecasts_from_model(model, base_value: float, periods: int, include_confidence: bool) -> List[ForecastPoint]:
+def _build_forecasts_from_model(model, base_value: float, periods: int, include_confidence: bool) -> list[ForecastPoint]:
     result = []
     for p in range(1, periods + 1):
         val = base_value + p * 1.0
@@ -93,14 +95,14 @@ async def predict(req: ForecastRequestInput):
         model_accuracy = _MODEL_ACCURACY_CSV
     else:
         # Fallback: ML model (MLflow → joblib → dummy)
-        logging.warning("Product %s not in CSV, falling back to ML model", req.product_id)
+        logger.warning("Product %s not in CSV, falling back to ML model", req.product_id)
         model = None
         metadata: dict = {}
         try:
             loader = MLFlowLoader()
             model, metadata = loader.load()
         except Exception as exc:
-            logging.warning("MLFlowLoader failed: %s", exc)
+            logger.warning("MLFlowLoader failed: %s", exc)
 
         base_value = 100.0
         try:
@@ -108,7 +110,7 @@ async def predict(req: ForecastRequestInput):
                 prediction = model.predict([[req.periods]])
                 base_value = float(prediction[0]) if hasattr(prediction, "__len__") else float(prediction)
         except Exception as exc:
-            logging.warning("Model prediction failed, using deterministic fallback: %s", exc)
+            logger.warning("Model prediction failed, using deterministic fallback: %s", exc)
 
         forecasts = _build_forecasts_from_model(model, base_value, req.periods, req.include_confidence)
         model_version = str(metadata.get("model_version", "stub"))

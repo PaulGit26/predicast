@@ -7,26 +7,25 @@ from __future__ import annotations
 import csv
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 _PREDICTIONS_FILE = "predicciones_52semanas_largo_V4.csv"
 
 # Module-level in-memory cache (populated on first call, lives for process lifetime)
-_cache: Dict[str, List[dict]] = {}
+_cache: dict[str, list[dict]] = {}
 
 
 def _normalize(product_id: str) -> str:
     return product_id.replace(" ", "").upper()
 
 
-def _load(csv_path: Path) -> Dict[str, List[dict]]:
+def _load(csv_path: Path) -> dict[str, list[dict]]:
     global _cache
     if _cache:
         return _cache
 
-    result: Dict[str, List[dict]] = {}
+    result: dict[str, list[dict]] = {}
     try:
         with open(csv_path, encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
@@ -40,8 +39,8 @@ def _load(csv_path: Path) -> Dict[str, List[dict]]:
                     "upper": float(row["Upper_Bound_95"]),
                 })
         # Sort each product's rows by period
-        for pid in result:
-            result[pid].sort(key=lambda x: x["period"])
+        for pid, rows in result.items():
+            rows.sort(key=lambda x: x["period"])
         _cache = result
         logger.info("Loaded predictions CSV: %d products from %s", len(result), csv_path)
     except FileNotFoundError:
@@ -52,7 +51,7 @@ def _load(csv_path: Path) -> Dict[str, List[dict]]:
     return result
 
 
-def get_csv_forecasts(product_id: str, periods: int, data_dir: str) -> Optional[List[dict]]:
+def get_csv_forecasts(product_id: str, periods: int, data_dir: str) -> list[dict] | None:
     """
     Return up to `periods` forecast dicts for `product_id` from the CSV, or None if unavailable.
     Each dict: {period, forecast, lower, upper}

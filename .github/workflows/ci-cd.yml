@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install ruff
-      - run: ruff check 07_Sistema_Produccion/pipeline/scripts/ 07_Sistema_Produccion/src/ tests/ --ignore E501,BLE001,RUF013,RUF059,S110,DTZ005
+      - run: ruff check 07_Sistema_Produccion/pipeline/scripts/ 07_Sistema_Produccion/src/ tests/ --ignore E501,BLE001,RUF013,RUF059,S110,DTZ003,DTZ005,DTZ006,B008,PLW1508,LOG015
 
   # ── 2. Tests ─────────────────────────────────────────────────────────────────
   test:

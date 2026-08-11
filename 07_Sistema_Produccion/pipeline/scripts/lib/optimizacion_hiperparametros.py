@@ -2,16 +2,16 @@
 Wrapper para optimización de hiperparámetros por producto.
 Provee `run_optimizacion_hiperparametros(features_dir, output_dir, clustering_metadata_path=None)`
 """
-import os
 import json
+import os
+
 import numpy as np
 import pandas as pd
-
-from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, cross_val_score
 from xgboost import XGBRegressor
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV, cross_val_score
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, make_scorer
 
 
 def _mape(y_true, y_pred):
@@ -60,8 +60,6 @@ def run_optimizacion_hiperparametros(features_dir: str, output_dir: str, cluster
     }
     param_grid_ridge = {'alpha': [1.0, 10.0, 100.0]}
 
-    # 5 folds para mayor robustez en la estimación de métricas
-    tscv = TimeSeriesSplit(n_splits=5)
     reporte_ganadores = {'grupo_1': {}}
 
     for producto in GRUPO_1:

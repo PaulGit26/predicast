@@ -3,12 +3,15 @@ Aplicación principal FastAPI.
 Punto de entrada único para toda la API.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+
 from src.config import settings
-from src.shared.observability.logging import configure_logging, RequestIDMiddleware, get_logger
 from src.shared.auth.jwt_handler import HTTPException
+from src.shared.observability.logging import RequestIDMiddleware, get_logger
+
 try:
     import sentry_sdk
 except ImportError:
@@ -69,17 +72,18 @@ app.add_middleware(RequestIDMiddleware)
 
 from src.shared.contracts.schemas import HealthCheckResponse
 
+
 @app.get("/api/v1/health", response_model=HealthCheckResponse, tags=["Health"])
 async def health_check():
     """Health check endpoint."""
     return HealthCheckResponse(
         status="healthy",
         version=settings.APP_VERSION,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(tz=None),
         dependencies={
             "database": "ok",
             "redis": "ok",
-            "mlflow": "ok" if settings.ENV != "development" else "ok"
+            "mlflow": "ok",
         }
     )
 
@@ -111,7 +115,6 @@ except Exception as e:  # pragma: no cover - optional in dev
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Manejador de excepciones HTTP."""
-    from src.shared.contracts.schemas import ErrorResponse, ErrorDetail
     
     return {
         "error": {
@@ -119,7 +122,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "message": exc.detail,
             "request_id": request.scope.get("request_id")
         },
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(tz=None)
     }
 
 

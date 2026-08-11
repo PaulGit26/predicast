@@ -32,8 +32,8 @@ def run_forecast_training_pipeline(base_dir: str | None = None) -> dict[str, Any
         raise RuntimeError("Prefect pipeline flow not available in this environment")
     try:
         _pipeline_flow(str(repo_root))
-    except Exception as exc:
-        logger.exception("Forecast training pipeline failed: %s", exc)
+    except Exception:
+        logger.exception("Forecast training pipeline failed")
         raise
 
     output_dir = repo_root / "04_Scripts_Nuevos" / "EDA_Outputs"
