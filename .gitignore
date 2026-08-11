@@ -53,9 +53,20 @@ asignaciones.json
 01_Datos_Nuevos/Backup*/
 
 # Generated analysis outputs — produced by pipeline at runtime
-03_ANALISIS_EXPLORATORIO_DATOS/*.csv
 03_ANALISIS_EXPLORATORIO_DATOS/*.png
 03_ANALISIS_EXPLORATORIO_DATOS/*.json
+
+# Pipeline outputs — live on EC2, not in repo
+01_Datos/
+04_Scripts_Nuevos/EDA_Outputs/
+04_Scripts_Nuevos/modelos_optimizados/
+04_Scripts_Nuevos/optimizacion_hiperparametros/
+04_Scripts_Nuevos/REPORTE_OPTIMIZACION_HIPERPARAMETROS.json
+
+# Misc local artifacts
+*.coverage
+*.db
+predicast-arquitectura.html
 
 # Terraform secrets
 07_Sistema_Produccion/infra/terraform/*.pem
