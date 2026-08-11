@@ -905,8 +905,7 @@ function fmtWeekDate(dateStr) {
 
 function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   const [horizon, setHorizon] = useState(52)
-  const [detailSku, setDetailSku] = useState(null)
-  const [viewMode, setViewMode] = useState('completa')
+  const [selectedSku, setSelectedSku] = useState(null)
 
   if (!produccion) return (
     <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -920,182 +919,385 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
     <div style={{ padding: 40, color: RED }}>No se encontraron datos de stock para generar el plan.</div>
   )
 
-  // First week index (across all SKUs) where any production is recommended
-  let firstProdIdx = 0
-  {
-    let minIdx = horizon
-    for (const sku of skus) {
-      const cal = produccion[sku]?.calendar || []
-      const idx = cal.findIndex(w => w.produccion > 0)
-      if (idx !== -1 && idx < minIdx) minIdx = idx
+  // Per-SKU derived data
+  const skuData = skus.map((sku, idx) => {
+    const cal = produccion[sku]?.calendar.slice(0, horizon) || []
+    const weeksWithProd = cal.filter(w => w.produccion > 0)
+    const hasUrgent = cal.some(w => w.urgente)
+    const totUnidades = weeksWithProd.reduce((s, w) => s + w.produccion, 0)
+    const stockActual = produccion[sku]?.stock_actual || 0
+    const stockSeg = produccion[sku]?.stock_seguridad || 0
+    const avgDemand = produccion[sku]?.avg_demand || 0
+    const semanasProd = weeksWithProd.length
+    const weeksUntilFirst = cal.findIndex(w => w.produccion > 0)
+    return {
+      sku, cal, weeksWithProd, hasUrgent, totUnidades, stockActual,
+      stockSeg, avgDemand, semanasProd, weeksUntilFirst,
+      color: SKU_COLORS[idx % SKU_COLORS.length],
     }
-    firstProdIdx = minIdx < horizon ? minIdx : 0
+  })
+
+  const totalProduccion = skuData.reduce((s, d) => s + d.totUnidades, 0)
+  const urgentSkus = skuData.filter(d => d.hasUrgent).length
+  const skusConPlan = skuData.filter(d => d.semanasProd > 0).length
+
+  const sel = selectedSku ? skuData.find(d => d.sku === selectedSku) : null
+
+  // Detail chart data for selected SKU
+  const detailData = sel
+    ? sel.cal.map(w => ({ name: fmtWeekDate(w.fecha), stock: w.stock_inicio, produccion: w.produccion, demanda: w.demanda }))
+    : []
+
+  // Monthly groups for timeline calendar
+  const timelineMonths = sel ? (() => {
+    const months = {}
+    const MNAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    sel.cal.forEach((w, i) => {
+      const d = new Date(w.fecha + 'T00:00:00')
+      const key = `${d.getFullYear()}-${d.getMonth()}`
+      const label = `${MNAMES[d.getMonth()]} ${d.getFullYear()}`
+      if (!months[key]) months[key] = { label, weeks: [] }
+      months[key].weeks.push({ ...w, idx: i })
+    })
+    return Object.values(months)
+  })() : []
+
+  // Overview: monthly heatmap (rows=SKUs, cols=months)
+  const overviewMonths = (() => {
+    const MNAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    const months = {}
+    const refCal = produccion[skus[0]]?.calendar.slice(0, horizon) || []
+    refCal.forEach(w => {
+      const d = new Date(w.fecha + 'T00:00:00')
+      const key = `${d.getFullYear()}-${d.getMonth()}`
+      if (!months[key]) months[key] = { label: `${MNAMES[d.getMonth()]} ${d.getFullYear()}`, key }
+    })
+    return Object.values(months)
+  })()
+
+  const getMonthTotal = (sku, monthKey) => {
+    const MNAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    const [yr, mo] = monthKey.split('-').map(Number)
+    return (produccion[sku]?.calendar.slice(0, horizon) || [])
+      .filter(w => { const d = new Date(w.fecha + 'T00:00:00'); return d.getFullYear() === yr && d.getMonth() === mo })
+      .reduce((s, w) => s + w.produccion, 0)
   }
-  const startIdx = viewMode === 'produccion' ? firstProdIdx : 0
 
-  const activeSku = detailSku && produccion[detailSku] ? detailSku : skus[0]
-  const allWeeks = produccion[skus[0]]?.calendar.slice(startIdx, horizon) || []
-
-  const totalProduccion = skus.reduce((s, k) => {
-    return s + produccion[k].calendar.slice(startIdx, horizon).reduce((a, w) => a + w.produccion, 0)
-  }, 0)
-  const urgentSkus = skus.filter(k =>
-    produccion[k].calendar.slice(startIdx, horizon).some(w => w.urgente)
-  ).length
-  const skusConPlan = skus.filter(k =>
-    produccion[k].calendar.slice(startIdx, horizon).some(w => w.produccion > 0)
-  ).length
-
-  const cellColor = (w) => {
-    if (w.urgente) return '#fecaca'
-    if (w.produccion > 0) return '#bbf7d0'
-    return '#f1f5f9'
+  const getMonthUrgent = (sku, monthKey) => {
+    const [yr, mo] = monthKey.split('-').map(Number)
+    return (produccion[sku]?.calendar.slice(0, horizon) || [])
+      .some(w => { const d = new Date(w.fecha + 'T00:00:00'); return d.getFullYear() === yr && d.getMonth() === mo && w.urgente })
   }
 
-  const detailData = produccion[activeSku]?.calendar.slice(startIdx, horizon).map(w => ({
-    name: fmtWeekDate(w.fecha),
-    stock: w.stock_inicio,
-    produccion: w.produccion,
-    demanda: w.demanda,
-  })) || []
-  const safetyVal = produccion[activeSku]?.stock_seguridad || 0
+  const maxMonthTotal = Math.max(...skuData.flatMap(d =>
+    overviewMonths.map(m => getMonthTotal(d.sku, m.key))
+  ), 1)
 
   return (
     <div>
+
       {/* ── Controls ── */}
-      <div style={{ display: 'flex', gap: 32, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 32, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
             Stock de seguridad: <span style={{ color: BLUE }}>{safetyWeeks} sem</span>
           </label>
           <input type="range" min={0.5} max={6} step={0.5} value={safetyWeeks}
-            onChange={e => setSafetyWeeks(parseFloat(e.target.value))}
-            style={{ width: 180 }} />
-          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>0.5 – 6 semanas</div>
+            onChange={e => setSafetyWeeks(parseFloat(e.target.value))} style={{ width: 160 }} />
         </div>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
             Horizonte: <span style={{ color: BLUE }}>{horizon} sem</span>
           </label>
           <input type="range" min={4} max={52} step={4} value={horizon}
-            onChange={e => setHorizon(parseInt(e.target.value))}
-            style={{ width: 180 }} />
-          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>4 – 52 semanas</div>
+            onChange={e => { setHorizon(parseInt(e.target.value)) }} style={{ width: 160 }} />
         </div>
       </div>
 
-      {/* ── Summary cards ── */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+      {/* ── KPI cards ── */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
         {[
           { label: 'SKUs con plan activo', value: skusConPlan, color: BLUE },
-          { label: 'SKUs con stock crítico', value: urgentSkus, color: RED },
+          { label: 'SKUs con stock crítico', value: urgentSkus, color: urgentSkus > 0 ? RED : GREEN },
           { label: 'Unidades totales a producir', value: fmt(totalProduccion), color: GREEN },
           { label: 'Horizonte analizado', value: `${horizon} sem`, color: ORANGE },
         ].map(c => (
-          <div key={c.label} style={{
-            flex: '1 1 160px', background: 'white', borderRadius: 10, padding: '14px 18px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `4px solid ${c.color}`,
-          }}>
+          <div key={c.label} style={{ flex: '1 1 150px', background: 'white', borderRadius: 10, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `4px solid ${c.color}` }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.label}</div>
           </div>
         ))}
       </div>
 
-      {/* ── Gantt heatmap ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24, overflowX: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-          <h3 style={{ margin: 0, color: BLUE, fontSize: 15, fontWeight: 700 }}>
-            Calendario de Producción — próximas {horizon} semanas
-          </h3>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[
-              { value: 'completa', label: 'Vista completa' },
-              { value: 'produccion', label: 'Desde producción' },
-            ].map(opt => (
-              <button key={opt.value} onClick={() => setViewMode(opt.value)} style={{
-                padding: '4px 12px', borderRadius: 14,
-                border: `1px solid ${viewMode === opt.value ? BLUE : '#cbd5e1'}`,
-                background: viewMode === opt.value ? BLUE : '#f8fafc',
-                color: viewMode === opt.value ? '#fff' : '#64748b',
-                cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              }}>{opt.label}</button>
-            ))}
+      {/* ── SKU selector ── */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Selecciona un producto para ver su plan detallado
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
+          {skuData.map(d => {
+            const isSelected = selectedSku === d.sku
+            const hasActivity = d.semanasProd > 0
+            return (
+              <button key={d.sku} onClick={() => setSelectedSku(isSelected ? null : d.sku)}
+                style={{
+                  padding: '14px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                  border: isSelected ? `2px solid ${d.color}` : '2px solid #e2e8f0',
+                  background: isSelected ? d.color + '12' : 'white',
+                  boxShadow: isSelected ? `0 0 0 3px ${d.color}22` : '0 1px 3px rgba(0,0,0,0.07)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 800, fontSize: 16, color: isSelected ? d.color : '#1e293b' }}>{d.sku}</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, borderRadius: 8, padding: '2px 7px',
+                    background: d.hasUrgent ? '#fee2e2' : hasActivity ? '#dcfce7' : '#f1f5f9',
+                    color: d.hasUrgent ? RED : hasActivity ? GREEN : '#94a3b8',
+                    border: `1px solid ${d.hasUrgent ? '#fca5a5' : hasActivity ? '#86efac' : '#e2e8f0'}`,
+                  }}>
+                    {d.hasUrgent ? '⚠ Crítico' : hasActivity ? 'Activo' : 'Sin prod.'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: hasActivity ? '#1e293b' : '#94a3b8', marginBottom: 4 }}>
+                  {fmt(d.totUnidades)} u.
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>
+                  {d.semanasProd} sem · Stock: {fmt(d.stockActual)}
+                </div>
+                {isSelected && (
+                  <div style={{ marginTop: 8, fontSize: 11, color: d.color, fontWeight: 700 }}>Ver detalle ▼</div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          VISTA OVERVIEW (ningún SKU seleccionado)
+         ══════════════════════════════════════════════════════════════════════ */}
+      {!sel && (
+        <div style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <h3 style={{ margin: 0, color: BLUE, fontSize: 15, fontWeight: 700 }}>
+                Vista general de producción — {horizon} semanas
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
+                Producción mensual por SKU. Haz clic en un producto para ver el plan semanal detallado.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#64748b', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: '#bbf7d0', display: 'inline-block', border: '1px solid #86efac' }} /> Producción
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: '#fee2e2', display: 'inline-block', border: '1px solid #fca5a5' }} /> Stock crítico
+              </span>
+            </div>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#374151', minWidth: 100, borderRadius: '8px 0 0 0' }}>
+                    Producto
+                  </th>
+                  {overviewMonths.map(m => (
+                    <th key={m.key} style={{ padding: '8px 10px', textAlign: 'center', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 600, color: '#64748b', minWidth: 90, fontSize: 11 }}>
+                      {m.label}
+                    </th>
+                  ))}
+                  <th style={{ padding: '8px 10px', textAlign: 'right', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: BLUE, fontSize: 11 }}>
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {skuData.map((d, ri) => (
+                  <tr key={d.sku} onClick={() => setSelectedSku(d.sku)}
+                    style={{ cursor: 'pointer', background: ri % 2 === 0 ? '#fafafa' : 'white' }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 700, color: d.color, borderBottom: '1px solid #f1f5f9', whiteSpace: 'nowrap' }}>
+                      {d.sku}
+                      {d.hasUrgent && <span style={{ marginLeft: 6, fontSize: 10, color: RED }}>⚠</span>}
+                    </td>
+                    {overviewMonths.map(m => {
+                      const total = getMonthTotal(d.sku, m.key)
+                      const urgent = getMonthUrgent(d.sku, m.key)
+                      const intensity = total > 0 ? 0.15 + 0.7 * (total / maxMonthTotal) : 0
+                      return (
+                        <td key={m.key} style={{ padding: '6px 8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
+                          {total > 0 ? (
+                            <div style={{
+                              background: urgent ? `rgba(239,68,68,${intensity})` : `rgba(34,197,94,${intensity})`,
+                              border: `1px solid ${urgent ? '#fca5a5' : '#86efac'}`,
+                              borderRadius: 6, padding: '5px 4px',
+                              fontWeight: 700, color: urgent ? '#991b1b' : '#166534',
+                              fontSize: 12,
+                            }}>
+                              {fmt(total)}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#e2e8f0', fontSize: 16 }}>—</span>
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td style={{ padding: '10px 12px', textAlign: 'right', borderBottom: '1px solid #f1f5f9', fontWeight: 800, color: d.totUnidades > 0 ? BLUE : '#94a3b8', fontSize: 13 }}>
+                      {d.totUnidades > 0 ? fmt(d.totUnidades) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#eff6ff' }}>
+                  <td style={{ padding: '9px 12px', fontWeight: 700, color: BLUE, borderTop: '2px solid #bfdbfe' }}>TOTAL</td>
+                  {overviewMonths.map(m => {
+                    const colTotal = skuData.reduce((s, d) => s + getMonthTotal(d.sku, m.key), 0)
+                    return (
+                      <td key={m.key} style={{ padding: '9px 10px', textAlign: 'center', borderTop: '2px solid #bfdbfe', fontWeight: 700, color: BLUE, fontSize: 12 }}>
+                        {colTotal > 0 ? fmt(colTotal) : '—'}
+                      </td>
+                    )
+                  })}
+                  <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #bfdbfe', fontWeight: 800, color: BLUE }}>
+                    {fmt(totalProduccion)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10, display: 'flex', gap: 16 }}>
-          <span><span style={{ background: '#bbf7d0', padding: '1px 6px', borderRadius: 3 }}>■</span> Producir</span>
-          <span><span style={{ background: '#fecaca', padding: '1px 6px', borderRadius: 3 }}>■</span> Urgente (stock bajo 0)</span>
-          <span><span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 3 }}>■</span> Sin producción</span>
-        </div>
-        <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: '100%' }}>
-          <thead>
-            <tr>
-              <th style={{ padding: '6px 10px', textAlign: 'left', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 700, color: '#374151', minWidth: 90 }}>SKU</th>
-              {allWeeks.map((w, i) => (
-                <th key={i} style={{ padding: '4px 6px', textAlign: 'center', background: '#f8fafc', borderBottom: '2px solid #e2e8f0', fontWeight: 600, color: '#64748b', minWidth: 68, fontSize: 10 }}>
-                  {fmtWeekDate(w.fecha)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {skus.map(sku => {
-              const weeks = produccion[sku].calendar.slice(startIdx, horizon)
-              return (
-                <tr key={sku} onClick={() => setDetailSku(sku)} style={{ cursor: 'pointer' }}>
-                  <td style={{
-                    padding: '5px 10px', fontWeight: activeSku === sku ? 800 : 600,
-                    color: activeSku === sku ? BLUE : '#374151',
-                    borderBottom: '1px solid #f1f5f9', background: activeSku === sku ? '#eff6ff' : 'white',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {sku}
-                  </td>
-                  {weeks.map((w, i) => (
-                    <td key={i} title={w.produccion > 0 ? `Producir: ${fmt(w.produccion)} u` : 'Sin producción'} style={{
-                      padding: '4px 2px', textAlign: 'center',
-                      background: cellColor(w),
-                      borderBottom: '1px solid #f1f5f9',
-                      color: w.produccion > 0 ? '#166534' : '#94a3b8',
-                      fontWeight: w.produccion > 0 ? 700 : 400,
-                    }}>
-                      {w.produccion > 0 ? fmt(w.produccion) : '·'}
-                    </td>
-                  ))}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      )}
 
-      {/* ── Detail chart ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <h3 style={{ margin: '0 0 4px', color: BLUE, fontSize: 15, fontWeight: 700 }}>
-          Detalle: {activeSku}
-        </h3>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
-          Stock actual: <strong>{fmt(produccion[activeSku]?.stock_actual)}</strong> &nbsp;·&nbsp;
-          Stock seguridad: <strong>{fmt(safetyVal)}</strong> &nbsp;·&nbsp;
-          Demanda promedio: <strong>{fmt(produccion[activeSku]?.avg_demand)}/sem</strong> &nbsp;·&nbsp;
-          Semanas a producir: <strong>{produccion[activeSku]?.calendar.slice(startIdx, horizon).filter(w => w.produccion > 0).length}</strong>
-        </div>
-        <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={detailData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => fmt(v)} />
-            <Tooltip formatter={(v, n) => [fmt(v), n]} labelFormatter={v => v} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <ReferenceLine y={safetyVal} stroke={ORANGE} strokeDasharray="5 3" label={{ value: 'Stock seg.', fill: ORANGE, fontSize: 10 }} />
-            <Area type="monotone" dataKey="stock" name="Stock inicio" fill="#dbeafe" stroke={BLUE_LIGHT} strokeWidth={2} />
-            <Bar dataKey="produccion" name="Producción" fill={GREEN} radius={[3, 3, 0, 0]} />
-            <Line type="monotone" dataKey="demanda" name="Demanda" stroke={RED} strokeWidth={2} dot={false} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+      {/* ══════════════════════════════════════════════════════════════════════
+          VISTA DETALLE SKU
+         ══════════════════════════════════════════════════════════════════════ */}
+      {sel && (
+        <>
+          {/* Narrativa */}
+          <div style={{ background: `linear-gradient(135deg, ${sel.color}15 0%, white 100%)`, border: `1px solid ${sel.color}40`, borderRadius: 12, padding: '20px 24px', marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: sel.color, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Plan de producción — {sel.sku}
+            </div>
+            <p style={{ margin: 0, fontSize: 15, color: '#1e293b', lineHeight: 1.65 }}>
+              {sel.semanasProd > 0 ? (
+                <>
+                  Durante las próximas <strong>{horizon} semanas</strong>, {sel.sku} tiene{' '}
+                  <strong style={{ color: sel.color }}>{sel.semanasProd} semanas de producción</strong> planificadas
+                  con un total de <strong>{fmt(sel.totUnidades)} unidades</strong>.{' '}
+                  Stock actual <strong>{fmt(sel.stockActual)} u.</strong> · Demanda promedio{' '}
+                  <strong>{fmt(sel.avgDemand)} u/sem</strong> · Stock de seguridad <strong>{fmt(sel.stockSeg)} u.</strong>
+                  {sel.hasUrgent && <span style={{ color: RED }}> ⚠ Hay semanas con stock crítico que requieren atención inmediata.</span>}
+                </>
+              ) : (
+                <>
+                  {sel.sku} tiene stock suficiente para cubrir el horizonte de <strong>{horizon} semanas</strong> sin necesidad de producir.
+                  Stock actual: <strong>{fmt(sel.stockActual)} u.</strong> · Demanda promedio: <strong>{fmt(sel.avgDemand)} u/sem</strong>.
+                </>
+              )}
+            </p>
+          </div>
 
+          {/* KPIs del SKU */}
+          <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Stock actual', value: fmt(sel.stockActual), color: BLUE },
+              { label: 'Stock de seguridad', value: fmt(sel.stockSeg), color: ORANGE },
+              { label: 'Unidades a producir', value: fmt(sel.totUnidades), color: GREEN },
+              { label: 'Semanas de producción', value: `${sel.semanasProd} de ${horizon}`, color: sel.color },
+            ].map(c => (
+              <div key={c.label} style={{ flex: '1 1 140px', background: 'white', borderRadius: 10, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `4px solid ${c.color}` }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Gráfico Stock + Producción + Demanda */}
+          <div style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+            <h3 style={{ margin: '0 0 4px', color: sel.color, fontSize: 15, fontWeight: 700 }}>
+              Evolución de stock y producción — {sel.sku}
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>
+              Stock semanal, unidades producidas y demanda proyectada. La línea naranja es el stock mínimo de seguridad.
+            </p>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={detailData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => fmt(v)} />
+                <Tooltip formatter={(v, n) => [fmt(v), n]} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <ReferenceLine y={sel.stockSeg} stroke={ORANGE} strokeDasharray="5 3" label={{ value: 'Stock seg.', fill: ORANGE, fontSize: 10 }} />
+                <Area type="monotone" dataKey="stock" name="Stock inicio" fill="#dbeafe" stroke={BLUE_LIGHT} strokeWidth={2} dot={false} />
+                <Bar dataKey="produccion" name="Producción" fill={sel.color} radius={[3, 3, 0, 0]} />
+                <Line type="monotone" dataKey="demanda" name="Demanda" stroke={RED} strokeWidth={2} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Calendario mensual semanal */}
+          {sel.semanasProd > 0 && (
+            <div style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 8px', color: '#1e293b', fontSize: 15, fontWeight: 700 }}>
+                Calendario de producción semanal — {sel.sku}
+              </h3>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: '#bbf7d0', display: 'inline-block', border: '1px solid #86efac' }} /> Producción normal
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: '#fee2e2', display: 'inline-block', border: '1px solid #fca5a5' }} /> Stock crítico
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: '#f8fafc', display: 'inline-block', border: '1px solid #e2e8f0' }} /> Sin producción
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {timelineMonths.map(mon => (
+                  <div key={mon.label}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8, borderBottom: '1px solid #f1f5f9', paddingBottom: 4 }}>
+                      {mon.label}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {mon.weeks.map(w => {
+                        const hasProd = w.produccion > 0
+                        return (
+                          <div key={w.idx}
+                            title={hasProd ? `${fmtWeekDate(w.fecha)}: ${fmt(w.produccion)} u.` : `${fmtWeekDate(w.fecha)}: Sin producción`}
+                            style={{
+                              width: 88, borderRadius: 8, padding: '8px 8px', textAlign: 'center',
+                              background: w.urgente ? '#fee2e2' : hasProd ? '#dcfce7' : '#f8fafc',
+                              border: `1px solid ${w.urgente ? '#fca5a5' : hasProd ? '#86efac' : '#e2e8f0'}`,
+                            }}>
+                            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3 }}>
+                              {fmtWeekDate(w.fecha).slice(0, 6)}
+                            </div>
+                            {hasProd ? (
+                              <>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: w.urgente ? RED : '#166534' }}>
+                                  {fmt(w.produccion)}
+                                </div>
+                                <div style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>unidades</div>
+                                {w.urgente && <div style={{ fontSize: 9, color: RED, fontWeight: 700, marginTop: 2 }}>⚠ Crítico</div>}
+                              </>
+                            ) : (
+                              <div style={{ fontSize: 12, color: '#cbd5e1', marginTop: 4 }}>—</div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
