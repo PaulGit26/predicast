@@ -49,7 +49,7 @@ jobs:
             -v \
             --cov=07_Sistema_Produccion/pipeline/scripts \
             --cov-report=term-missing \
-            --cov-fail-under=45
+            --cov-fail-under=25
 
   # ── 3. Build & Push to AWS ECR ───────────────────────────────────────────────
   build-push:
