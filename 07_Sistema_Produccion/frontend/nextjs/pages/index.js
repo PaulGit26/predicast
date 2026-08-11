@@ -1105,10 +1105,20 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
 const TEAL_DARK = '#0e7490'
 const TEAL_LIGHT = '#06b6d4'
 
+function downloadCsv(filename, rows, headers) {
+  const lines = [headers.join(';'), ...rows.map(r => headers.map(h => r[h] ?? '').join(';'))]
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, setPrecios, skuPlancha }) {
   const [horizon, setHorizon] = useState(52)
   const [editando, setEditando] = useState(false)
   const [preciosTemp, setPreciosTemp] = useState(precios)
+  const [selectedSku, setSelectedSku] = useState(null)
+  const [showTable, setShowTable] = useState(false)
 
   if (!produccion) return (
     <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -1119,57 +1129,66 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
 
   const skus = Object.keys(produccion).filter(k => skuPlancha[k])
 
-  // Compute per-SKU cost data
   const costData = skus.map((sku, idx) => {
     const cfg = skuPlancha[sku]
     const precioPlancha = precios[cfg.tipo]
     const planchasPorUnidad = 1 / cfg.prod_por_plancha
     const costoPorUnidad = precioPlancha * planchasPorUnidad
     const cal = produccion[sku]?.calendar.slice(0, horizon) || []
-
     const weeks = cal.map(w => ({
-      semana: w.semana,
-      fecha: w.fecha,
+      semana: w.semana, fecha: w.fecha,
       unidades: w.produccion,
       planchas: w.produccion * planchasPorUnidad,
       costo: w.produccion * costoPorUnidad,
       urgente: w.urgente,
     }))
-
     const totUnidades = weeks.reduce((s, w) => s + w.unidades, 0)
     const totPlanchas = weeks.reduce((s, w) => s + w.planchas, 0)
     const totCosto = weeks.reduce((s, w) => s + w.costo, 0)
-
-    return { sku, cfg, precioPlancha, costoPorUnidad, weeks, totUnidades, totPlanchas, totCosto, color: SKU_COLORS[idx % SKU_COLORS.length] }
+    const peakWeek = weeks.reduce((best, w) => w.costo > (best?.costo || 0) ? w : best, null)
+    const weeksWithProd = weeks.filter(w => w.unidades > 0).length
+    return { sku, cfg, precioPlancha, costoPorUnidad, weeks, totUnidades, totPlanchas, totCosto, peakWeek, weeksWithProd, color: SKU_COLORS[idx % SKU_COLORS.length] }
   })
 
   const totalInversion = costData.reduce((s, d) => s + d.totCosto, 0)
   const totalPlanchas = costData.reduce((s, d) => s + d.totPlanchas, 0)
   const avgSemanal = horizon > 0 ? totalInversion / horizon : 0
 
-  // Chart: weekly total cost stacked by SKU
   const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon) || []
-  const chartData = allWeeks.map((w, i) => {
+  const overviewChartData = allWeeks.map((w, i) => {
     const pt = { semana: fmtWeekDate(w.fecha) }
     costData.forEach(d => { pt[d.sku] = Math.round(d.weeks[i]?.costo || 0) })
     return pt
   })
 
-  const guardarPrecios = () => {
-    setPrecios({ ...preciosTemp })
-    setEditando(false)
-  }
+  const guardarPrecios = () => { setPrecios({ ...preciosTemp }); setEditando(false) }
+
+  const sel = selectedSku ? costData.find(d => d.sku === selectedSku) : null
+  const skuChartData = sel
+    ? sel.weeks.map(w => ({ semana: fmtWeekDate(w.fecha), costo: Math.round(w.costo), planchas: parseFloat(w.planchas.toFixed(3)) }))
+    : []
+
+  // Group weeks by month for the timeline
+  const timelineMonths = sel ? (() => {
+    const months = {}
+    sel.weeks.forEach((w, i) => {
+      const d = new Date(w.fecha + 'T00:00:00')
+      const key = `${d.getFullYear()}-${d.getMonth()}`
+      const label = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][d.getMonth()] + ' ' + d.getFullYear()
+      if (!months[key]) months[key] = { label, weeks: [] }
+      months[key].weeks.push({ ...w, idx: i })
+    })
+    return Object.values(months)
+  })() : []
 
   return (
     <div>
 
       {/* ── Precio editor ── */}
-      <div style={{ background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 10, padding: '16px 20px', marginBottom: 24 }}>
+      <div style={{ background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 10, padding: '14px 20px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: TEAL_DARK, marginBottom: 4 }}>
-              Precios de planchas metálicas
-            </div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: TEAL_DARK, marginBottom: 4 }}>Precios de planchas metálicas</div>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               {Object.entries(precios).map(([tipo, precio]) => (
                 <span key={tipo} style={{ fontSize: 13, color: '#0e7490' }}>
@@ -1178,40 +1197,23 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
               ))}
             </div>
           </div>
-          <button
-            onClick={() => { setPreciosTemp({ ...precios }); setEditando(!editando) }}
-            style={{
-              padding: '7px 14px', borderRadius: 7, border: `1px solid ${TEAL_LIGHT}`,
-              background: editando ? '#e0f2fe' : 'white', color: TEAL_DARK,
-              cursor: 'pointer', fontSize: 13, fontWeight: 600,
-            }}
-          >
+          <button onClick={() => { setPreciosTemp({ ...precios }); setEditando(!editando) }}
+            style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${TEAL_LIGHT}`, background: editando ? '#e0f2fe' : 'white', color: TEAL_DARK, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
             {editando ? 'Cancelar' : '✏️ Editar precios'}
           </button>
         </div>
-
         {editando && (
           <div style={{ marginTop: 16, display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             {['0.75', '1.20'].map(tipo => (
               <div key={tipo}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                  Plancha F.G. {tipo} (S/ por plancha)
-                </label>
-                <input
-                  type="number" step="0.01" min="0"
-                  value={preciosTemp[tipo]}
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Plancha F.G. {tipo} (S/ por plancha)</label>
+                <input type="number" step="0.01" min="0" value={preciosTemp[tipo]}
                   onChange={e => setPreciosTemp(p => ({ ...p, [tipo]: parseFloat(e.target.value) || 0 }))}
-                  style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${TEAL_LIGHT}`, fontSize: 14, width: 130 }}
-                />
+                  style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${TEAL_LIGHT}`, fontSize: 14, width: 130 }} />
               </div>
             ))}
-            <button
-              onClick={guardarPrecios}
-              style={{
-                padding: '7px 18px', borderRadius: 7, background: TEAL_DARK,
-                color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
-              }}
-            >
+            <button onClick={guardarPrecios}
+              style={{ padding: '7px 18px', borderRadius: 7, background: TEAL_DARK, color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
               Aplicar
             </button>
           </div>
@@ -1219,135 +1221,270 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
       </div>
 
       {/* ── Controls ── */}
-      <div style={{ display: 'flex', gap: 32, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 32, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
             Stock de seguridad: <span style={{ color: TEAL_DARK }}>{safetyWeeks} sem</span>
           </label>
           <input type="range" min={0.5} max={6} step={0.5} value={safetyWeeks}
-            onChange={e => setSafetyWeeks(parseFloat(e.target.value))} style={{ width: 160 }} />
+            onChange={e => setSafetyWeeks(parseFloat(e.target.value))} style={{ width: 150 }} />
         </div>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
             Horizonte: <span style={{ color: TEAL_DARK }}>{horizon} sem</span>
           </label>
           <input type="range" min={4} max={52} step={4} value={horizon}
-            onChange={e => setHorizon(parseInt(e.target.value))} style={{ width: 160 }} />
+            onChange={e => { setHorizon(parseInt(e.target.value)); setShowTable(false) }} style={{ width: 150 }} />
         </div>
       </div>
 
-      {/* ── KPI cards ── */}
-      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
-        {[
-          { label: 'Inversión total proyectada', value: `S/ ${fmt(totalInversion)}`, color: TEAL_DARK },
-          { label: 'Promedio semanal', value: `S/ ${fmt(avgSemanal)}`, color: TEAL_LIGHT },
-          { label: 'Planchas totales a comprar', value: fmtDec(totalPlanchas, 1), color: ORANGE },
-          { label: 'Horizonte analizado', value: `${horizon} semanas`, color: PURPLE },
-        ].map(c => (
-          <div key={c.label} style={{
-            flex: '1 1 160px', background: 'white', borderRadius: 10,
-            padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-            borderLeft: `4px solid ${c.color}`,
-          }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.label}</div>
-          </div>
-        ))}
+      {/* ── SKU selector ── */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Selecciona un producto para ver su análisis detallado
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {/* Todos button */}
+          <button
+            onClick={() => { setSelectedSku(null); setShowTable(false) }}
+            style={{
+              padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              border: selectedSku === null ? `2px solid ${TEAL_DARK}` : '2px solid #e2e8f0',
+              background: selectedSku === null ? TEAL_DARK : 'white',
+              color: selectedSku === null ? 'white' : '#374151',
+              transition: 'all 0.15s',
+            }}
+          >
+            Todos los productos
+            <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2, opacity: 0.85 }}>S/ {fmt(totalInversion)}</div>
+          </button>
+
+          {/* Per-SKU buttons */}
+          {costData.map(d => (
+            <button key={d.sku}
+              onClick={() => { setSelectedSku(d.sku); setShowTable(false) }}
+              style={{
+                padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                border: selectedSku === d.sku ? `2px solid ${d.color}` : '2px solid #e2e8f0',
+                background: selectedSku === d.sku ? d.color : 'white',
+                color: selectedSku === d.sku ? 'white' : '#374151',
+                transition: 'all 0.15s',
+              }}
+            >
+              {d.sku}
+              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2, opacity: 0.85 }}>
+                S/ {fmt(d.totCosto)} · {fmtDec(d.totPlanchas, 1)} planch.
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── Chart ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <h3 style={{ margin: '0 0 4px', color: TEAL_DARK, fontSize: 15, fontWeight: 700 }}>
-          Inversión semanal en planchas por SKU — próximas {horizon} semanas
-        </h3>
-        <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>Costo total de planchas requeridas por semana de producción (S/)</p>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={chartData} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
-            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n]} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {costData.map(d => (
-              <Bar key={d.sku} dataKey={d.sku} stackId="a" fill={d.color} radius={costData[costData.length - 1].sku === d.sku ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+      {/* ══════════════════════════════════════════════════════════════════════
+          VISTA "TODOS"
+         ══════════════════════════════════════════════════════════════════════ */}
+      {!sel && (
+        <>
+          {/* KPI globales */}
+          <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Inversión total proyectada', value: `S/ ${fmt(totalInversion)}`, color: TEAL_DARK },
+              { label: 'Promedio semanal', value: `S/ ${fmt(avgSemanal)}`, color: TEAL_LIGHT },
+              { label: 'Planchas totales a comprar', value: fmtDec(totalPlanchas, 1), color: ORANGE },
+              { label: 'Horizonte analizado', value: `${horizon} semanas`, color: PURPLE },
+            ].map(c => (
+              <div key={c.label} style={{ flex: '1 1 160px', background: 'white', borderRadius: 10, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `4px solid ${c.color}` }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.label}</div>
+              </div>
             ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+          </div>
 
-      {/* ── Resumen por SKU ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24, overflowX: 'auto' }}>
-        <h3 style={{ margin: '0 0 14px', color: TEAL_DARK, fontSize: 15, fontWeight: 700 }}>Resumen por producto</h3>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: '#f0fdfe' }}>
-              {['SKU', 'Tipo plancha', 'Precio plancha', 'Costo/unidad', 'Unidades totales', 'Planchas totales', 'Inversión total'].map(h => (
-                <th key={h} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: TEAL_DARK, borderBottom: `2px solid ${TEAL_LIGHT}`, whiteSpace: 'nowrap', fontSize: 12 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {costData.map((d, i) => (
-              <tr key={d.sku} style={{ background: i % 2 === 0 ? '#fafafa' : 'white' }}>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: d.color, textAlign: 'right' }}>{d.sku}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
-                  <span style={{ background: d.cfg.tipo === '0.75' ? '#eff6ff' : '#fefce8', color: d.cfg.tipo === '0.75' ? BLUE : '#92400e', border: `1px solid ${d.cfg.tipo === '0.75' ? '#bfdbfe' : '#fde68a'}`, borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+          {/* Stacked bar chart */}
+          <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+            <h3 style={{ margin: '0 0 4px', color: TEAL_DARK, fontSize: 15, fontWeight: 700 }}>
+              Inversión semanal en planchas por SKU — próximas {horizon} semanas
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>Costo total de planchas requeridas por semana de producción (S/). Selecciona un SKU arriba para el análisis detallado.</p>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={overviewChartData} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
+                <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n]} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {costData.map(d => (
+                  <Bar key={d.sku} dataKey={d.sku} stackId="a" fill={d.color}
+                    radius={costData[costData.length - 1].sku === d.sku ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Mini cards comparativa */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+            {costData.map(d => (
+              <button key={d.sku} onClick={() => { setSelectedSku(d.sku); setShowTable(false) }}
+                style={{ background: 'white', borderRadius: 10, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderTop: `4px solid ${d.color}`, border: `1px solid #e2e8f0`, borderTopWidth: 4, borderTopColor: d.color, cursor: 'pointer', textAlign: 'left' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontWeight: 800, fontSize: 15, color: d.color }}>{d.sku}</span>
+                  <span style={{ background: d.cfg.tipo === '0.75' ? '#eff6ff' : '#fefce8', color: d.cfg.tipo === '0.75' ? BLUE : '#92400e', border: `1px solid ${d.cfg.tipo === '0.75' ? '#bfdbfe' : '#fde68a'}`, borderRadius: 10, padding: '2px 7px', fontSize: 11, fontWeight: 700 }}>
                     F.G. {d.cfg.tipo}
                   </span>
-                </td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>S/ {d.precioPlancha.toFixed(2)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', color: '#64748b' }}>S/ {d.costoPorUnidad.toFixed(4)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmt(d.totUnidades)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmtDec(d.totPlanchas, 2)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontWeight: 700, color: TEAL_DARK }}>S/ {fmt(d.totCosto)}</td>
-              </tr>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', marginBottom: 2 }}>S/ {fmt(d.totCosto)}</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{fmtDec(d.totPlanchas, 1)} planchas · {d.weeksWithProd} sem activas</div>
+                <div style={{ marginTop: 10, fontSize: 12, color: TEAL_DARK, fontWeight: 600 }}>Ver detalle →</div>
+              </button>
             ))}
-            <tr style={{ background: '#f0fdfe', fontWeight: 700 }}>
-              <td colSpan={4} style={{ padding: '9px 12px', textAlign: 'right', color: TEAL_DARK, borderTop: `2px solid ${TEAL_LIGHT}` }}>TOTAL</td>
-              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: `2px solid ${TEAL_LIGHT}` }}>{fmt(costData.reduce((s, d) => s + d.totUnidades, 0))}</td>
-              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: `2px solid ${TEAL_LIGHT}` }}>{fmtDec(totalPlanchas, 2)}</td>
-              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: `2px solid ${TEAL_LIGHT}`, color: TEAL_DARK }}>S/ {fmt(totalInversion)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </>
+      )}
 
-      {/* ── Detalle semanal por SKU ── */}
-      {costData.map(d => d.totUnidades > 0 && (
-        <div key={d.sku} style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 16, overflowX: 'auto' }}>
-          <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 700, color: d.color }}>
-            {d.sku} — F.G. {d.cfg.tipo} &nbsp;
-            <span style={{ fontWeight: 400, fontSize: 12, color: '#64748b' }}>
-              ({d.cfg.prod_por_plancha} unidades/plancha · S/ {d.precioPlancha.toFixed(2)}/plancha)
-            </span>
-          </h4>
-          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: '#f8fafc' }}>
-                {['Semana', 'Fecha', 'Unidades a producir', 'Planchas necesarias', 'Costo planchas (S/)', 'Estado'].map(h => (
-                  <th key={h} style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {d.weeks.filter(w => w.unidades > 0).map((w, i) => (
-                <tr key={i} style={{ background: w.urgente ? '#fff5f5' : i % 2 === 0 ? '#fafafa' : 'white' }}>
-                  <td style={{ padding: '6px 10px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.semana}</td>
-                  <td style={{ padding: '6px 10px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.fecha}</td>
-                  <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{fmt(w.unidades)}</td>
-                  <td style={{ padding: '6px 10px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmtDec(w.planchas, 3)}</td>
-                  <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: TEAL_DARK, borderBottom: '1px solid #f1f5f9' }}>S/ {fmt(w.costo)}</td>
-                  <td style={{ padding: '6px 10px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>
-                    {w.urgente
-                      ? <span style={{ color: RED, fontWeight: 700 }}>⚠ Urgente</span>
-                      : <span style={{ color: GREEN, fontWeight: 600 }}>✓ Normal</span>}
-                  </td>
-                </tr>
+      {/* ══════════════════════════════════════════════════════════════════════
+          VISTA SKU INDIVIDUAL
+         ══════════════════════════════════════════════════════════════════════ */}
+      {sel && (
+        <>
+          {/* Narrativa */}
+          <div style={{ background: `linear-gradient(135deg, ${sel.color}18 0%, white 100%)`, border: `1px solid ${sel.color}40`, borderRadius: 12, padding: '20px 24px', marginBottom: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: sel.color, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Análisis de inversión — {sel.sku}
+            </div>
+            <p style={{ margin: 0, fontSize: 15, color: '#1e293b', lineHeight: 1.65 }}>
+              En las próximas <strong>{horizon} semanas</strong>, {sel.sku} requiere comprar{' '}
+              <strong style={{ color: sel.color }}>{fmtDec(sel.totPlanchas, 1)} planchas F.G. {sel.cfg.tipo}</strong>{' '}
+              para producir <strong>{fmt(sel.totUnidades)} unidades</strong>.{' '}
+              Esto representa una inversión total de{' '}
+              <strong style={{ color: TEAL_DARK }}>S/ {fmt(sel.totCosto)}</strong> (S/ {fmtDec(sel.costoPorUnidad, 4)} por unidad).
+              {sel.peakWeek && sel.peakWeek.costo > 0 && (
+                <> El pico de compra cae en la semana del <strong>{fmtWeekDate(sel.peakWeek.fecha)}</strong> con <strong style={{ color: ORANGE }}>S/ {fmt(sel.peakWeek.costo)}</strong>.</>
+              )}
+            </p>
+          </div>
+
+          {/* KPIs del SKU */}
+          <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Inversión total', value: `S/ ${fmt(sel.totCosto)}`, color: sel.color },
+              { label: 'Planchas a comprar', value: fmtDec(sel.totPlanchas, 1), color: ORANGE },
+              { label: 'Promedio semanal', value: `S/ ${fmt(sel.weeksWithProd > 0 ? sel.totCosto / sel.weeksWithProd : 0)}`, color: TEAL_DARK },
+              { label: 'Semanas con producción', value: `${sel.weeksWithProd} de ${horizon}`, color: PURPLE },
+            ].map(c => (
+              <div key={c.label} style={{ flex: '1 1 150px', background: 'white', borderRadius: 10, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `4px solid ${c.color}` }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Gráfico de área — evolución del costo */}
+          <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+            <h3 style={{ margin: '0 0 4px', color: sel.color, fontSize: 15, fontWeight: 700 }}>
+              Cronograma de inversión semanal — {sel.sku}
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>
+              Costo de planchas por semana (S/) · {sel.cfg.prod_por_plancha} unidades/plancha · S/ {sel.precioPlancha.toFixed(2)}/plancha
+            </p>
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={skuChartData} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
+                <Tooltip formatter={(v, n) => [n === 'costo' ? `S/ ${fmt(v)}` : fmtDec(v, 3), n === 'costo' ? 'Costo planchas' : 'Planchas']} />
+                <Area type="monotone" dataKey="costo" fill={sel.color + '25'} stroke={sel.color} strokeWidth={2} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Timeline por meses */}
+          <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
+            <h3 style={{ margin: '0 0 16px', color: '#1e293b', fontSize: 15, fontWeight: 700 }}>
+              Calendario de compras de materia prima
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {timelineMonths.map(mon => (
+                <div key={mon.label}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{mon.label}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {mon.weeks.map(w => {
+                      const hasProd = w.unidades > 0
+                      return (
+                        <div key={w.idx} title={`${fmtWeekDate(w.fecha)} · S/ ${fmt(w.costo)}`}
+                          style={{
+                            width: 80, borderRadius: 8, padding: '8px 6px', textAlign: 'center',
+                            background: hasProd ? sel.color + '20' : '#f8fafc',
+                            border: `1px solid ${hasProd ? sel.color + '60' : '#e2e8f0'}`,
+                            cursor: 'default',
+                          }}>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{fmtWeekDate(w.fecha).slice(0, 6)}</div>
+                          {hasProd ? (
+                            <>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: sel.color }}>S/ {fmt(w.costo)}</div>
+                              <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>{fmtDec(w.planchas, 2)} pl.</div>
+                            </>
+                          ) : (
+                            <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 4 }}>Sin prod.</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+            </div>
+          </div>
+
+          {/* Tabla detallada (colapsable) + descarga */}
+          <div style={{ background: 'white', borderRadius: 10, padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <button onClick={() => setShowTable(v => !v)}
+                style={{ background: 'none', border: `1px solid #e2e8f0`, borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                {showTable ? '▲ Ocultar tabla detallada' : '▼ Ver tabla semana a semana'}
+              </button>
+              <button
+                onClick={() => {
+                  const rows = sel.weeks.filter(w => w.unidades > 0).map(w => ({
+                    Semana: w.semana, Fecha: w.fecha, Unidades: Math.round(w.unidades),
+                    Planchas: fmtDec(w.planchas, 3), 'Costo (S/)': fmt(w.costo), Estado: w.urgente ? 'Urgente' : 'Normal'
+                  }))
+                  downloadCsv(`${sel.sku}_inversion_planchas.csv`, rows, ['Semana','Fecha','Unidades','Planchas','Costo (S/)','Estado'])
+                }}
+                style={{ background: TEAL_DARK, color: 'white', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                ⬇ Descargar CSV
+              </button>
+            </div>
+
+            {showTable && (
+              <div style={{ overflowX: 'auto', marginTop: 16 }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      {['Semana', 'Fecha', 'Unidades a producir', 'Planchas necesarias', 'Costo planchas (S/)', 'Estado'].map(h => (
+                        <th key={h} style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: '#475569', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sel.weeks.filter(w => w.unidades > 0).map((w, i) => (
+                      <tr key={i} style={{ background: w.urgente ? '#fff5f5' : i % 2 === 0 ? '#fafafa' : 'white' }}>
+                        <td style={{ padding: '6px 10px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.semana}</td>
+                        <td style={{ padding: '6px 10px', textAlign: 'right', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>{w.fecha}</td>
+                        <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{fmt(w.unidades)}</td>
+                        <td style={{ padding: '6px 10px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>{fmtDec(w.planchas, 3)}</td>
+                        <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: TEAL_DARK, borderBottom: '1px solid #f1f5f9' }}>S/ {fmt(w.costo)}</td>
+                        <td style={{ padding: '6px 10px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' }}>
+                          {w.urgente ? <span style={{ color: RED, fontWeight: 700 }}>⚠ Urgente</span> : <span style={{ color: GREEN, fontWeight: 600 }}>✓ Normal</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
