@@ -10,7 +10,7 @@ repo_root = Path(__file__).resolve().parent.parent
 
 
 def _load_seleccion():
-    path = repo_root / "04_Scripts_Nuevos" / "lib" / "seleccion_filtrado_features.py"
+    path = repo_root / "07_Sistema_Produccion" / "pipeline" / "scripts" / "lib" / "seleccion_filtrado_features.py"
     spec = importlib.util.spec_from_file_location("seleccion_filtrado_features", str(path))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

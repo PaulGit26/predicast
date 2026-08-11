@@ -34,7 +34,7 @@ def test_run_preparar_top20_empty_dir_raises(tmp_path):
 
 def test_run_preparar_top20_lowercase_columns(tmp_path):
     """Covers the column-rename branches (lines 30,32,34,36,38) in preparar_top20."""
-    mod = _load_module("04_Scripts_Nuevos/lib/preparar_top20.py", "preparar_top20_04")
+    mod = _load_module("07_Sistema_Produccion/pipeline/scripts/lib/preparar_top20.py", "preparar_top20_04")
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     df = pd.DataFrame({
@@ -56,7 +56,7 @@ def test_run_preparar_top20_lowercase_columns(tmp_path):
 
 def test_run_preparar_top20_guias_remision_excluded(tmp_path):
     """Covers lines 62-65: guías de remisión where Entrada==Salida are excluded."""
-    mod = _load_module("04_Scripts_Nuevos/lib/preparar_top20.py", "preparar_top20_04b")
+    mod = _load_module("07_Sistema_Produccion/pipeline/scripts/lib/preparar_top20.py", "preparar_top20_04b")
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     df = pd.DataFrame([
@@ -81,7 +81,7 @@ def test_run_preparar_top20_guias_remision_excluded(tmp_path):
 
 def test_analisis_pareto_zero_sales(tmp_path):
     """Covers lines 22-25: dataset with zero total sales does not crash."""
-    mod = _load_module("04_Scripts_Nuevos/lib/analisis_pareto.py", "analisis_pareto")
+    mod = _load_module("07_Sistema_Produccion/pipeline/scripts/lib/analisis_pareto.py", "analisis_pareto")
     out = tmp_path / "out"
     out.mkdir()
     df = pd.DataFrame({"Código": ["P001", "P002"], "Salida": [0.0, 0.0]})
@@ -94,7 +94,7 @@ def test_analisis_pareto_zero_sales(tmp_path):
 
 def test_analisis_pareto_single_product(tmp_path):
     """Single product: cumulative % is 100%, productos_80 must be >= 1."""
-    mod = _load_module("04_Scripts_Nuevos/lib/analisis_pareto.py", "analisis_pareto_b")
+    mod = _load_module("07_Sistema_Produccion/pipeline/scripts/lib/analisis_pareto.py", "analisis_pareto_b")
     out = tmp_path / "out"
     out.mkdir()
     df = pd.DataFrame({"Código": ["P001"], "Salida": [500.0]})
