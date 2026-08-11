@@ -3,18 +3,18 @@ Contratos OpenAPI compartidos entre todos los servicios.
 Esquemas Pydantic para validación de requests/responses.
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Any, Dict
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
+from pydantic import BaseModel, Field
 
 # ===== MODELOS COMUNES =====
 
 class OrgBase(BaseModel):
     """Organización base."""
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class OrgResponse(OrgBase):
@@ -44,7 +44,7 @@ class ForecastProductBase(BaseModel):
     """Producto para predicción."""
     product_code: str = Field(..., description="Código SKU del producto")
     product_name: str
-    category: Optional[str] = None
+    category: str | None = None
 
 
 class ForecastRequestInput(BaseModel):
@@ -66,8 +66,8 @@ class ForecastPoint(BaseModel):
     """Un punto de predicción."""
     period: int
     forecast: float
-    confidence_interval: Optional[ConfidenceInterval] = None
-    components: Optional[Dict[str, Any]] = None
+    confidence_interval: ConfidenceInterval | None = None
+    components: dict[str, Any] | None = None
 
 
 class ForecastResponse(BaseModel):
@@ -75,7 +75,7 @@ class ForecastResponse(BaseModel):
     request_id: str
     product_id: str
     forecast_date: datetime
-    forecasts: List[ForecastPoint]
+    forecasts: list[ForecastPoint]
     model_version: str
     model_accuracy: float
     cache_hit: bool
@@ -86,7 +86,7 @@ class PipelineRunResponse(BaseModel):
     status: str
     message: str
     started_at: datetime
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class RecommendationLevel(str, Enum):
@@ -101,14 +101,14 @@ class ProductionRecommendation(BaseModel):
     level: RecommendationLevel
     quantity: float
     confidence: float
-    reasoning: Optional[str] = None
+    reasoning: str | None = None
 
 
 class RecommendationResponse(BaseModel):
     """Respuesta de recomendación."""
     product_id: str
     recommendation_date: datetime
-    recommendations: Dict[RecommendationLevel, ProductionRecommendation]
+    recommendations: dict[RecommendationLevel, ProductionRecommendation]
 
 
 # ===== ANALYTICS SERVICE CONTRACTS =====
@@ -117,14 +117,14 @@ class MetricPoint(BaseModel):
     """Un punto de métrica temporal."""
     timestamp: datetime
     value: float
-    dimensions: Optional[Dict[str, str]] = None
+    dimensions: dict[str, str] | None = None
 
 
 class TimeSeriesResponse(BaseModel):
     """Serie temporal."""
     metric_name: str
     product_id: str
-    data_points: List[MetricPoint]
+    data_points: list[MetricPoint]
     aggregation_level: str = "daily"  # daily, weekly, monthly
 
 
@@ -134,7 +134,7 @@ class DashboardMetrics(BaseModel):
     avg_cache_hit_rate: float
     model_retraining_frequency: str
     last_model_update: datetime
-    system_health: Dict[str, Any]
+    system_health: dict[str, Any]
 
 
 # ===== USER SERVICE CONTRACTS =====
@@ -174,7 +174,7 @@ class HealthCheckResponse(BaseModel):
     status: str  # "healthy", "degraded", "unhealthy"
     version: str
     timestamp: datetime
-    dependencies: Dict[str, str]  # name -> status
+    dependencies: dict[str, str]  # name -> status
 
 
 # ===== ERROR RESPONSES =====
@@ -183,7 +183,7 @@ class ErrorDetail(BaseModel):
     """Detalle de error."""
     code: str
     message: str
-    request_id: Optional[str] = None
+    request_id: str | None = None
 
 
 class ErrorResponse(BaseModel):

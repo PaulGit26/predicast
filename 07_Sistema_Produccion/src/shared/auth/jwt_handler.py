@@ -5,14 +5,13 @@ HS256: simple shared-secret JWT for local development / tests.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
-import httpx
 
+import httpx
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from fastapi import HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from src.config import settings
 
@@ -42,7 +41,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 # ── HS256 helpers (local dev) ─────────────────────────────────────────────────
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     payload = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(hours=settings.JWT_EXPIRATION_HOURS))
     payload["exp"] = expire
@@ -78,9 +77,10 @@ def _get_auth0_public_key(kid: str) -> str:
 
     for key in jwks.get("keys", []):
         if key.get("kid") == kid:
-            from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
+            import base64
+
             from cryptography.hazmat.backends import default_backend
-            import base64, struct
+            from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
 
             def _b64_to_int(val: str) -> int:
                 data = base64.urlsafe_b64decode(val + "==")
@@ -91,9 +91,7 @@ def _get_auth0_public_key(kid: str) -> str:
                 n=_b64_to_int(key["n"]),
             ).public_key(default_backend())
 
-            from cryptography.hazmat.primitives.serialization import (
-                Encoding, PublicFormat
-            )
+            from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
             pem = pub.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
             _jwks_cache[kid] = pem
             return pem
@@ -145,7 +143,7 @@ def decode_token(token: str) -> TokenPayload:
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
 
 async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> TokenPayload:
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")

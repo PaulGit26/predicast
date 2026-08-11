@@ -2,12 +2,12 @@
 Authentication & JWT utilities
 """
 
+import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+
 import jwt
 from jwt import PyJWTError
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class TokenManager:
         tenant_id: str,
         email: str,
         is_admin: bool = False,
-        expires_delta: Optional[timedelta] = None
+        expires_delta: timedelta | None = None
     ) -> str:
         """
         Crea un JWT token
@@ -68,7 +68,7 @@ class TokenManager:
             raise
     
     @staticmethod
-    def verify_token(token: str) -> Dict:
+    def verify_token(token: str) -> dict:
         """
         Verifica y decodifica un JWT token
         
@@ -96,7 +96,7 @@ class TokenManager:
             raise PyJWTError("Token inválido")
     
     @staticmethod
-    def extract_token_from_header(auth_header: Optional[str]) -> Optional[str]:
+    def extract_token_from_header(auth_header: str | None) -> str | None:
         """
         Extrae el token del header Authorization
         

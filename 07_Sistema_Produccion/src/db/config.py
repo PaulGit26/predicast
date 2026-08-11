@@ -4,6 +4,7 @@ Multi-tenancy ready con SQLAlchemy
 """
 
 import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool

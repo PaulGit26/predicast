@@ -4,10 +4,11 @@ Soporta JSON y texto con trazabilidad por request_id.
 """
 
 import logging
-import structlog
 import sys
-from typing import Any, Dict, Optional
+
+import structlog
 from pythonjsonlogger import jsonlogger
+
 from src.config import settings
 
 

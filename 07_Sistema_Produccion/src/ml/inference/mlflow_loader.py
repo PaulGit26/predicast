@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 try:
     import mlflow
@@ -47,7 +47,7 @@ class MLFlowLoader:
                 logger.warning("No se pudo leer metadata: %s", exc)
         return {"model_version": "unknown", "performance": {}}
 
-    def load(self) -> Tuple[Any, dict]:
+    def load(self) -> tuple[Any, dict]:
         """Intenta cargar desde MLflow; si falla, intenta joblib; si falla, devuelve DummyModel."""
         self.metadata = self._load_metadata()
 

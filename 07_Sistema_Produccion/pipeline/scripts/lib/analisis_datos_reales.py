@@ -13,12 +13,11 @@ import json
 import os
 import warnings
 from datetime import datetime
-from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")  # headless — sin display
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -228,15 +227,15 @@ def run_analisis_datos_reales(data_dir: str, output_dir: str) -> None:
         _save(serie_p, output_dir, f"08_SERIE_SEMANAL_{cod_obj.replace(' ', '')}.csv")
 
     # ── Resumen JSON ────────────────────────────────────────────────────────
-    pareto_80 = int(len(ventas_prod[ventas_prod["Acumulado_pct"] <= 80]))
+    pareto_80 = len(ventas_prod[ventas_prod["Acumulado_pct"] <= 80])
     resumen = {
         "timestamp": datetime.now().isoformat(),
-        "registros_totales": int(len(df)),
+        "registros_totales": len(df),
         "productos_totales": int(df["Código"].nunique()),
-        "productos_con_ventas": int(len(ventas_prod)),
+        "productos_con_ventas": len(ventas_prod),
         "productos_pareto_80pct": pareto_80,
         "rango_fechas": f"{df['Fecha'].min()} a {df['Fecha'].max()}",
-        "semanas_analizadas": int(len(serie_sem)),
+        "semanas_analizadas": len(serie_sem),
     }
     with open(os.path.join(output_dir, "RESUMEN_ANALISIS.json"), "w", encoding="utf-8") as f:
         json.dump(resumen, f, indent=2, ensure_ascii=False)

@@ -1,11 +1,13 @@
-from pathlib import Path
-import pandas as pd
-import numpy as np
-import json
 import gc
+import json
+from pathlib import Path
+
+import matplotlib
+import numpy as np
+import pandas as pd
 from scipy.stats import pearsonr
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -227,7 +229,7 @@ def run_seleccion_filtrado_features(output_dir: str | Path):
         json.dump(selection_metadata, f, indent=2, ensure_ascii=False, default=str)
 
     return {
-        "feature_files": {s: str(output_dir / f"FEATURES_SEMANAL_{s.upper()}.csv") for s in feature_sets.keys()},
+        "feature_files": {s: str(output_dir / f"FEATURES_SEMANAL_{s.upper()}.csv") for s in feature_sets},
         "correlations": str(output_dir / "CORRELACIONES_TARGET.csv"),
         "vif": str(output_dir / "VIF_ANALISIS.csv"),
         "metadata": str(output_dir / "SELECTION_METADATA.json")

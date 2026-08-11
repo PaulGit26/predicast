@@ -5,8 +5,10 @@ Multi-tenancy ready: cada modelo tiene tenant_id
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, ForeignKey, Index
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
+
 from src.db.config import Base
 
 

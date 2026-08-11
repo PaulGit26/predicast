@@ -22,12 +22,14 @@ Salida:   CLUSTERING_METADATA.json (define grupos para scripts 06, 08, 09)
 ========================================================================
 """
 
-import pandas as pd
-import numpy as np
-import os
 import json
-from datetime import datetime
+import os
 import warnings
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+
 warnings.filterwarnings("ignore")
 
 OUTPUT_DIR = os.environ.get('EDA_DIR', r"d:\Desktop\Predicast\04_Scripts_Nuevos\EDA_Outputs")
@@ -224,7 +226,7 @@ metadata_file = os.path.join(OUTPUT_DIR, "CLUSTERING_METADATA.json")
 with open(metadata_file, "w", encoding="utf-8") as f:
     json.dump(clustering_metadata, f, indent=2, ensure_ascii=False)
 
-print(f"  [OK] CLUSTERING_METADATA.json")
+print("  [OK] CLUSTERING_METADATA.json")
 
 # ============================================================================
 # PASO 8: EXPORTAR CSV CON ANÁLISIS
@@ -237,7 +239,7 @@ df_clustering.to_csv(
     index=False
 )
 
-print(f"  [OK] CLUSTERING_ANALISIS_DETALLADO.csv")
+print("  [OK] CLUSTERING_ANALISIS_DETALLADO.csv")
 
 # ============================================================================
 # CONCLUSIONES

@@ -3,10 +3,11 @@ Configuración centralizada del sistema Predicast.
 Carga variables de entorno con pydantic-settings para type-safety.
 """
 
-from pydantic_settings import BaseSettings
-from typing import Optional, List
-from pathlib import Path
 import os
+from pathlib import Path
+
+from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
     """Configuración global del sistema."""
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     API_PREFIX: str = "/api/v1"
-    ALLOWED_ORIGINS: List[str] = [
+    ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:8501",
         "http://localhost:8000",
@@ -68,7 +69,7 @@ class Settings(BaseSettings):
     # ===== OBSERVABILITY =====
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO" if not DEBUG else "DEBUG")
     LOG_FORMAT: str = "json"  # json, text
-    SENTRY_DSN: Optional[str] = os.getenv("SENTRY_DSN", None)
+    SENTRY_DSN: str | None = os.getenv("SENTRY_DSN", None)
     ENABLE_TRACING: bool = ENV == "production"
     
     # ===== DATA =====
