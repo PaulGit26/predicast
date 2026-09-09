@@ -33,7 +33,9 @@ export default function LoginPage() {
 
         {error && (
           <div style={styles.errorBox}>
-            {error === 'OAuthCallback'
+            {error === 'AccountBlocked'
+              ? 'Tu cuenta ha sido bloqueada. Contacta al administrador del sistema.'
+              : error === 'OAuthCallback'
               ? 'Error al autenticar con Auth0. Intenta de nuevo.'
               : 'Ocurrió un error. Intenta de nuevo.'}
           </div>

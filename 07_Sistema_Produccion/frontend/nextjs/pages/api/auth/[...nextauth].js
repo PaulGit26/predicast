@@ -43,4 +43,17 @@ export const authOptions = {
   trustHost: true,
 }
 
-export default NextAuth(authOptions)
+const handler = NextAuth(authOptions)
+
+export default async function auth(req, res) {
+  // Auth0 manda error_description="user is blocked" cuando la cuenta está bloqueada.
+  // NextAuth lo pierde al mapear todo a OAuthCallback — lo interceptamos aquí.
+  const isCallback = req.query.nextauth?.[0] === 'callback'
+  if (isCallback && req.query.error) {
+    const desc = (req.query.error_description ?? '').toLowerCase()
+    if (desc.includes('blocked')) {
+      return res.redirect('/auth/login?error=AccountBlocked')
+    }
+  }
+  return handler(req, res)
+}
