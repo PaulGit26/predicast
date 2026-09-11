@@ -87,6 +87,13 @@ export default function handler(req, res) {
     if (!semana || !operario_id) return res.status(400).json({ error: 'semana y operario_id requeridos' })
     if (!data.semanas[semana]) return res.status(404).json({ error: 'Semana no encontrada' })
 
+    const semData = data.semanas[semana]
+    const op = (semData.operarios || []).find(o => o.id === operario_id)
+    if (op && avances) {
+      const exceeded = Object.entries(avances).some(([sku, val]) => Number(val) > (op.asignaciones?.[sku] || 0))
+      if (exceeded) return res.status(400).json({ error: 'El avance no puede superar la meta asignada.' })
+    }
+
     if (!data.semanas[semana].progreso) data.semanas[semana].progreso = {}
     data.semanas[semana].progreso[operario_id] = {
       avances: avances || {},

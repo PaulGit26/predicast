@@ -2243,7 +2243,14 @@ function TabAsignacionSeguimiento({ produccion }) {
   }
 
   const saveProgreso = async (opId) => {
+    const op = operarios.find(o => o.id === opId)
     const p = progreso[opId] || { avances: {}, notas: '' }
+    const exceeded = activeSKUs.some(s => (p.avances?.[s] || 0) > (op?.asignaciones?.[s] || 0))
+    if (exceeded) {
+      setMsg({ ok: false, text: 'El avance no puede superar la meta asignada.' })
+      setTimeout(() => setMsg(null), 3000)
+      return
+    }
     await fetch('/api/asignaciones', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -2253,11 +2260,14 @@ function TabAsignacionSeguimiento({ produccion }) {
     setTimeout(() => setMsg(null), 2000)
   }
 
-  const updateAvance = (opId, sku, val) =>
+  const updateAvance = (opId, sku, val, meta) => {
+    const num = Number(val) || 0
+    const clamped = Math.min(Math.max(num, 0), meta)
     setProgreso(prev => ({
       ...prev,
-      [opId]: { ...prev[opId], avances: { ...prev[opId]?.avances, [sku]: Number(val) || 0 } },
+      [opId]: { ...prev[opId], avances: { ...prev[opId]?.avances, [sku]: clamped } },
     }))
+  }
 
   const updateNotas = (opId, val) =>
     setProgreso(prev => ({ ...prev, [opId]: { ...prev[opId], notas: val } }))
@@ -2497,7 +2507,7 @@ function TabAsignacionSeguimiento({ produccion }) {
                             <td style={{ padding: '7px 10px', textAlign: 'right' }}>{meta.toLocaleString('es-PE')}</td>
                             <td style={{ padding: '7px 10px', textAlign: 'right' }}>
                               <input type="number" min={0} max={meta} value={av}
-                                onChange={e => updateAvance(op.id, s, e.target.value)}
+                                onChange={e => updateAvance(op.id, s, e.target.value, meta)}
                                 style={{ width: 90, padding: '3px 7px', border: '1px solid #e2e8f0', borderRadius: 6, textAlign: 'right', fontSize: 13 }} />
                             </td>
                             <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: STATUS_COLOR(pct) }}>{pct}%</td>
