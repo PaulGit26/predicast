@@ -12,6 +12,7 @@ export const authOptions = {
           scope: 'openid profile email',
         },
       },
+      httpOptions: { timeout: 10000 },
     }),
   ],
   callbacks: {
