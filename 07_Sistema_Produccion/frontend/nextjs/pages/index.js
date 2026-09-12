@@ -2414,7 +2414,7 @@ function TabAsignacionSeguimiento({ produccion }) {
   const VIEW_DESC = {
     asignar:     'Define cuántas unidades producirá cada operario esta semana. Distribuye la meta del sistema entre tu equipo y guarda la asignación para que quede registrada.',
     seguimiento: 'Registra el avance real de cada operario conforme avanza la semana. Actualiza los valores al consultar con tu equipo y guarda por separado para cada operario.',
-    resumen:     'Revisa el historial completo de asignaciones y avances. Filtra por semana para ver ese período, o por operario para ver su desempeño histórico.',
+    resumen:     'Visualiza el desempeño global de producción con gráficos en tiempo real. Analiza tendencias por semana, comparación entre SKUs y el avance acumulado de cada operario.',
   }
 
   const ViewBtn = ({ id, label }) => (
@@ -2939,252 +2939,272 @@ function TabAsignacionSeguimiento({ produccion }) {
 
       {/* ── VISTA RESUMEN ─────────────────────────────────────────────────────── */}
       {view === 'resumen' && (() => {
-        const tabBtn = (active) => ({
-          padding: '8px 20px', borderRadius: 7, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
-          background: active ? '#1a237e' : 'transparent',
-          color:      active ? '#fff'    : '#64748b',
-          transition: 'all 0.15s',
+        // ── Aggregate from all weeks ──────────────────────────────────────────
+        const sortedWeeks = [...allWeeksData].sort((a, b) =>
+          (a.fecha_inicio || a.semana || '').localeCompare(b.fecha_inicio || b.semana || '')
+        )
+
+        const opMap = new Map()
+        sortedWeeks.forEach(w => {
+          const skus = Object.entries(w.metas_sku || {}).filter(([, v]) => v > 0).map(([k]) => k)
+          ;(w.operarios || []).forEach(op => {
+            const prog = (w.progreso || {})[op.id] || { avances: {} }
+            const meta = skus.reduce((s, k) => s + (op.asignaciones?.[k] || 0), 0)
+            const av   = skus.reduce((s, k) => s + (prog.avances?.[k] || 0), 0)
+            if (!opMap.has(op.nombre)) {
+              opMap.set(op.nombre, { nombre: op.nombre, email: op.email, token: op.token, id: op.id, totalMeta: 0, totalAv: 0, weeks: 0 })
+            }
+            const e = opMap.get(op.nombre)
+            e.totalMeta += meta
+            e.totalAv   += av
+            e.weeks     += 1
+            if (op.email) e.email = op.email
+            if (op.token) e.token = op.token
+            if (op.id)    e.id    = op.id
+          })
         })
-        const KPICard = ({ label, value, sub, color }) => (
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', flex: 1, minWidth: 130 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: color || '#1a237e', lineHeight: 1 }}>{value}</div>
-            {sub && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{sub}</div>}
-          </div>
-        )
-        const OpCard = ({ op, prog, skus, totalMeta, totalAv, totalPct, showActions }) => (
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '18px 20px', marginBottom: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-              <div>
-                <div style={{ fontWeight: 700, color: '#1a237e', fontSize: 15 }}>{op.nombre || '—'}</div>
-                {op.email && <div style={{ fontSize: 12, color: '#64748b' }}>{op.email}</div>}
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }} className="no-print">
-                <span style={{ background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '3px 12px', borderRadius: 20, fontWeight: 700, fontSize: 12 }}>
-                  {STATUS_LABEL(totalPct)} · {totalPct}%
-                </span>
-                {showActions && <>
-                  <button onClick={() => copyLink(op.token)} style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>🔗 Link</button>
-                  {op.email && <button onClick={() => mailtoOp(op)} style={{ background: '#f0fdfe', color: '#0e7490', border: '1px solid #a5f3fc', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>📧 Enviar</button>}
-                </>}
-              </div>
-            </div>
-            <div style={{ height: 5, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden', marginBottom: 12 }}>
-              <div style={{ height: '100%', width: `${Math.min(100, totalPct)}%`, background: STATUS_COLOR(totalPct), borderRadius: 3, transition: 'width 0.4s' }} />
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {skus.map(s => {
-                const meta = op.asignaciones?.[s] || 0
-                const av   = prog.avances?.[s] || 0
-                const pct  = meta > 0 ? Math.min(100, Math.round(av / meta * 100)) : 0
-                return (
-                  <div key={s} style={{ background: '#f8fafc', borderLeft: `3px solid ${STATUS_COLOR(pct)}`, borderRadius: 8, padding: '8px 14px', minWidth: 100 }}>
-                    <div style={{ fontWeight: 700, color: '#0e7490', fontSize: 11 }}>{s}</div>
-                    <div style={{ fontWeight: 800, fontSize: 16, color: '#1a237e' }}>{meta.toLocaleString('es-PE')}</div>
-                    <div style={{ fontSize: 11, color: STATUS_COLOR(pct) }}>Av: {av.toLocaleString('es-PE')} ({pct}%)</div>
-                    <div style={{ height: 3, background: '#e2e8f0', borderRadius: 2, marginTop: 5 }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: STATUS_COLOR(pct), borderRadius: 2 }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            {prog.notas && <div style={{ marginTop: 10, fontSize: 12, color: '#92400e', background: '#fffbeb', padding: '6px 10px', borderRadius: 6 }}>Nota: {prog.notas}</div>}
-          </div>
-        )
+        const opSummary = [...opMap.values()].sort((a, b) => {
+          const pa = a.totalMeta > 0 ? a.totalAv / a.totalMeta : 0
+          const pb = b.totalMeta > 0 ? b.totalAv / b.totalMeta : 0
+          return pb - pa
+        })
 
-        // ── KPIs para Por Semana
-        const semTotalMeta = resWeekOps.reduce((s, op) => s + resWeekSKUs.reduce((t, k) => t + (op.asignaciones?.[k] || 0), 0), 0)
-        const semTotalAv   = resWeekOps.reduce((s, op) => {
-          const p = resWeekProg[op.id] || {}
-          return s + resWeekSKUs.reduce((t, k) => t + (p.avances?.[k] || 0), 0)
-        }, 0)
-        const semPct = semTotalMeta > 0 ? Math.round(semTotalAv / semTotalMeta * 100) : 0
+        const grandMeta = opSummary.reduce((s, o) => s + o.totalMeta, 0)
+        const grandAv   = opSummary.reduce((s, o) => s + o.totalAv, 0)
+        const grandPct  = grandMeta > 0 ? Math.round(grandAv / grandMeta * 100) : 0
 
-        // ── KPIs para Por Operario
-        const opTotalMeta = resOpRows.reduce((s, r) => s + r.totalMeta, 0)
-        const opTotalAv   = resOpRows.reduce((s, r) => s + r.totalAv, 0)
-        const opAvgPct    = resOpRows.length > 0 ? Math.round(resOpRows.reduce((s, r) => s + r.pct, 0) / resOpRows.length) : 0
+        const skuMap = new Map()
+        sortedWeeks.forEach(w => {
+          const skus = Object.entries(w.metas_sku || {}).filter(([, v]) => v > 0).map(([k]) => k)
+          ;(w.operarios || []).forEach(op => {
+            const prog = (w.progreso || {})[op.id] || { avances: {} }
+            skus.forEach(s => {
+              if (!skuMap.has(s)) skuMap.set(s, { sku: s, meta: 0, av: 0 })
+              const e = skuMap.get(s)
+              e.meta += op.asignaciones?.[s] || 0
+              e.av   += prog.avances?.[s] || 0
+            })
+          })
+        })
+        const skuData = [...skuMap.values()].sort((a, b) => b.meta - a.meta)
+
+        const weekChartData = sortedWeeks.map(w => {
+          const ops  = w.operarios || []
+          const prog = w.progreso  || {}
+          const skus = Object.entries(w.metas_sku || {}).filter(([, v]) => v > 0).map(([k]) => k)
+          const meta = ops.reduce((s, op) => s + skus.reduce((t, k) => t + (op.asignaciones?.[k] || 0), 0), 0)
+          const av   = ops.reduce((s, op) => {
+            const p = prog[op.id] || { avances: {} }
+            return s + skus.reduce((t, k) => t + (p.avances?.[k] || 0), 0)
+          }, 0)
+          const pct = meta > 0 ? Math.round(av / meta * 100) : 0
+          return { semana: (w.fecha_inicio || w.semana || '').slice(5), meta, av, pct }
+        })
+
+        const donutData = [
+          { name: 'Producido', value: grandAv },
+          { name: 'Pendiente', value: Math.max(0, grandMeta - grandAv) },
+        ]
+        const DONUT_COLORS = [STATUS_COLOR(grandPct), '#e2e8f0']
+
+        const mailtoOpReport = (op) => {
+          const lines = sortedWeeks.map(w => {
+            const o = (w.operarios || []).find(x => x.nombre === op.nombre)
+            if (!o) return null
+            const prog = (w.progreso || {})[o.id] || { avances: {} }
+            const skus = Object.entries(w.metas_sku || {}).filter(([, v]) => v > 0).map(([k]) => k)
+            const meta = skus.reduce((s, k) => s + (o.asignaciones?.[k] || 0), 0)
+            const av   = skus.reduce((s, k) => s + (prog.avances?.[k] || 0), 0)
+            const pct  = meta > 0 ? Math.round(av / meta * 100) : 0
+            return `  - Semana ${w.fecha_inicio || w.semana}: ${av.toLocaleString('es-PE')} / ${meta.toLocaleString('es-PE')} uds. (${pct}%)`
+          }).filter(Boolean)
+          const opPct = op.totalMeta > 0 ? Math.round(op.totalAv / op.totalMeta * 100) : 0
+          const body = [
+            `Hola ${op.nombre},`,
+            ``,
+            `A continuación tu resumen de producción acumulado:`,
+            ``,
+            ...lines,
+            ``,
+            `Total producido: ${op.totalAv.toLocaleString('es-PE')} de ${op.totalMeta.toLocaleString('es-PE')} unidades (${opPct}%)`,
+            `Estado general: ${STATUS_LABEL(opPct)}`,
+            ``,
+            `Saludos,`,
+            `Gerencia de Producción — Predicast`,
+          ].join('\n')
+          window.location.href = `mailto:${op.email}?subject=Tu reporte de producción — Predicast&body=${encodeURIComponent(body)}`
+        }
 
         return (
           <div>
             <style>{`@media print { .no-print { display: none !important; } }`}</style>
 
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }} className="no-print">
-              <div style={{ display: 'flex', gap: 2, background: '#f1f5f9', borderRadius: 10, padding: 4 }}>
-                <button style={tabBtn(resumeMode === 'semana')}   onClick={() => setResumeMode('semana')}>📅 Por Semana</button>
-                <button style={tabBtn(resumeMode === 'operario')} onClick={() => setResumeMode('operario')}>👤 Por Operario</button>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => window.print()} style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>🖨️ Imprimir</button>
-                {resumeMode === 'semana' && resWeekOps.some(o => o.email) && (
-                  <button onClick={mailtoAll} style={{ background: '#0e7490', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>📧 Enviar a todos</button>
-                )}
-              </div>
-            </div>
-
             {/* Loading */}
             {!allWeeksLoaded && (
-              <div style={{ textAlign: 'center', padding: 48, color: '#94a3b8', fontSize: 14 }}>Cargando datos históricos...</div>
-            )}
-
-            {allWeeksLoaded && resWeeks.length === 0 && (
-              <div style={{ textAlign: 'center', padding: 48, color: '#94a3b8', fontSize: 14 }}>No hay semanas guardadas aún.</div>
-            )}
-
-            {/* ── POR SEMANA ──────────────────────────────────────────── */}
-            {allWeeksLoaded && resWeeks.length > 0 && resumeMode === 'semana' && (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Semana:</label>
-                  <select
-                    value={resumeSelectedWeek || (resActiveWeek?.fecha_inicio || resActiveWeek?.semana || '')}
-                    onChange={e => setResumeSelectedWeek(e.target.value)}
-                    style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 12px', fontSize: 13, fontWeight: 500, color: '#1a237e', cursor: 'pointer' }}
-                  >
-                    {resWeeks.map(w => {
-                      const key = w.fecha_inicio || w.semana
-                      return <option key={key} value={key}>{key} · {w.operarios?.length || 0} operarios</option>
-                    })}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-                  <KPICard label="Operarios" value={resWeekOps.length} sub="asignados esta semana" />
-                  <KPICard label="Meta total" value={semTotalMeta.toLocaleString('es-PE')} sub="unidades programadas" />
-                  <KPICard label="Avance total" value={semTotalAv.toLocaleString('es-PE')} sub="unidades producidas" />
-                  <KPICard label="% Completado" value={`${semPct}%`} sub="completado" color={STATUS_COLOR(semPct)} />
-                </div>
-                <div style={{ height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden', marginBottom: 20 }}>
-                  <div style={{ height: '100%', width: `${Math.min(100, semPct)}%`, background: STATUS_COLOR(semPct), borderRadius: 3, transition: 'width 0.4s' }} />
-                </div>
-                {resWeekOps.length === 0
-                  ? <div style={{ textAlign: 'center', padding: 32, color: '#94a3b8', fontSize: 13 }}>Sin operarios asignados para esta semana.</div>
-                  : resWeekOps.map(op => {
-                      const p = resWeekProg[op.id] || { avances: {}, notas: '' }
-                      const totalMeta = resWeekSKUs.reduce((s, k) => s + (op.asignaciones?.[k] || 0), 0)
-                      const totalAv   = resWeekSKUs.reduce((s, k) => s + (p.avances?.[k] || 0), 0)
-                      const totalPct  = totalMeta > 0 ? Math.round(totalAv / totalMeta * 100) : 0
-                      return <OpCard key={op.id} op={op} prog={p} skus={resWeekSKUs} totalMeta={totalMeta} totalAv={totalAv} totalPct={totalPct} showActions />
-                    })
-                }
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '48px 0', justifyContent: 'center', color: '#94a3b8', fontSize: 14 }}>
+                <div style={{ width: 18, height: 18, border: '2px solid #e2e8f0', borderTop: '2px solid #166534', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                Cargando historial de producción...
               </div>
             )}
 
-            {/* ── POR OPERARIO ──────────────────────────────────────────── */}
-            {allWeeksLoaded && resWeeks.length > 0 && resumeMode === 'operario' && (
+            {allWeeksLoaded && sortedWeeks.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '64px 0', color: '#94a3b8', fontSize: 14 }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
+                No hay semanas registradas aún. Comienza asignando operarios en la vista <strong>Asignar</strong>.
+              </div>
+            )}
+
+            {allWeeksLoaded && sortedWeeks.length > 0 && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Operario:</label>
-                  <select
-                    value={resumeSelectedOp}
-                    onChange={e => setResumeSelectedOp(e.target.value)}
-                    style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 12px', fontSize: 13, fontWeight: 500, color: '#1a237e', cursor: 'pointer', minWidth: 200 }}
-                  >
-                    <option value="">— Seleccionar operario —</option>
-                    {resAllOpNames.map(name => <option key={name} value={name}>{name}</option>)}
-                  </select>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 12 }} className="no-print">
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b' }}>Resumen General de Producción</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                      {sortedWeeks.length} semana{sortedWeeks.length !== 1 ? 's' : ''} registrada{sortedWeeks.length !== 1 ? 's' : ''} · {opSummary.length} operario{opSummary.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => window.print()}
+                    style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                    🖨️ Imprimir
+                  </button>
                 </div>
 
-                {!resumeSelectedOp && (
-                  <div style={{ textAlign: 'center', padding: 56, color: '#94a3b8', fontSize: 14 }}>
-                    <div style={{ fontSize: 32, marginBottom: 12 }}>👤</div>
-                    Selecciona un operario para ver su historial de producción por semana.
-                  </div>
-                )}
-
-                {resumeSelectedOp && resOpRows.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: 48, color: '#94a3b8', fontSize: 14 }}>Sin semanas asignadas para este operario.</div>
-                )}
-
-                {resumeSelectedOp && resOpRows.length > 0 && (
-                  <div>
-                    <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-                      <KPICard label="Semanas activas" value={resOpRows.length}                          sub="semanas con asignación" />
-                      <KPICard label="Meta acumulada"  value={opTotalMeta.toLocaleString('es-PE')}      sub="unidades programadas"  />
-                      <KPICard label="Producido total" value={opTotalAv.toLocaleString('es-PE')}        sub="unidades producidas"   />
-                      <KPICard label="Prom. completado" value={`${opAvgPct}%`}                          sub="promedio por semana"   color={STATUS_COLOR(opAvgPct)} />
+                {/* KPI strip */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 22, flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'Semanas registradas', value: sortedWeeks.length,                       sub: 'períodos con asignación',  color: '#1a237e' },
+                    { label: 'Unidades asignadas',  value: grandMeta.toLocaleString('es-PE'),        sub: 'meta acumulada total',     color: '#1a237e' },
+                    { label: 'Unidades producidas', value: grandAv.toLocaleString('es-PE'),          sub: 'avance acumulado total',   color: STATUS_COLOR(grandPct) },
+                    { label: 'Completado general',  value: `${grandPct}%`,                           sub: STATUS_LABEL(grandPct),     color: STATUS_COLOR(grandPct) },
+                  ].map(({ label, value, sub, color }) => (
+                    <div key={label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', flex: '1 1 160px', minWidth: 140, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
+                      <div style={{ fontSize: 26, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>{sub}</div>
                     </div>
+                  ))}
+                </div>
 
-                    {/* Cross-week table */}
-                    <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                          <thead>
-                            <tr style={{ background: '#f8fafc' }}>
-                              <th style={{ padding: '11px 16px', textAlign: 'left', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>Semana</th>
-                              {resOpAllSKUs.map(s => (
-                                <th key={s} style={{ padding: '11px 16px', textAlign: 'right', color: '#0e7490', fontWeight: 700, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{s}</th>
-                              ))}
-                              <th style={{ padding: '11px 16px', textAlign: 'right', color: '#475569', fontWeight: 700, borderBottom: '2px solid #e2e8f0' }}>Total</th>
-                              <th style={{ padding: '11px 16px', textAlign: 'center', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0' }}>Estado</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {resOpRows.map((row, i) => (
-                              <tr key={row.semana} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                <td style={{ padding: '10px 16px', fontWeight: 600, color: '#1a237e', whiteSpace: 'nowrap' }}>{row.semana}</td>
-                                {resOpAllSKUs.map(s => {
-                                  const meta = row.op.asignaciones?.[s] || 0
-                                  const av   = row.prog.avances?.[s] || 0
-                                  const pct  = meta > 0 ? Math.min(100, Math.round(av / meta * 100)) : null
-                                  return (
-                                    <td key={s} style={{ padding: '10px 16px', textAlign: 'right' }}>
-                                      {meta > 0 ? (
-                                        <div>
-                                          <div style={{ fontWeight: 700, color: STATUS_COLOR(pct), fontSize: 13 }}>{av.toLocaleString('es-PE')}</div>
-                                          <div style={{ fontSize: 10, color: '#94a3b8' }}>/ {meta.toLocaleString('es-PE')}</div>
-                                          <div style={{ height: 3, background: '#e2e8f0', borderRadius: 2, marginTop: 3, minWidth: 50 }}>
-                                            <div style={{ height: '100%', width: `${pct}%`, background: STATUS_COLOR(pct), borderRadius: 2 }} />
-                                          </div>
-                                        </div>
-                                      ) : <span style={{ color: '#cbd5e1' }}>—</span>}
-                                    </td>
-                                  )
-                                })}
-                                <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 800, color: STATUS_COLOR(row.pct) }}>
-                                  {row.totalAv.toLocaleString('es-PE')}
-                                  <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>/ {row.totalMeta.toLocaleString('es-PE')}</div>
-                                </td>
-                                <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                                  <span style={{ background: STATUS_BG(row.pct), color: STATUS_COLOR(row.pct), padding: '3px 10px', borderRadius: 20, fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>
-                                    {STATUS_LABEL(row.pct)} · {row.pct}%
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr style={{ background: '#eef2ff', borderTop: '2px solid #c7d2fe' }}>
-                              <td style={{ padding: '11px 16px', fontWeight: 700, color: '#1a237e', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</td>
-                              {resOpAllSKUs.map(s => {
-                                const tMeta = resOpRows.reduce((t, r) => t + (r.op.asignaciones?.[s] || 0), 0)
-                                const tAv   = resOpRows.reduce((t, r) => t + (r.prog.avances?.[s] || 0), 0)
-                                const pct   = tMeta > 0 ? Math.round(tAv / tMeta * 100) : null
-                                return (
-                                  <td key={s} style={{ padding: '11px 16px', textAlign: 'right', fontWeight: 700 }}>
-                                    {tMeta > 0
-                                      ? <span style={{ color: STATUS_COLOR(pct) }}>{tAv.toLocaleString('es-PE')}<span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}> / {tMeta.toLocaleString('es-PE')}</span></span>
-                                      : <span style={{ color: '#cbd5e1' }}>—</span>}
-                                  </td>
-                                )
-                              })}
-                              <td style={{ padding: '11px 16px', textAlign: 'right', fontWeight: 800, color: STATUS_COLOR(opAvgPct) }}>
-                                {opTotalAv.toLocaleString('es-PE')}
-                                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>/ {opTotalMeta.toLocaleString('es-PE')}</div>
-                              </td>
-                              <td style={{ padding: '11px 16px', textAlign: 'center' }}>
-                                <span style={{ background: STATUS_BG(opAvgPct), color: STATUS_COLOR(opAvgPct), padding: '3px 10px', borderRadius: 20, fontWeight: 700, fontSize: 11 }}>
-                                  Prom. {opAvgPct}%
-                                </span>
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
+                {/* Charts row */}
+                <div style={{ display: 'flex', gap: 16, marginBottom: 22, flexWrap: 'wrap' }}>
+                  {/* Donut: overall */}
+                  <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 24px', flex: '0 0 210px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Completado global</div>
+                    <div style={{ position: 'relative', height: 140 }}>
+                      <ResponsiveContainer width="100%" height={140}>
+                        <PieChart>
+                          <Pie data={donutData} cx="50%" cy="50%" innerRadius={44} outerRadius={64} startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
+                            {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: STATUS_COLOR(grandPct), lineHeight: 1 }}>{grandPct}%</div>
+                        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>del total</div>
                       </div>
                     </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 6 }}>
+                      {[['Producido', DONUT_COLORS[0]], ['Pendiente', '#e2e8f0']].map(([lbl, clr]) => (
+                        <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: 2, background: clr }} />
+                          <span style={{ color: '#64748b' }}>{lbl}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
+
+                  {/* Bar: weekly % */}
+                  <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 24px', flex: '1 1 260px', minWidth: 220, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>% Completado por semana</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 14 }}>Evolución del avance semana a semana</div>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={weekChartData} margin={{ top: 4, right: 4, bottom: 0, left: -18 }} barSize={22}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis dataKey="semana" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+                        <Tooltip formatter={(v) => [`${v}%`, 'Completado']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                        <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                          {weekChartData.map((entry, i) => <Cell key={i} fill={STATUS_COLOR(entry.pct)} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Bar: SKU meta vs av */}
+                  <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 24px', flex: '1 1 260px', minWidth: 220, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Producción por SKU</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 14 }}>Meta acumulada vs. unidades producidas</div>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={skuData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }} barSize={14}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis dataKey="sku" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${Math.round(v / 1000)}k` : v} />
+                        <Tooltip formatter={(v, n) => [v.toLocaleString('es-PE'), n === 'meta' ? 'Meta' : 'Producido']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Bar dataKey="meta" name="Meta"      fill="#c7d2fe" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="av"   name="Producido" fill="#1a237e" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Operator performance table */}
+                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                  <div style={{ padding: '16px 22px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Desempeño por operario</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Producción acumulada a través de todas las semanas registradas</div>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc' }}>
+                          {['Operario', 'Semanas', 'Meta total', 'Producido', 'Progreso', 'Estado', 'Reporte'].map((h, i) => (
+                            <th key={h} style={{ padding: '11px 18px', textAlign: i < 2 ? 'left' : 'right', color: '#374151', fontWeight: 700, fontSize: 12, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {opSummary.map((op, i) => {
+                          const pct = op.totalMeta > 0 ? Math.round(op.totalAv / op.totalMeta * 100) : 0
+                          return (
+                            <tr key={op.nombre} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                              <td style={{ padding: '14px 18px' }}>
+                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>{op.nombre}</div>
+                                {op.email && <div style={{ fontSize: 11, color: '#94a3b8' }}>{op.email}</div>}
+                              </td>
+                              <td style={{ padding: '14px 18px', color: '#64748b', fontWeight: 600 }}>{op.weeks}</td>
+                              <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 600, color: '#374151' }}>{op.totalMeta.toLocaleString('es-PE')}</td>
+                              <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 700, color: STATUS_COLOR(pct) }}>{op.totalAv.toLocaleString('es-PE')}</td>
+                              <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                                  <div style={{ width: 80, height: 6, background: '#e2e8f0', borderRadius: 3, flexShrink: 0 }}>
+                                    <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: STATUS_COLOR(pct), borderRadius: 3 }} />
+                                  </div>
+                                  <span style={{ fontWeight: 800, color: STATUS_COLOR(pct), minWidth: 38, textAlign: 'right' }}>{pct}%</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                                <span style={{ background: STATUS_BG(pct), color: STATUS_COLOR(pct), padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                  {STATUS_LABEL(pct)}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 18px', textAlign: 'right' }} className="no-print">
+                                {op.email
+                                  ? <button onClick={() => mailtoOpReport(op)}
+                                      style={{ background: '#f0fdfe', color: '#0e7490', border: '1px solid #a5f3fc', borderRadius: 7, padding: '5px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                      📧 Enviar reporte
+                                    </button>
+                                  : <span style={{ fontSize: 12, color: '#cbd5e1' }}>Sin email</span>
+                                }
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
           </div>
