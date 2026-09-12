@@ -2394,11 +2394,19 @@ function TabAsignacionSeguimiento({ produccion }) {
   }
 
   // ── Header shared across views ──────────────────────────────────────────────
+  const VIEW_DESC = {
+    asignar:     'Define cuántas unidades producirá cada operario esta semana. Distribuye la meta del sistema entre tu equipo y guarda la asignación para que quede registrada.',
+    seguimiento: 'Registra el avance real de cada operario conforme avanza la semana. Actualiza los valores al consultar con tu equipo y guarda por separado para cada operario.',
+    resumen:     'Revisa el historial completo de asignaciones y avances. Filtra por semana para ver ese período, o por operario para ver su desempeño histórico.',
+  }
+
   const ViewBtn = ({ id, label }) => (
     <button onClick={() => setView(id)} style={{
-      padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
-      background: view === id ? '#166534' : '#f1f5f9',
-      color: view === id ? '#fff' : '#64748b',
+      padding: '11px 22px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+      background: 'transparent',
+      color: view === id ? '#166534' : '#64748b',
+      borderBottom: `2px solid ${view === id ? '#166534' : 'transparent'}`,
+      marginBottom: -2,
       transition: 'all 0.15s',
     }}>{label}</button>
   )
@@ -2448,14 +2456,19 @@ function TabAsignacionSeguimiento({ produccion }) {
 
   return (
     <div>
-      {/* View selector */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: 8 }}>
+      {/* Tab bar */}
+      <div style={{ borderBottom: '2px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex' }}>
           <ViewBtn id="asignar"     label="① Asignar" />
           <ViewBtn id="seguimiento" label="② Seguimiento" />
           <ViewBtn id="resumen"     label="③ Resumen" />
         </div>
-        {view !== 'resumen' && <WeekSelect />}
+        {view !== 'resumen' && <div style={{ paddingBottom: 10 }}><WeekSelect /></div>}
+      </div>
+
+      {/* Description strip */}
+      <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '10px 16px', marginBottom: 22, fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+        {VIEW_DESC[view]}
       </div>
 
       {msg && (
@@ -2469,14 +2482,27 @@ function TabAsignacionSeguimiento({ produccion }) {
         <div>
           {/* Metas de la semana */}
           <SectionTitle sub="Producción recomendada por el sistema para esta semana">Metas de la semana</SectionTitle>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
-            {activeSKUs.map(s => (
-              <div key={s} style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '12px 18px', minWidth: 130 }}>
-                <div style={{ fontSize: 11, color: '#166534', fontWeight: 600, marginBottom: 4 }}>{s}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#166534' }}>{(week.metas[s] || 0).toLocaleString('es-PE')}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>unidades</div>
-              </div>
-            ))}
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 28 }}>
+            {activeSKUs.map(s => {
+              const metaVal   = week.metas[s] || 0
+              const asigTotal = weekLoading ? 0 : operarios.reduce((sum, o) => sum + (o.asignaciones[s] || 0), 0)
+              const pct  = metaVal > 0 ? Math.min(100, Math.round(asigTotal / metaVal * 100)) : 0
+              const over = asigTotal > metaVal
+              return (
+                <div key={s} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: '16px 20px', minWidth: 180, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', flex: '1 1 180px', maxWidth: 260 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s}</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: '#1e293b', lineHeight: 1.1, marginBottom: 2 }}>{metaVal.toLocaleString('es-PE')}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>unidades · meta del sistema</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
+                    <span style={{ color: over ? '#dc2626' : '#64748b' }}>Asignado: <strong>{asigTotal.toLocaleString('es-PE')}</strong></span>
+                    <span style={{ fontWeight: 700, color: pct === 100 && !over ? '#166534' : over ? '#dc2626' : '#f59e0b' }}>{pct}%</span>
+                  </div>
+                  <div style={{ height: 5, background: '#e2e8f0', borderRadius: 3 }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: over ? '#ef4444' : pct === 100 ? '#22c55e' : '#f59e0b', borderRadius: 3, transition: 'width 0.3s' }} />
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Tabla de distribución */}
@@ -2492,79 +2518,82 @@ function TabAsignacionSeguimiento({ produccion }) {
               Agrega operarios para distribuir las metas.
             </div>
           ) : (
-            <div style={{ overflowX: 'auto', marginBottom: 16 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0', minWidth: 160 }}>Operario</th>
-                    {activeSKUs.map(s => (
-                      <th key={s} style={{ padding: '10px 12px', textAlign: 'right', color: '#166534', fontWeight: 600, borderBottom: '2px solid #e2e8f0', minWidth: 100 }}>{s}</th>
-                    ))}
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0' }}>Total</th>
-                    <th style={{ width: 36, borderBottom: '2px solid #e2e8f0' }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {operarios.map((op, i) => {
-                    const total = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
-                    return (
-                      <tr key={op.id} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                        <td style={{ padding: '8px 12px' }}>
-                          <input value={op.nombre} placeholder="Nombre del operario"
-                            onChange={e => updateOp(op.id, 'nombre', e.target.value)}
-                            style={{ width: '100%', padding: '4px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, fontWeight: 600, color: '#1a237e', boxSizing: 'border-box' }} />
-                          <input value={op.email} placeholder="email@empresa.com"
-                            onChange={e => updateOp(op.id, 'email', e.target.value)}
-                            style={{ width: '100%', padding: '3px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11, color: '#64748b', marginTop: 4, boxSizing: 'border-box' }} />
-                        </td>
-                        {activeSKUs.map(s => {
-                          const meta = week.metas[s] || 0
-                          const total_asig = operarios.reduce((sum, o) => sum + (o.asignaciones[s] || 0), 0)
-                          const over = total_asig > meta
-                          return (
-                            <td key={s} style={{ padding: '8px 12px', textAlign: 'right' }}>
-                              <input type="number" min={0} value={op.asignaciones[s] || 0}
-                                onChange={e => updateOpSKU(op.id, s, e.target.value)}
-                                style={{ width: 90, padding: '4px 8px', border: `1px solid ${over ? '#fca5a5' : '#e2e8f0'}`, borderRadius: 6, fontSize: 13, textAlign: 'right', background: over ? '#fef2f2' : '#fff' }} />
-                            </td>
-                          )
-                        })}
-                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#1a237e' }}>{total.toLocaleString('es-PE')}</td>
-                        <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                          <button onClick={() => removeOp(op.id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, lineHeight: 1 }}>×</button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: '#f0fdf4', fontWeight: 700 }}>
-                    <td style={{ padding: '10px 12px', color: '#166534', borderTop: '2px solid #86efac' }}>Total asignado</td>
-                    {activeSKUs.map(s => {
-                      const total = operarios.reduce((sum, o) => sum + (o.asignaciones[s] || 0), 0)
-                      const meta  = week.metas[s] || 0
-                      const diff  = total - meta
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 16 }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', color: '#374151', fontWeight: 700, minWidth: 200 }}>Operario</th>
+                      {activeSKUs.map(s => (
+                        <th key={s} style={{ padding: '12px 16px', textAlign: 'right', color: '#166534', fontWeight: 700, minWidth: 120 }}>{s}</th>
+                      ))}
+                      <th style={{ padding: '12px 16px', textAlign: 'right', color: '#374151', fontWeight: 700, minWidth: 80 }}>Total</th>
+                      <th style={{ width: 44 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {operarios.map((op, i) => {
+                      const total = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
                       return (
-                        <td key={s} style={{ padding: '10px 12px', textAlign: 'right', borderTop: '2px solid #86efac' }}>
-                          <div style={{ color: diff === 0 ? '#166534' : diff > 0 ? '#991b1b' : '#92400e' }}>{total.toLocaleString('es-PE')}</div>
-                          <div style={{ fontSize: 10, fontWeight: 400, color: '#94a3b8' }}>meta: {meta.toLocaleString('es-PE')}</div>
-                          {diff !== 0 && <div style={{ fontSize: 10, color: diff > 0 ? '#991b1b' : '#92400e' }}>{diff > 0 ? `+${diff}` : diff}</div>}
-                        </td>
+                        <tr key={op.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 16px' }}>
+                            <input value={op.nombre} placeholder="Nombre del operario"
+                              onChange={e => updateOp(op.id, 'nombre', e.target.value)}
+                              style={{ width: '100%', padding: '5px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 13, fontWeight: 700, color: '#1e3a5f', boxSizing: 'border-box', background: '#fff' }} />
+                            <input value={op.email} placeholder="email@empresa.com"
+                              onChange={e => updateOp(op.id, 'email', e.target.value)}
+                              style={{ width: '100%', padding: '4px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 11, color: '#64748b', marginTop: 5, boxSizing: 'border-box', background: '#fff' }} />
+                          </td>
+                          {activeSKUs.map(s => {
+                            const meta = week.metas[s] || 0
+                            const total_asig = operarios.reduce((sum, o) => sum + (o.asignaciones[s] || 0), 0)
+                            const over = total_asig > meta
+                            return (
+                              <td key={s} style={{ padding: '10px 16px', textAlign: 'right', verticalAlign: 'middle' }}>
+                                <input type="number" min={0} value={op.asignaciones[s] || 0}
+                                  onChange={e => updateOpSKU(op.id, s, e.target.value)}
+                                  style={{ width: 100, padding: '6px 10px', border: `1.5px solid ${over ? '#fca5a5' : '#e2e8f0'}`, borderRadius: 7, fontSize: 13, textAlign: 'right', background: over ? '#fef2f2' : '#fff', fontWeight: 600, color: '#1e293b' }} />
+                              </td>
+                            )
+                          })}
+                          <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 800, color: '#1a237e', fontSize: 14 }}>{total.toLocaleString('es-PE')}</td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <button onClick={() => removeOp(op.id)}
+                              style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer', color: '#ef4444', fontSize: 14, fontWeight: 700, width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                          </td>
+                        </tr>
                       )
                     })}
-                    <td style={{ borderTop: '2px solid #86efac' }} /><td style={{ borderTop: '2px solid #86efac' }} />
-                  </tr>
-                </tfoot>
-              </table>
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#f0fdf4' }}>
+                      <td style={{ padding: '12px 16px', color: '#166534', fontWeight: 700, borderTop: '2px solid #86efac' }}>Total asignado</td>
+                      {activeSKUs.map(s => {
+                        const total = operarios.reduce((sum, o) => sum + (o.asignaciones[s] || 0), 0)
+                        const meta  = week.metas[s] || 0
+                        const diff  = total - meta
+                        return (
+                          <td key={s} style={{ padding: '12px 16px', textAlign: 'right', borderTop: '2px solid #86efac' }}>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: diff === 0 ? '#166534' : diff > 0 ? '#991b1b' : '#92400e' }}>{total.toLocaleString('es-PE')}</div>
+                            <div style={{ fontSize: 10, fontWeight: 500, color: '#94a3b8', marginTop: 1 }}>meta: {meta.toLocaleString('es-PE')}</div>
+                            {diff !== 0 && <div style={{ fontSize: 10, fontWeight: 700, color: diff > 0 ? '#991b1b' : '#92400e' }}>{diff > 0 ? `+${diff}` : diff}</div>}
+                          </td>
+                        )
+                      })}
+                      <td style={{ borderTop: '2px solid #86efac' }} /><td style={{ borderTop: '2px solid #86efac' }} />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           )}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <button onClick={addOperario} style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #86efac', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
-              + Agregar operario
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
+            <button onClick={addOperario}
+              style={{ background: 'white', color: '#166534', border: '1.5px solid #86efac', borderRadius: 8, padding: '9px 20px', cursor: 'pointer', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Agregar operario
             </button>
             <button onClick={saveAsignacion} disabled={saving || operarios.length === 0}
-              style={{ background: operarios.length === 0 ? '#e2e8f0' : '#166534', color: operarios.length === 0 ? '#94a3b8' : '#fff', border: 'none', borderRadius: 8, padding: '8px 24px', cursor: operarios.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13 }}>
+              style={{ background: operarios.length === 0 ? '#e2e8f0' : '#166534', color: operarios.length === 0 ? '#94a3b8' : '#fff', border: 'none', borderRadius: 8, padding: '9px 28px', cursor: operarios.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 13, boxShadow: operarios.length > 0 ? '0 2px 6px rgba(22,101,52,0.25)' : 'none' }}>
               {saving ? 'Guardando...' : 'Guardar asignación'}
             </button>
           </div>
