@@ -906,6 +906,7 @@ function fmtWeekDate(dateStr) {
 function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
   const horizon = 52
   const [selectedSku, setSelectedSku] = useState(null)
+  const [showGuide, setShowGuide] = useState(true)
 
   if (!produccion) return (
     <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -996,6 +997,37 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
   return (
     <div>
 
+      {/* ── Guía rápida ── */}
+      {showGuide ? (
+        <div style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)', border: '1px solid #bfdbfe', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>¿Cómo usar el Plan de Producción?</div>
+            <button onClick={() => setShowGuide(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: '0 2px' }} title="Cerrar guía">✕</button>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {[
+              { n: '1', title: 'Revisa los indicadores', desc: 'Las tarjetas resumen cuántos productos necesitan producción y si alguno tiene stock crítico.' },
+              { n: '2', title: 'Selecciona un producto', desc: 'Haz clic en cualquier tarjeta de producto para ver su plan semanal detallado con fechas y cantidades.' },
+              { n: '3', title: 'Consulta el heatmap', desc: 'La tabla inferior muestra la producción mensual de todos los productos. Verde = programado, Rojo = stock crítico.' },
+            ].map(s => (
+              <div key={s.n} style={{ flex: '1 1 200px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#1d4ed8', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{s.n}</div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 2 }}>{s.title}</div>
+                  <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>{s.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <button onClick={() => setShowGuide(true)}
+            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '4px 12px', cursor: 'pointer', fontSize: 12, color: '#1d4ed8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ fontSize: 14, fontWeight: 800 }}>?</span> ¿Cómo usar esta sección?
+          </button>
+        </div>
+      )}
 
       {/* ── KPI cards ── */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -1014,8 +1046,13 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
 
       {/* ── SKU selector ── */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Selecciona un producto para ver su plan detallado
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Selecciona un producto para ver su plan detallado
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
+            Las tarjetas con badge <span style={{ color: '#16a34a', fontWeight: 600 }}>Activo</span> tienen producción programada. Haz clic para ver el detalle semanal.
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
           {(() => {
