@@ -18,7 +18,7 @@ services:
     image: ${ECR_REGISTRY}/predicast-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_URL: https://predicastpe.com
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
       AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
@@ -26,7 +26,7 @@ services:
       AUTH0_API_AUDIENCE: ${AUTH0_API_AUDIENCE}
       AUTH0_MGMT_CLIENT_ID: ${AUTH0_MGMT_CLIENT_ID}
       AUTH0_MGMT_CLIENT_SECRET: ${AUTH0_MGMT_CLIENT_SECRET}
-      NEXT_PUBLIC_API_URL: ${NEXTAUTH_URL}/api
+      NEXT_PUBLIC_API_URL: https://predicastpe.com/api
       BACKEND_URL: http://backend:8000
       DATA_ROOT: /data
       PIPELINE_URL: http://pipeline:5001
