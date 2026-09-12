@@ -2217,6 +2217,7 @@ function TabAsignacionSeguimiento({ produccion }) {
   const [msg, setMsg]           = useState(null)
   const [weekLoading, setWeekLoading] = useState(false)
   const [selOpId, setSelOpId]   = useState(null)
+  const [dirtyOps, setDirtyOps] = useState(new Set())
   const [baseUrl, setBaseUrl]         = useState('')
   const [allWeeksData, setAllWeeksData]       = useState([])
   const [allWeeksLoaded, setAllWeeksLoaded]   = useState(false)
@@ -2276,6 +2277,7 @@ function TabAsignacionSeguimiento({ produccion }) {
     setOperarios([])
     setProgreso({})
     setSelOpId(null)
+    setDirtyOps(new Set())
     fetch(`/api/asignaciones?semana=${week.fecha}`)
       .then(r => r.json())
       .then(d => {
@@ -2336,13 +2338,22 @@ function TabAsignacionSeguimiento({ produccion }) {
       setTimeout(() => setMsg(null), 3000)
       return
     }
-    await fetch('/api/asignaciones', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ semana: week.fecha, operario_id: opId, avances: p.avances, notas: p.notas }),
-    }).catch(() => {})
-    setMsg({ ok: true, text: 'Progreso guardado.' })
-    setTimeout(() => setMsg(null), 2000)
+    setSaving(true)
+    try {
+      await fetch('/api/asignaciones', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ semana: week.fecha, operario_id: opId, avances: p.avances, notas: p.notas }),
+      })
+      setDirtyOps(prev => { const s = new Set(prev); s.delete(opId); return s })
+      setMsg({ ok: true, text: 'Avance guardado correctamente.' })
+      setTimeout(() => setMsg(null), 2500)
+    } catch (_) {
+      setMsg({ ok: false, text: 'Error al guardar. Intenta de nuevo.' })
+      setTimeout(() => setMsg(null), 3000)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const updateAvance = (opId, sku, val, meta) => {
@@ -2352,10 +2363,13 @@ function TabAsignacionSeguimiento({ produccion }) {
       ...prev,
       [opId]: { ...prev[opId], avances: { ...prev[opId]?.avances, [sku]: clamped } },
     }))
+    setDirtyOps(prev => new Set(prev).add(opId))
   }
 
-  const updateNotas = (opId, val) =>
+  const updateNotas = (opId, val) => {
     setProgreso(prev => ({ ...prev, [opId]: { ...prev[opId], notas: val } }))
+    setDirtyOps(prev => new Set(prev).add(opId))
+  }
 
   const copyLink = (token) => {
     navigator.clipboard.writeText(`${baseUrl}/asignacion/${token}`).then(() => {
@@ -2663,7 +2677,12 @@ function TabAsignacionSeguimiento({ produccion }) {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                         <div>
-                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: 16 }}>{op.nombre || '—'}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 800, color: '#1e293b', fontSize: 16 }}>{op.nombre || '—'}</span>
+                            {dirtyOps.has(op.id) && (
+                              <span title="Cambios sin guardar" style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block', flexShrink: 0 }} />
+                            )}
+                          </div>
                           {op.email && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{op.email}</div>}
                         </div>
                         <span style={{ background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '3px 10px', borderRadius: 20, fontWeight: 700, fontSize: 11, flexShrink: 0, marginLeft: 8 }}>
@@ -2728,12 +2747,22 @@ function TabAsignacionSeguimiento({ produccion }) {
                       <span style={{ background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '5px 14px', borderRadius: 20, fontWeight: 700, fontSize: 13 }}>
                         {STATUS_LABEL(totalPct)} · {totalPct}%
                       </span>
-                      <button onClick={() => saveProgreso(op.id)}
-                        style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 22px', cursor: 'pointer', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 6px rgba(22,101,52,0.25)' }}>
+                      <button onClick={() => saveProgreso(op.id)} disabled={saving}
+                        style={{ background: saving ? '#94a3b8' : '#166534', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 22px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, boxShadow: saving ? 'none' : '0 2px 6px rgba(22,101,52,0.25)', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 7 }}>
+                        {saving && <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTop: '2px solid white', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {saving ? 'Guardando...' : 'Guardar avance'}
                       </button>
                     </div>
                   </div>
+
+                  {/* Unsaved changes banner */}
+                  {dirtyOps.has(op.id) && (
+                    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                      <span style={{ fontSize: 16 }}>⚠</span>
+                      <span style={{ color: '#92400e', fontWeight: 600 }}>Tienes cambios sin guardar.</span>
+                      <span style={{ color: '#92400e' }}>Pulsa <strong>Guardar avance</strong> para conservarlos, o se perderán si sales de esta vista.</span>
+                    </div>
+                  )}
 
                   {/* Progress card */}
                   <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 22px', marginBottom: 18, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
