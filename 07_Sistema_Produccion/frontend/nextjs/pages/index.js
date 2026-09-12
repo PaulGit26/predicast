@@ -907,6 +907,7 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
   const horizon = 52
   const [selectedSku, setSelectedSku] = useState(null)
   const [showGuide, setShowGuide] = useState(true)
+  const [chartZoom, setChartZoom] = useState('full')
 
   if (!produccion) return (
     <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -962,6 +963,12 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
     })
     return Object.values(months)
   })() : []
+
+  const selWeeksOfCoverage = (sel && sel.avgDemand > 0) ? Math.floor(sel.stockActual / sel.avgDemand) : 0
+  const selFirstProd = sel ? sel.weeksWithProd[0] : null
+  const chartDisplayData = (chartZoom === 'zoom' && sel && sel.weeksUntilFirst >= 0)
+    ? detailData.slice(Math.max(0, sel.weeksUntilFirst - 2))
+    : detailData
 
   // Overview: monthly heatmap (rows=SKUs, cols=months)
   const overviewMonths = (() => {
@@ -1209,23 +1216,36 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
         <>
           {/* Narrativa */}
           <div style={{ background: `linear-gradient(135deg, ${sel.color}15 0%, white 100%)`, border: `1px solid ${sel.color}40`, borderRadius: 12, padding: '20px 24px', marginBottom: 24 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: sel.color, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: sel.color, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Plan de producción — {sel.sku}
             </div>
-            <p style={{ margin: 0, fontSize: 15, color: '#1e293b', lineHeight: 1.65 }}>
+            <p style={{ margin: 0, fontSize: 15, color: '#1e293b', lineHeight: 1.8 }}>
               {sel.semanasProd > 0 ? (
                 <>
-                  Durante las próximas <strong>{horizon} semanas</strong>, {sel.sku} tiene{' '}
-                  <strong style={{ color: sel.color }}>{sel.semanasProd} semanas de producción</strong> planificadas
-                  con un total de <strong>{fmt(sel.totUnidades)} unidades</strong>.{' '}
-                  Stock actual <strong>{fmt(sel.stockActual)} u.</strong> · Demanda promedio{' '}
-                  <strong>{fmt(sel.avgDemand)} u/sem</strong> · Stock de seguridad <strong>{fmt(sel.stockSeg)} u.</strong>
-                  {sel.hasUrgent && <span style={{ color: RED }}> ⚠ Hay semanas con stock crítico que requieren atención inmediata.</span>}
+                  Con un stock actual de <strong>{fmt(sel.stockActual)} unidades</strong> y una demanda promedio de{' '}
+                  <strong>{fmt(sel.avgDemand)} u/semana</strong>, tienes cobertura para aproximadamente{' '}
+                  <strong style={{ color: sel.color }}>{selWeeksOfCoverage} semanas</strong>.{' '}
+                  Manteniendo el colchón de seguridad de <strong>{fmt(sel.stockSeg)} unidades</strong> (2 semanas de reserva),{' '}
+                  {selFirstProd && (
+                    <>
+                      la primera producción está programada para la semana del{' '}
+                      <strong style={{ color: sel.color }}>{fmtWeekDate(selFirstProd.fecha)}</strong>{' '}
+                      con <strong>{fmt(selFirstProd.produccion)} unidades</strong>.{' '}
+                    </>
+                  )}
+                  A lo largo del horizonte tienes <strong>{sel.semanasProd} eventos de producción</strong>{' '}
+                  planificados, sumando un total de <strong>{fmt(sel.totUnidades)} unidades</strong>.
+                  {sel.hasUrgent && (
+                    <span style={{ color: RED }}>{' '}⚠ Hay semanas donde el stock caerá por debajo del mínimo — revisa el calendario para priorizar esas fechas.</span>
+                  )}
                 </>
               ) : (
                 <>
-                  {sel.sku} tiene stock suficiente para cubrir el horizonte de <strong>{horizon} semanas</strong> sin necesidad de producir.
-                  Stock actual: <strong>{fmt(sel.stockActual)} u.</strong> · Demanda promedio: <strong>{fmt(sel.avgDemand)} u/sem</strong>.
+                  Con un stock actual de <strong>{fmt(sel.stockActual)} unidades</strong> y una demanda promedio de{' '}
+                  <strong>{fmt(sel.avgDemand)} u/semana</strong>, tienes cobertura para aproximadamente{' '}
+                  <strong style={{ color: sel.color }}>{selWeeksOfCoverage} semanas</strong> —{' '}
+                  suficiente para todo el horizonte de planificación de 52 semanas.{' '}
+                  No se requiere producción adicional en este período.
                 </>
               )}
             </p>
@@ -1248,14 +1268,35 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
 
           {/* Gráfico Stock + Producción + Demanda */}
           <div style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-            <h3 style={{ margin: '0 0 4px', color: sel.color, fontSize: 15, fontWeight: 700 }}>
-              Evolución de stock y producción — {sel.sku}
-            </h3>
-            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>
-              Stock semanal, unidades producidas y demanda proyectada. La línea naranja es el stock mínimo de seguridad.
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px', color: sel.color, fontSize: 15, fontWeight: 700 }}>
+                  Evolución de stock y producción — {sel.sku}
+                </h3>
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                  Stock semanal, unidades producidas y demanda proyectada. La línea naranja es el stock mínimo de seguridad.
+                </p>
+              </div>
+              {sel.semanasProd > 0 && (
+                <div style={{ display: 'flex', gap: 4, background: '#f1f5f9', borderRadius: 8, padding: 3, flexShrink: 0 }}>
+                  {[{ key: 'full', label: '52 semanas' }, { key: 'zoom', label: 'Desde producción' }].map(opt => (
+                    <button key={opt.key} onClick={() => setChartZoom(opt.key)}
+                      style={{
+                        padding: '5px 11px', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
+                        background: chartZoom === opt.key ? 'white' : 'transparent',
+                        color: chartZoom === opt.key ? sel.color : '#64748b',
+                        boxShadow: chartZoom === opt.key ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <ResponsiveContainer width="100%" height={280}>
-              <ComposedChart data={detailData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
+              <ComposedChart data={chartDisplayData} margin={{ top: 4, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={v => fmt(v)} />
