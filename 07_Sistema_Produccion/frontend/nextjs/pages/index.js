@@ -903,8 +903,8 @@ function fmtWeekDate(dateStr) {
   return `${String(d.getDate()).padStart(2,'0')} ${months[d.getMonth()]} ${d.getFullYear()}`
 }
 
-function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
-  const [horizon, setHorizon] = useState(52)
+function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
+  const horizon = 52
   const [selectedSku, setSelectedSku] = useState(null)
 
   if (!produccion) return (
@@ -996,23 +996,6 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
   return (
     <div>
 
-      {/* ── Controls ── */}
-      <div style={{ display: 'flex', gap: 32, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div>
-          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
-            Stock de seguridad: <span style={{ color: BLUE }}>{safetyWeeks} sem</span>
-          </label>
-          <input type="range" min={0.5} max={6} step={0.5} value={safetyWeeks}
-            onChange={e => setSafetyWeeks(parseFloat(e.target.value))} style={{ width: 160 }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
-            Horizonte: <span style={{ color: BLUE }}>{horizon} sem</span>
-          </label>
-          <input type="range" min={4} max={52} step={4} value={horizon}
-            onChange={e => { setHorizon(parseInt(e.target.value)) }} style={{ width: 160 }} />
-        </div>
-      </div>
 
       {/* ── KPI cards ── */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -1035,42 +1018,52 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks }) {
           Selecciona un producto para ver su plan detallado
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
-          {skuData.map(d => {
-            const isSelected = selectedSku === d.sku
-            const hasActivity = d.semanasProd > 0
-            return (
-              <button key={d.sku} onClick={() => setSelectedSku(isSelected ? null : d.sku)}
-                style={{
-                  padding: '14px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
-                  border: isSelected ? `2px solid ${d.color}` : '2px solid #e2e8f0',
-                  background: isSelected ? d.color + '12' : 'white',
-                  boxShadow: isSelected ? `0 0 0 3px ${d.color}22` : '0 1px 3px rgba(0,0,0,0.07)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: 16, color: isSelected ? d.color : '#1e293b' }}>{d.sku}</span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, borderRadius: 8, padding: '2px 7px',
-                    background: d.hasUrgent ? '#fee2e2' : hasActivity ? '#dcfce7' : '#f1f5f9',
-                    color: d.hasUrgent ? RED : hasActivity ? GREEN : '#94a3b8',
-                    border: `1px solid ${d.hasUrgent ? '#fca5a5' : hasActivity ? '#86efac' : '#e2e8f0'}`,
-                  }}>
-                    {d.hasUrgent ? '⚠ Crítico' : hasActivity ? 'Activo' : 'Sin prod.'}
-                  </span>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: hasActivity ? '#1e293b' : '#94a3b8', marginBottom: 4 }}>
-                  {fmt(d.totUnidades)} u.
-                </div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>
-                  {d.semanasProd} sem · Stock: {fmt(d.stockActual)}
-                </div>
-                {isSelected && (
-                  <div style={{ marginTop: 8, fontSize: 11, color: d.color, fontWeight: 700 }}>Ver detalle ▼</div>
-                )}
-              </button>
-            )
-          })}
+          {(() => {
+            const descMap = {}
+            if (pareto) pareto.forEach(r => { descMap[r.codigo] = r.descripcion })
+            return skuData.map(d => {
+              const isSelected = selectedSku === d.sku
+              const hasActivity = d.semanasProd > 0
+              const desc = descMap[d.sku] || ''
+              return (
+                <button key={d.sku} onClick={() => setSelectedSku(isSelected ? null : d.sku)}
+                  style={{
+                    padding: '14px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                    border: isSelected ? `2px solid ${d.color}` : '2px solid #e2e8f0',
+                    background: isSelected ? d.color + '12' : 'white',
+                    boxShadow: isSelected ? `0 0 0 3px ${d.color}22` : '0 1px 3px rgba(0,0,0,0.07)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                    <span style={{ fontWeight: 800, fontSize: 16, color: isSelected ? d.color : '#1e293b' }}>{d.sku}</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, borderRadius: 8, padding: '2px 7px',
+                      background: d.hasUrgent ? '#fee2e2' : hasActivity ? '#dcfce7' : '#f1f5f9',
+                      color: d.hasUrgent ? RED : hasActivity ? GREEN : '#94a3b8',
+                      border: `1px solid ${d.hasUrgent ? '#fca5a5' : hasActivity ? '#86efac' : '#e2e8f0'}`,
+                    }}>
+                      {d.hasUrgent ? '⚠ Crítico' : hasActivity ? 'Activo' : 'Sin prod.'}
+                    </span>
+                  </div>
+                  {desc && (
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 6, lineHeight: 1.3, fontWeight: 500 }}>
+                      {desc.length > 32 ? desc.slice(0, 32) + '…' : desc}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 18, fontWeight: 800, color: hasActivity ? '#1e293b' : '#94a3b8', marginBottom: 4 }}>
+                    {fmt(d.totUnidades)} u.
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                    {d.semanasProd} sem · Stock: {fmt(d.stockActual)}
+                  </div>
+                  {isSelected && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: d.color, fontWeight: 700 }}>Ver detalle ▼</div>
+                  )}
+                </button>
+              )
+            })
+          })()}
         </div>
       </div>
 
@@ -1316,7 +1309,7 @@ function downloadCsv(filename, rows, headers) {
 }
 
 function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, setPrecios, skuPlancha }) {
-  const [horizon, setHorizon] = useState(52)
+  const horizon = 52
   const [editando, setEditando] = useState(false)
   const [preciosTemp, setPreciosTemp] = useState(precios)
   const [selectedSku, setSelectedSku] = useState(null)
@@ -1422,23 +1415,6 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
         )}
       </div>
 
-      {/* ── Controls ── */}
-      <div style={{ display: 'flex', gap: 32, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div>
-          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
-            Stock de seguridad: <span style={{ color: TEAL_DARK }}>{safetyWeeks} sem</span>
-          </label>
-          <input type="range" min={0.5} max={6} step={0.5} value={safetyWeeks}
-            onChange={e => setSafetyWeeks(parseFloat(e.target.value))} style={{ width: 150 }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
-            Horizonte: <span style={{ color: TEAL_DARK }}>{horizon} sem</span>
-          </label>
-          <input type="range" min={4} max={52} step={4} value={horizon}
-            onChange={e => { setHorizon(parseInt(e.target.value)); setShowTable(false) }} style={{ width: 150 }} />
-        </div>
-      </div>
 
       {/* ── SKU selector ── */}
       <div style={{ marginBottom: 24 }}>
@@ -3983,6 +3959,7 @@ export default function Home() {
               produccion={produccion}
               safetyWeeks={safetyWeeks}
               setSafetyWeeks={setSafetyWeeks}
+              pareto={pareto}
             />
           )}
           {tab === 'asignacion' && (
