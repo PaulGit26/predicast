@@ -2204,9 +2204,9 @@ function TabAnalisisFinanciero({ eficiencia, precios, skuPlancha }) {
 
 // ─── Tab: Asignación y Seguimiento de Operarios ──────────────────────────────
 
-const STATUS_COLOR = (p) => p >= 80 ? '#166534' : p >= 40 ? '#92400e' : p > 0 ? '#991b1b' : '#64748b'
-const STATUS_BG    = (p) => p >= 80 ? '#f0fdf4' : p >= 40 ? '#fffbeb' : p > 0 ? '#fef2f2' : '#f8fafc'
-const STATUS_LABEL = (p) => p >= 80 ? 'En meta' : p >= 40 ? 'En progreso' : p > 0 ? 'Rezagado' : 'Sin iniciar'
+const STATUS_COLOR = (p) => p >= 100 ? '#166534' : p > 0 ? '#1d4ed8' : '#64748b'
+const STATUS_BG    = (p) => p >= 100 ? '#f0fdf4' : p > 0 ? '#eff6ff' : '#f8fafc'
+const STATUS_LABEL = (p) => p >= 100 ? 'Completado' : p > 0 ? 'En progreso' : 'Sin iniciar'
 
 function TabAsignacionSeguimiento({ produccion }) {
   const [view, setView]         = useState('asignar')
@@ -2740,18 +2740,16 @@ function TabAsignacionSeguimiento({ produccion }) {
                   const tm = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
                   const ta = activeSKUs.reduce((s, k) => s + (p.avances?.[k] || 0), 0)
                   const pct = tm > 0 ? Math.round(ta / tm * 100) : 0
-                  if (pct >= 80) acc.meta++
-                  else if (pct >= 40) acc.progreso++
-                  else if (pct > 0) acc.rezagado++
+                  if (pct >= 100) acc.completado++
+                  else if (pct > 0) acc.progreso++
                   else acc.sinIniciar++
                   return acc
-                }, { meta: 0, progreso: 0, rezagado: 0, sinIniciar: 0 })
+                }, { completado: 0, progreso: 0, sinIniciar: 0 })
                 return (
                   <div style={{ display: 'flex', gap: 12, marginBottom: 22, flexWrap: 'wrap' }}>
                     {[
-                      { label: 'En meta', val: stats.meta,       color: '#166534', bg: '#f0fdf4', border: '#86efac' },
-                      { label: 'En progreso', val: stats.progreso, color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
-                      { label: 'Rezagados', val: stats.rezagado,  color: '#991b1b', bg: '#fef2f2', border: '#fca5a5' },
+                      { label: 'Completado',  val: stats.completado, color: '#166534', bg: '#f0fdf4', border: '#86efac' },
+                      { label: 'En progreso', val: stats.progreso,   color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
                       { label: 'Sin iniciar', val: stats.sinIniciar, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
                     ].map(s => (
                       <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '10px 18px', flex: '1 1 100px', textAlign: 'center' }}>
