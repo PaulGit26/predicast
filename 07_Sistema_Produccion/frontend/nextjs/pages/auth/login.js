@@ -1,11 +1,12 @@
 import { signIn, useSession } from 'next-auth/react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 
 export default function LoginPage() {
   const { status } = useSession()
   const router = useRouter()
   const { error } = router.query
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -42,10 +43,14 @@ export default function LoginPage() {
         )}
 
         <button
-          style={styles.button}
-          onClick={() => signIn('auth0', { callbackUrl: '/' }, { prompt: 'login' })}
+          style={{ ...styles.button, opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          disabled={loading}
+          onClick={() => {
+            setLoading(true)
+            signIn('auth0', { callbackUrl: '/' }, { prompt: 'login' })
+          }}
         >
-          Iniciar sesión con Auth0
+          {loading ? 'Redirigiendo a Auth0...' : 'Iniciar sesión con Auth0'}
         </button>
 
         <p style={styles.footer}>
