@@ -2216,6 +2216,7 @@ function TabAsignacionSeguimiento({ produccion }) {
   const [saving, setSaving]     = useState(false)
   const [msg, setMsg]           = useState(null)
   const [weekLoading, setWeekLoading] = useState(false)
+  const [selOpId, setSelOpId]   = useState(null)
   const [baseUrl, setBaseUrl]         = useState('')
   const [allWeeksData, setAllWeeksData]       = useState([])
   const [allWeeksLoaded, setAllWeeksLoaded]   = useState(false)
@@ -2274,6 +2275,7 @@ function TabAsignacionSeguimiento({ produccion }) {
     setWeekLoading(true)
     setOperarios([])
     setProgreso({})
+    setSelOpId(null)
     fetch(`/api/asignaciones?semana=${week.fecha}`)
       .then(r => r.json())
       .then(d => {
@@ -2603,80 +2605,206 @@ function TabAsignacionSeguimiento({ produccion }) {
       {/* ── VISTA SEGUIMIENTO ─────────────────────────────────────────────────── */}
       {view === 'seguimiento' && (
         <div>
-          <SectionTitle sub="Registra el avance de cada operario — actualiza manualmente al consultar con el equipo">
-            Seguimiento de avance
-          </SectionTitle>
           {weekLoading ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <div style={{ width: 18, height: 18, border: '2px solid #e2e8f0', borderTop: '2px solid #166634', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+            <div style={{ textAlign: 'center', padding: '48px 0', color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <div style={{ width: 18, height: 18, border: '2px solid #e2e8f0', borderTop: '2px solid #166534', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
               Cargando asignaciones de la semana...
             </div>
           ) : operarios.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
-              Primero guarda una asignación en la vista ① Asignar.
+            <div style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8', fontSize: 14 }}>
+              Primero guarda una asignación en la vista <strong>① Asignar</strong>.
             </div>
+          ) : selOpId === null ? (
+
+            /* ── GRID DE CARDS ────────────────────────────────────────────── */
+            <div>
+              {/* Resumen rápido del equipo */}
+              {(() => {
+                const stats = operarios.reduce((acc, op) => {
+                  const p = progreso[op.id] || {}
+                  const tm = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
+                  const ta = activeSKUs.reduce((s, k) => s + (p.avances?.[k] || 0), 0)
+                  const pct = tm > 0 ? Math.round(ta / tm * 100) : 0
+                  if (pct >= 80) acc.meta++
+                  else if (pct >= 40) acc.progreso++
+                  else if (pct > 0) acc.rezagado++
+                  else acc.sinIniciar++
+                  return acc
+                }, { meta: 0, progreso: 0, rezagado: 0, sinIniciar: 0 })
+                return (
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 22, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'En meta', val: stats.meta,       color: '#166534', bg: '#f0fdf4', border: '#86efac' },
+                      { label: 'En progreso', val: stats.progreso, color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+                      { label: 'Rezagados', val: stats.rezagado,  color: '#991b1b', bg: '#fef2f2', border: '#fca5a5' },
+                      { label: 'Sin iniciar', val: stats.sinIniciar, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '10px 18px', flex: '1 1 100px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.val}</div>
+                        <div style={{ fontSize: 11, color: s.color, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              {/* Cards de operarios */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 }}>
+                {operarios.map(op => {
+                  const p = progreso[op.id] || { avances: {}, notas: '' }
+                  const totalMeta = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
+                  const totalAv   = activeSKUs.reduce((s, k) => s + (p.avances?.[k] || 0), 0)
+                  const totalPct  = totalMeta > 0 ? Math.round(totalAv / totalMeta * 100) : 0
+                  return (
+                    <div key={op.id} onClick={() => setSelOpId(op.id)}
+                      style={{ cursor: 'pointer', background: 'white', borderRadius: 14, border: '1.5px solid #e2e8f0', padding: '20px 22px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', transition: 'box-shadow 0.15s, border-color 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = '#94a3b8' }}
+                      onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; e.currentTarget.style.borderColor = '#e2e8f0' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                        <div>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: 16 }}>{op.nombre || '—'}</div>
+                          {op.email && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{op.email}</div>}
+                        </div>
+                        <span style={{ background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '3px 10px', borderRadius: 20, fontWeight: 700, fontSize: 11, flexShrink: 0, marginLeft: 8 }}>
+                          {STATUS_LABEL(totalPct)}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>{totalAv.toLocaleString('es-PE')} / {totalMeta.toLocaleString('es-PE')} u.</span>
+                        <span style={{ fontSize: 20, fontWeight: 800, color: STATUS_COLOR(totalPct) }}>{totalPct}%</span>
+                      </div>
+                      <div style={{ height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden', marginBottom: 14 }}>
+                        <div style={{ height: '100%', width: `${Math.min(100, totalPct)}%`, background: STATUS_COLOR(totalPct), borderRadius: 3, transition: 'width 0.4s' }} />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                        {activeSKUs.map(s => {
+                          const meta = op.asignaciones[s] || 0
+                          const av   = p.avances?.[s] || 0
+                          const pct  = meta > 0 ? Math.min(100, Math.round(av / meta * 100)) : 0
+                          return (
+                            <div key={s} style={{ background: STATUS_BG(pct), border: `1px solid ${STATUS_COLOR(pct)}50`, borderRadius: 7, padding: '4px 9px', fontSize: 11 }}>
+                              <span style={{ fontWeight: 700, color: STATUS_COLOR(pct) }}>{s}</span>
+                              <span style={{ color: '#64748b', marginLeft: 5 }}>{av}/{meta}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, textAlign: 'right' }}>
+                        Ver y editar →
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
           ) : (
-            operarios.map(op => {
+
+            /* ── VISTA DETALLE OPERARIO ───────────────────────────────────── */
+            (() => {
+              const op = operarios.find(o => o.id === selOpId)
+              if (!op) { setSelOpId(null); return null }
               const p = progreso[op.id] || { avances: {}, notas: '' }
               const totalMeta = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
               const totalAv   = activeSKUs.reduce((s, k) => s + (p.avances?.[k] || 0), 0)
               const totalPct  = totalMeta > 0 ? Math.round(totalAv / totalMeta * 100) : 0
               return (
-                <div key={op.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '18px 20px', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  {/* Back + header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                    <button onClick={() => setSelOpId(null)}
+                      style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 13, color: '#475569', fontWeight: 600 }}>
+                      ← Operarios
+                    </button>
                     <div>
-                      <div style={{ fontWeight: 700, color: '#1a237e', fontSize: 15 }}>{op.nombre || '—'}</div>
+                      <div style={{ fontWeight: 800, color: '#1e293b', fontSize: 17 }}>{op.nombre || '—'}</div>
                       {op.email && <div style={{ fontSize: 12, color: '#64748b' }}>{op.email}</div>}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ fontSize: 11, background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '3px 10px', borderRadius: 10, fontWeight: 700 }}>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ background: STATUS_BG(totalPct), color: STATUS_COLOR(totalPct), padding: '5px 14px', borderRadius: 20, fontWeight: 700, fontSize: 13 }}>
                         {STATUS_LABEL(totalPct)} · {totalPct}%
-                      </div>
+                      </span>
                       <button onClick={() => saveProgreso(op.id)}
-                        style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: 7, padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                        Guardar
+                        style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 22px', cursor: 'pointer', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 6px rgba(22,101,52,0.25)' }}>
+                        {saving ? 'Guardando...' : 'Guardar avance'}
                       </button>
                     </div>
                   </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 10 }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc' }}>
-                        {['SKU', 'Meta', 'Avance actual', '%', 'Estado'].map(h => (
-                          <th key={h} style={{ padding: '7px 10px', textAlign: h === 'SKU' ? 'left' : 'right', color: '#475569', fontWeight: 600, borderBottom: '1px solid #e2e8f0', fontSize: 12 }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeSKUs.map(s => {
-                        const meta  = op.asignaciones[s] || 0
-                        const av    = p.avances?.[s] || 0
-                        const pct   = meta > 0 ? Math.min(100, Math.round(av / meta * 100)) : 0
-                        return (
-                          <tr key={s}>
-                            <td style={{ padding: '7px 10px', fontWeight: 600, color: '#0e7490' }}>{s}</td>
-                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>{meta.toLocaleString('es-PE')}</td>
-                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
-                              <input type="number" min={0} max={meta} value={av}
-                                onChange={e => updateAvance(op.id, s, e.target.value, meta)}
-                                style={{ width: 90, padding: '3px 7px', border: '1px solid #e2e8f0', borderRadius: 6, textAlign: 'right', fontSize: 13 }} />
-                            </td>
-                            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: STATUS_COLOR(pct) }}>{pct}%</td>
-                            <td style={{ padding: '7px 10px', textAlign: 'right' }}>
-                              <span style={{ background: STATUS_BG(pct), color: STATUS_COLOR(pct), padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
-                                {STATUS_LABEL(pct)}
-                              </span>
-                            </td>
+
+                  {/* Progress card */}
+                  <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 22px', marginBottom: 18, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Progreso total de la semana</span>
+                      <span style={{ fontSize: 24, fontWeight: 800, color: STATUS_COLOR(totalPct) }}>{totalPct}%</span>
+                    </div>
+                    <div style={{ height: 10, background: '#e2e8f0', borderRadius: 5, overflow: 'hidden', marginBottom: 8 }}>
+                      <div style={{ height: '100%', width: `${Math.min(100, totalPct)}%`, background: STATUS_COLOR(totalPct), borderRadius: 5, transition: 'width 0.4s' }} />
+                    </div>
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                      {totalAv.toLocaleString('es-PE')} de {totalMeta.toLocaleString('es-PE')} unidades completadas
+                    </div>
+                  </div>
+
+                  {/* SKU detail table */}
+                  <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                            {['Producto', 'Meta asignada', 'Avance actual', 'Completado', 'Estado'].map(h => (
+                              <th key={h} style={{ padding: '12px 18px', textAlign: h === 'Producto' ? 'left' : 'right', color: '#374151', fontWeight: 700, fontSize: 12 }}>{h}</th>
+                            ))}
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                  <textarea value={p.notas || ''} onChange={e => updateNotas(op.id, e.target.value)}
-                    placeholder="Notas o incidencias del operario..."
-                    style={{ width: '100%', borderRadius: 7, border: '1px solid #e2e8f0', padding: '8px 10px', fontSize: 12, color: '#475569', resize: 'vertical', minHeight: 54, boxSizing: 'border-box' }} />
+                        </thead>
+                        <tbody>
+                          {activeSKUs.map((s, i) => {
+                            const meta = op.asignaciones[s] || 0
+                            const av   = p.avances?.[s] || 0
+                            const pct  = meta > 0 ? Math.min(100, Math.round(av / meta * 100)) : 0
+                            return (
+                              <tr key={s} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '14px 18px', fontWeight: 700, color: '#0e7490', fontSize: 14 }}>{s}</td>
+                                <td style={{ padding: '14px 18px', textAlign: 'right', fontWeight: 600, color: '#374151' }}>{meta.toLocaleString('es-PE')}</td>
+                                <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                                  <input type="number" min={0} max={meta} value={av}
+                                    onChange={e => updateAvance(op.id, s, e.target.value, meta)}
+                                    style={{ width: 110, padding: '7px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1e293b' }} />
+                                </td>
+                                <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                                    <div style={{ width: 72, height: 5, background: '#e2e8f0', borderRadius: 3 }}>
+                                      <div style={{ height: '100%', width: `${pct}%`, background: STATUS_COLOR(pct), borderRadius: 3 }} />
+                                    </div>
+                                    <span style={{ fontWeight: 800, color: STATUS_COLOR(pct), minWidth: 38, textAlign: 'right' }}>{pct}%</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                                  <span style={{ background: STATUS_BG(pct), color: STATUS_COLOR(pct), padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>
+                                    {STATUS_LABEL(pct)}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 22px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Notas e incidencias</div>
+                    <textarea value={p.notas || ''} onChange={e => updateNotas(op.id, e.target.value)}
+                      placeholder="Registra observaciones, problemas encontrados o cualquier incidencia relevante del operario..."
+                      style={{ width: '100%', borderRadius: 8, border: '1.5px solid #e2e8f0', padding: '10px 14px', fontSize: 13, color: '#475569', resize: 'vertical', minHeight: 90, boxSizing: 'border-box', lineHeight: 1.6 }} />
+                  </div>
                 </div>
               )
-            })
+            })()
           )}
         </div>
       )}
