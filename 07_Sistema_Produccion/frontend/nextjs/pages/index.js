@@ -2227,12 +2227,12 @@ function TabAsignacionSeguimiento({ produccion }) {
 
   useEffect(() => { setBaseUrl(window.location.origin) }, [])
 
-  // Reset allWeeksLoaded when leaving resumen so data refreshes on next visit
-  useEffect(() => { if (view !== 'resumen') setAllWeeksLoaded(false) }, [view])
+  // Reset allWeeksLoaded when entering seguimiento (a view that doesn't need it)
+  useEffect(() => { if (view === 'seguimiento') setAllWeeksLoaded(false) }, [view])
 
-  // Load all historical weeks when entering resumen
+  // Load all historical weeks when entering asignar or resumen
   useEffect(() => {
-    if (view !== 'resumen' || allWeeksLoaded) return
+    if (!['asignar', 'resumen'].includes(view) || allWeeksLoaded) return
     fetch('/api/asignaciones')
       .then(r => r.json())
       .then(async list => {
@@ -2323,6 +2323,7 @@ function TabAsignacionSeguimiento({ produccion }) {
       }
       const d = await r.json()
       setOperarios(d.semana?.operarios || operarios)
+      setAllWeeksLoaded(false)
       setMsg({ ok: true, text: 'Asignación guardada. Los links de operarios ya están disponibles.' })
     } catch (err) {
       setMsg({ ok: false, text: String(err) })
@@ -2496,6 +2497,106 @@ function TabAsignacionSeguimiento({ produccion }) {
       {/* ── VISTA ASIGNAR ──────────────────────────────────────────────────── */}
       {view === 'asignar' && (
         <div>
+          {/* ── Panel de estado de asignaciones por semana ────────────────── */}
+          {(() => {
+            if (!allWeeksLoaded) return (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 18px', marginBottom: 24, fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 14, height: 14, border: '2px solid #e2e8f0', borderTop: '2px solid #166534', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                Verificando estado de asignaciones...
+              </div>
+            )
+            const weekStatusList = productionWeeks.map((pw, idx) => {
+              const saved = allWeeksData.find(w => (w.fecha_inicio || w.semana) === pw.fecha)
+              if (!saved || !saved.operarios?.length) return { idx, pw, status: 'sin_asignar', pct: 0 }
+              const skus = Object.keys(pw.metas).filter(s => pw.metas[s] > 0)
+              let totalMeta = 0, totalAsg = 0
+              skus.forEach(s => {
+                const meta = pw.metas[s] || 0
+                const asg  = saved.operarios.reduce((sum, op) => sum + (op.asignaciones?.[s] || 0), 0)
+                totalMeta += meta; totalAsg += asg
+              })
+              const pct = totalMeta > 0 ? Math.round(totalAsg / totalMeta * 100) : 0
+              const status = pct >= 100 ? 'completo' : pct > 0 ? 'parcial' : 'sin_asignar'
+              return { idx, pw, status, pct, totalMeta, totalAsg }
+            })
+            const counts = { sin_asignar: 0, parcial: 0, completo: 0 }
+            weekStatusList.forEach(w => counts[w.status]++)
+            const pendientes = weekStatusList.filter(w => w.status !== 'completo')
+
+            return (
+              <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px', marginBottom: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14 }}>Estado de asignaciones por semana</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Todas las semanas deben tener 100% de su meta distribuida entre operarios.</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Sin asignar', val: counts.sin_asignar, color: '#991b1b', bg: '#fef2f2', border: '#fca5a5' },
+                      { label: 'Parciales',   val: counts.parcial,     color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+                      { label: 'Completas',   val: counts.completo,    color: '#166534', bg: '#f0fdf4', border: '#86efac' },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 8, padding: '6px 14px', textAlign: 'center', minWidth: 80 }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.val}</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {pendientes.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '12px 0', color: '#166534', fontWeight: 600, fontSize: 13 }}>
+                    Todas las semanas tienen su meta completamente asignada.
+                  </div>
+                ) : (
+                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                      Semanas pendientes ({pendientes.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {pendientes.map(({ idx, pw, status, pct }) => {
+                        const isActive = weekIdx === idx
+                        const skusStr = Object.entries(pw.metas).filter(([,v]) => v > 0).map(([s, v]) => `${s}: ${v.toLocaleString('es-PE')} u.`).join(' · ')
+                        return (
+                          <div key={pw.fecha}
+                            onClick={() => setWeekIdx(idx)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, cursor: 'pointer', border: isActive ? '1.5px solid #166534' : '1px solid #e2e8f0', background: isActive ? '#f0fdf4' : '#fafafa', transition: 'all 0.15s' }}
+                            onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#94a3b8' } }}
+                            onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.borderColor = '#e2e8f0' } }}
+                          >
+                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 13, minWidth: 90 }}>{pw.fecha}</div>
+                            <div style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{skusStr}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {status === 'parcial' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ width: 60, height: 4, background: '#e2e8f0', borderRadius: 2 }}>
+                                    <div style={{ height: '100%', width: `${pct}%`, background: '#f59e0b', borderRadius: 2 }} />
+                                  </div>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e' }}>{pct}%</span>
+                                </div>
+                              )}
+                              <span style={{
+                                fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                                background: status === 'parcial' ? '#fffbeb' : '#fef2f2',
+                                color: status === 'parcial' ? '#92400e' : '#991b1b',
+                                border: `1px solid ${status === 'parcial' ? '#fde68a' : '#fca5a5'}`,
+                              }}>
+                                {status === 'parcial' ? 'Parcial' : 'Sin asignar'}
+                              </span>
+                              <span style={{ fontSize: 12, color: isActive ? '#166534' : '#94a3b8', fontWeight: 700 }}>
+                                {isActive ? 'Editando ↓' : 'Ir →'}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Metas de la semana */}
           <SectionTitle sub="Producción recomendada por el sistema para esta semana">Metas de la semana</SectionTitle>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 28 }}>
