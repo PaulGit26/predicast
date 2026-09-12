@@ -2215,6 +2215,7 @@ function TabAsignacionSeguimiento({ produccion }) {
   const [progreso, setProgreso] = useState({})
   const [saving, setSaving]     = useState(false)
   const [msg, setMsg]           = useState(null)
+  const [weekLoading, setWeekLoading] = useState(false)
   const [baseUrl, setBaseUrl]         = useState('')
   const [allWeeksData, setAllWeeksData]       = useState([])
   const [allWeeksLoaded, setAllWeeksLoaded]   = useState(false)
@@ -2270,6 +2271,9 @@ function TabAsignacionSeguimiento({ produccion }) {
   // Load assignment from server when week changes
   useEffect(() => {
     if (!week?.fecha) return
+    setWeekLoading(true)
+    setOperarios([])
+    setProgreso({})
     fetch(`/api/asignaciones?semana=${week.fecha}`)
       .then(r => r.json())
       .then(d => {
@@ -2277,6 +2281,7 @@ function TabAsignacionSeguimiento({ produccion }) {
         else { setOperarios([]); setProgreso({}) }
       })
       .catch(() => {})
+      .finally(() => setWeekLoading(false))
   }, [week?.fecha])
 
   const addOperario = () => {
@@ -2476,7 +2481,13 @@ function TabAsignacionSeguimiento({ produccion }) {
 
           {/* Tabla de distribución */}
           <SectionTitle sub="Distribuye las metas entre tus operarios">Distribución por operario</SectionTitle>
-          {operarios.length === 0 ? (
+          <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+          {weekLoading ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <div style={{ width: 18, height: 18, border: '2px solid #e2e8f0', borderTop: '2px solid #166534', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+              Cargando asignaciones de la semana...
+            </div>
+          ) : operarios.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
               Agrega operarios para distribuir las metas.
             </div>
@@ -2566,7 +2577,12 @@ function TabAsignacionSeguimiento({ produccion }) {
           <SectionTitle sub="Registra el avance de cada operario — actualiza manualmente al consultar con el equipo">
             Seguimiento de avance
           </SectionTitle>
-          {operarios.length === 0 ? (
+          {weekLoading ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <div style={{ width: 18, height: 18, border: '2px solid #e2e8f0', borderTop: '2px solid #166634', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+              Cargando asignaciones de la semana...
+            </div>
+          ) : operarios.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13 }}>
               Primero guarda una asignación en la vista ① Asignar.
             </div>
