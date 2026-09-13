@@ -50,9 +50,9 @@ const MODULES = [
     icon: '💰',
     roles: ['admin', 'gerente_financiero'],
     tabs: [
-      { id: 'costo_planchas',      label: 'Inversión de Planchas' },
-      { id: 'analisis_financiero', label: 'Análisis Financiero Histórico' },
-      { id: 'backtest_predicast',  label: 'Simulación con Predicast' },
+      { id: 'costo_planchas',   label: 'Inversión de Planchas' },
+      { id: 'rentabilidad_sku', label: 'Rentabilidad por SKU' },
+      { id: 'costos_laborales', label: 'Costos Laborales' },
     ],
   },
   {
@@ -2029,213 +2029,430 @@ function ModuleSelector({ modules, onSelect }) {
   )
 }
 
-// ─── Tab: Análisis Financiero Histórico ──────────────────────────────────────
+// ─── Tab: Rentabilidad por SKU ───────────────────────────────────────────────
 
-const COSTOS_CONFIG = [
-  { key: 'mano_obra',     label: 'Mano de obra extra',          pct: 18, icon: '👷', color: '#7c3aed', desc: 'Horas hombre adicionales en producción no vendida' },
-  { key: 'transporte',    label: 'Transporte y logística',      pct:  6, icon: '🚚', color: '#0891b2', desc: 'Flete y distribución de pedidos sobreproducidos' },
-  { key: 'energia',       label: 'Energía eléctrica',           pct:  5, icon: '⚡', color: '#d97706', desc: 'Consumo eléctrico adicional de producción excedente' },
-  { key: 'almacenamiento',label: 'Almacenamiento',              pct:  8, icon: '🏪', color: '#059669', desc: 'Espacio de almacén ocupado por sobrestock' },
-  { key: 'depreciacion',  label: 'Depreciación de maquinaria',  pct:  3, icon: '⚙️', color: '#64748b', desc: 'Desgaste por uso de equipos en producción excedente' },
-  { key: 'oportunidad',   label: 'Costo de oportunidad',        pct: 10, icon: '📉', color: '#dc2626', desc: 'Capital inmovilizado sin retorno financiero' },
-  { key: 'deterioro',     label: 'Riesgo de deterioro / merma', pct:  2, icon: '⚠️', color: '#b45309', desc: 'Productos potencialmente dañados en almacén' },
-]
+function TabRentabilidadSKU({ produccion, precios, skuPlancha }) {
+  const horizon = 52
+  const [preciosVenta, setPreciosVenta] = useState({})
+  const [overheadPct, setOverheadPct]   = useState(15)
+  const [editando, setEditando]         = useState(false)
+  const [preciosTemp, setPreciosTemp]   = useState({})
+  const [overheadTemp, setOverheadTemp] = useState(15)
+  const [guardando, setGuardando]       = useState(false)
+  const [msg, setMsg]                   = useState(null)
 
-function TabAnalisisFinanciero({ eficiencia, precios, skuPlancha }) {
-  const [tasas, setTasas] = useState(() => Object.fromEntries(COSTOS_CONFIG.map(c => [c.key, c.pct])))
-  const [expandConfig, setExpandConfig] = useState(false)
+  useEffect(() => {
+    fetch('/api/finanzas')
+      .then(r => r.json())
+      .then(d => {
+        if (d.precios_venta) setPreciosVenta(d.precios_venta)
+        if (d.overhead_pct != null) setOverheadPct(d.overhead_pct)
+      })
+      .catch(() => {})
+  }, [])
 
-  const skuData = eficiencia
-    .filter(e => skuPlancha[e.codigo])
-    .map((e, idx) => {
-      const cfg = skuPlancha[e.codigo]
-      const precioP = precios[cfg.tipo]
-      const sobreprod = Math.max(0, e.produccion_total - e.ventas_total)
-      const costoMP = (sobreprod / cfg.prod_por_plancha) * precioP
-      return { sku: e.codigo, tipo: cfg.tipo, produccion_total: e.produccion_total, ventas_total: e.ventas_total, eficiencia: e.eficiencia, sobreprod, costoMP, color: SKU_COLORS[idx % SKU_COLORS.length] }
-    })
+  if (!produccion) return <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>Cargando datos...</div>
 
-  const totalSobreprod   = skuData.reduce((s, d) => s + d.sobreprod, 0)
-  const totalProduccion  = skuData.reduce((s, d) => s + d.produccion_total, 0)
-  const totalCostoMP     = skuData.reduce((s, d) => s + d.costoMP, 0)
-  const adicionales      = COSTOS_CONFIG.map(c => ({ ...c, pct: tasas[c.key], valor: totalCostoMP * tasas[c.key] / 100 }))
-  const totalAdicionales = adicionales.reduce((s, c) => s + c.valor, 0)
-  const impactoTotal     = totalCostoMP + totalAdicionales
-  const multiplicador    = totalCostoMP > 0 ? impactoTotal / totalCostoMP : 1
-  const sobreprodPct     = totalProduccion > 0 ? (totalSobreprod / totalProduccion) * 100 : 0
+  const skus = Object.keys(produccion).filter(k => skuPlancha[k])
 
-  const waterfallData = [
-    { name: 'Materia prima', valor: Math.round(totalCostoMP), color: TEAL_DARK },
-    ...adicionales.map(c => ({ name: c.label, valor: Math.round(c.valor), color: c.color })),
-  ]
+  const costoUnitario = {}
+  skus.forEach(sku => {
+    const cfg = skuPlancha[sku]
+    costoUnitario[sku] = (precios[cfg.tipo] || 0) / cfg.prod_por_plancha
+  })
 
-  // Chart data — derived from eficiencia (same source as KPIs)
-  const barDataUnidades = skuData.map(d => ({
-    sku: d.sku,
-    Vendido: d.ventas_total,
-    Sobreproducido: d.sobreprod,
-  }))
+  const DEFAULT_PV = { CEO001: 95, CEO006: 105, CER001: 65, CER004: 85, CER005: 80, CER008: 120, CERE002: 90 }
+  const getPV = sku => preciosVenta[sku] ?? DEFAULT_PV[sku] ?? 80
 
-  const barDataCosto = skuData.map(d => ({
-    sku: d.sku,
-    costoMP: Math.round(d.costoMP),
-    costoAdicional: Math.round(d.costoMP * (multiplicador - 1)),
-  }))
+  const skuData = skus.map((sku, idx) => {
+    const cal = produccion[sku]?.calendar.slice(0, horizon) || []
+    const pv = getPV(sku)
+    const cu = costoUnitario[sku] || 0
+    const totalUnidades = cal.reduce((s, w) => s + (w.produccion || 0), 0)
+    const ingreso  = Math.round(totalUnidades * pv)
+    const costoMP  = Math.round(totalUnidades * cu)
+    const overhead = Math.round(ingreso * overheadPct / 100)
+    const margenB  = ingreso - costoMP
+    const margenN  = margenB - overhead
+    const pctMargenN = ingreso > 0 ? (margenN / ingreso * 100).toFixed(1) : '0.0'
+    return { sku, totalUnidades, ingreso, costoMP, overhead, margenB, margenN, pctMargenN, color: SKU_COLORS[idx % SKU_COLORS.length] }
+  }).sort((a, b) => b.margenN - a.margenN)
 
-  const avgEfic = skuData.length ? skuData.reduce((s, d) => s + d.eficiencia, 0) / skuData.length : 0
+  const totIngreso  = skuData.reduce((s, d) => s + d.ingreso, 0)
+  const totCostoMP  = skuData.reduce((s, d) => s + d.costoMP, 0)
+  const totOverhead = skuData.reduce((s, d) => s + d.overhead, 0)
+  const totMargenN  = skuData.reduce((s, d) => s + d.margenN, 0)
+  const pctMargenGlobal = totIngreso > 0 ? (totMargenN / totIngreso * 100).toFixed(1) : '0.0'
+
+  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon) || []
+  const weeklyData = allWeeks.map((w, i) => {
+    const ingSem  = skus.reduce((s, sku) => s + ((produccion[sku]?.calendar[i]?.produccion || 0) * getPV(sku)), 0)
+    const costSem = skus.reduce((s, sku) => s + ((produccion[sku]?.calendar[i]?.produccion || 0) * (costoUnitario[sku] || 0)), 0)
+    return { semana: fmtWeekDate(w.fecha), ingreso: Math.round(ingSem), costo: Math.round(costSem), margen: Math.round(ingSem - costSem) }
+  })
+
+  const barData = skuData.map(d => ({ sku: d.sku, Ingreso: d.ingreso, 'Costo MP': d.costoMP, Overhead: d.overhead, 'Margen neto': Math.max(0, d.margenN) }))
+  const fmtV = v => v >= 1000000 ? `${(v/1000000).toFixed(2)}M` : v >= 1000 ? `${(v/1000).toFixed(1)}K` : String(v)
+
+  const iniciarEdicion = () => {
+    const t = {}; skus.forEach(sku => { t[sku] = getPV(sku) })
+    setPreciosTemp(t); setOverheadTemp(overheadPct); setEditando(true)
+  }
+  const guardarConfig = async () => {
+    setGuardando(true)
+    try {
+      const res = await fetch('/api/finanzas', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ precios_venta: preciosTemp, overhead_pct: parseFloat(overheadTemp) || 15 }),
+      })
+      if (res.ok) {
+        setPreciosVenta({ ...preciosTemp }); setOverheadPct(parseFloat(overheadTemp) || 15)
+        setEditando(false); setMsg({ ok: true, text: 'Configuración guardada.' })
+      } else { setMsg({ ok: false, text: 'Error al guardar.' }) }
+    } catch (_) { setMsg({ ok: false, text: 'Error de red.' }) }
+    finally { setGuardando(false); setTimeout(() => setMsg(null), 3000) }
+  }
 
   return (
     <div>
-      {/* ── Config panel ── */}
-      <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '14px 20px', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <span style={{ fontWeight: 700, fontSize: 14, color: '#9a3412' }}>Tasas de costos adicionales</span>
-            <span style={{ fontSize: 12, color: '#c2410c', marginLeft: 10 }}>
-              Multiplicador actual: <strong>{fmtDec(multiplicador, 2)}×</strong> el costo de materia prima
-            </span>
-          </div>
-          <button onClick={() => setExpandConfig(!expandConfig)}
-            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #fed7aa', background: expandConfig ? '#ffedd5' : 'white', color: '#9a3412', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            {expandConfig ? 'Cerrar' : '⚙️ Ajustar tasas'}
-          </button>
-        </div>
-        {expandConfig && (
-          <div style={{ marginTop: 16, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            {COSTOS_CONFIG.map(c => (
-              <div key={c.key} style={{ minWidth: 130 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#7c2d12', marginBottom: 3 }}>{c.icon} {c.label}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <input type="number" min={0} max={100} step={0.5} value={tasas[c.key]}
-                    onChange={e => setTasas(t => ({ ...t, [c.key]: parseFloat(e.target.value) || 0 }))}
-                    style={{ width: 58, padding: '4px 6px', borderRadius: 5, border: '1px solid #fed7aa', fontSize: 13 }} />
-                  <span style={{ fontSize: 12, color: '#92400e' }}>%</span>
-                </div>
-                <div style={{ fontSize: 10, color: '#a16207', marginTop: 2, lineHeight: 1.4 }}>{c.desc}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── KPI cards ── */}
-      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+      {/* KPIs */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
         {[
-          { label: 'Unidades sobreproducidas', value: fmt(totalSobreprod), sub: `${fmtDec(sobreprodPct)}% del total producido`, color: ORANGE },
-          { label: 'Costo MP sobreproducida',  value: `S/ ${fmt(totalCostoMP)}`,    sub: 'Solo planchas metálicas',                  color: TEAL_DARK },
-          { label: 'Costos adicionales',        value: `S/ ${fmt(totalAdicionales)}`, sub: `${fmtDec(multiplicador - 1, 2)}× sobre costo MP`, color: PURPLE },
-          { label: 'IMPACTO TOTAL ESTIMADO',    value: `S/ ${fmt(impactoTotal)}`,    sub: 'Pérdida potencial por sobrestock',          color: RED },
-        ].map(c => (
-          <div key={c.label} style={{ flex: '1 1 175px', background: 'white', borderRadius: 10, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', borderLeft: `4px solid ${c.color}` }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</div>
-            <div style={{ fontSize: 12, color: '#374151', marginTop: 3, fontWeight: 600 }}>{c.label}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{c.sub}</div>
+          { label: 'Ingresos proyectados',  value: `S/ ${fmtV(totIngreso)}`,  color: '#166534', bg: '#f0fdf4', sub: `${horizon} semanas` },
+          { label: 'Costo de materiales',   value: `S/ ${fmtV(totCostoMP)}`,  color: '#0e7490', bg: '#f0fdfe', sub: 'Planchas metálicas' },
+          { label: 'Overhead indirecto',    value: `S/ ${fmtV(totOverhead)}`,  color: '#92400e', bg: '#fffbeb', sub: `${overheadPct}% sobre ingresos` },
+          { label: 'Margen neto',           value: `S/ ${fmtV(totMargenN)}`,   color: totMargenN >= 0 ? '#166534' : '#dc2626', bg: totMargenN >= 0 ? '#f0fdf4' : '#fff1f2', sub: `${pctMargenGlobal}% margen global` },
+        ].map((k, i) => (
+          <div key={i} style={{ flex: 1, minWidth: 160, background: k.bg, borderLeft: `4px solid ${k.color}`, borderRadius: 8, padding: '14px 18px' }}>
+            <div style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{k.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{k.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* ── Waterfall ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Desglose de impacto económico</h3>
-        <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>Cada categoría como % aplicado sobre el costo de materia prima sobreproducida</p>
-        <ResponsiveContainer width="100%" height={310}>
-          <BarChart data={waterfallData} layout="vertical" margin={{ left: 10, right: 90, top: 4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
-            <YAxis type="category" dataKey="name" width={175} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={v => [`S/ ${fmt(v)}`, 'Costo estimado']} />
-            <Bar dataKey="valor" radius={[0, 4, 4, 0]} label={{ position: 'right', formatter: v => `S/ ${fmt(v)}`, fontSize: 11, fill: '#374151' }}>
-              {waterfallData.map((d, i) => <Cell key={i} fill={d.color} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* ── Producido vs Vendido por SKU ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 20 }}>
-        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Producido vs Vendido por SKU — histórico total</h3>
-        <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>Unidades producidas desagregadas en vendidas (verde) y sobreproducidas no vendidas (rojo). Misma fuente que los KPIs.</p>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 12, marginTop: 8 }}>
-          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 12, height: 12, background: GREEN, borderRadius: 2, display: 'inline-block' }} /> Vendido
-          </span>
-          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 12, height: 12, background: RED, borderRadius: 2, display: 'inline-block' }} /> Sobreproducido (no vendido)
-          </span>
+      {/* Price editor */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: 15 }}>Precios de Venta y Costos Indirectos</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Define el precio de venta por SKU y el % de costos operativos indirectos sobre los ingresos</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!editando ? (
+              <button onClick={iniciarEdicion} style={{ padding: '7px 16px', background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Editar precios</button>
+            ) : (
+              <>
+                <button onClick={() => setEditando(false)} style={{ padding: '7px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={guardarConfig} disabled={guardando} style={{ padding: '7px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: guardando ? 0.7 : 1 }}>
+                  {guardando ? 'Guardando...' : 'Guardar'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={barDataUnidades} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="sku" tick={{ fontSize: 12, fontWeight: 600 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={fmt} />
-            <Tooltip formatter={(v, n) => [fmt(v) + ' u', n]} />
-            <Bar dataKey="Vendido"        stackId="a" fill={GREEN} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="Sobreproducido" stackId="a" fill={RED}   radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* ── Costo de sobreproducción por SKU ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 24 }}>
-        <h3 style={{ margin: '0 0 4px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Impacto económico por SKU</h3>
-        <p style={{ margin: '0 0 4px', fontSize: 12, color: '#64748b' }}>Costo de materia prima sobreproducida (teal) más costos adicionales estimados (rojo) por producto.</p>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 12, marginTop: 8 }}>
-          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 12, height: 12, background: TEAL_DARK, borderRadius: 2, display: 'inline-block' }} /> Costo MP sobreproducida
-          </span>
-          <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 12, height: 12, background: RED, borderRadius: 2, display: 'inline-block' }} /> Costos adicionales est.
-          </span>
+        {msg && <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 6, background: msg.ok ? '#f0fdf4' : '#fff1f2', color: msg.ok ? '#166534' : '#dc2626', fontSize: 13, fontWeight: 600, border: `1px solid ${msg.ok ? '#bbf7d0' : '#fca5a5'}` }}>{msg.text}</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+          {skus.map(sku => (
+            <div key={sku} style={{ background: '#f8fafc', borderRadius: 8, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#1e3a5f', marginBottom: 6 }}>{sku}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Precio venta (S/ / unidad)</div>
+              {editando ? (
+                <input type="number" min="0" step="0.01" value={preciosTemp[sku] ?? ''} onChange={e => setPreciosTemp(p => ({ ...p, [sku]: parseFloat(e.target.value) || 0 }))}
+                  style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #3b82f6', borderRadius: 6, fontSize: 14, fontWeight: 700, boxSizing: 'border-box', color: '#1e3a5f' }} />
+              ) : (
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#0e7490' }}>S/ {getPV(sku).toFixed(2)}</div>
+              )}
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Costo MP: S/ {(costoUnitario[sku] || 0).toFixed(2)}/u</div>
+            </div>
+          ))}
+          <div style={{ background: '#f8fafc', borderRadius: 8, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 6 }}>Costos Indirectos</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>% sobre ingresos (admin, servicios, etc.)</div>
+            {editando ? (
+              <input type="number" min="0" max="100" step="0.1" value={overheadTemp} onChange={e => setOverheadTemp(e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #3b82f6', borderRadius: 6, fontSize: 14, fontWeight: 700, boxSizing: 'border-box', color: '#1e3a5f' }} />
+            ) : (
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#92400e' }}>{overheadPct}%</div>
+            )}
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Gastos operativos indirectos</div>
+          </div>
         </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={barDataCosto} margin={{ top: 4, right: 20, left: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="sku" tick={{ fontSize: 12, fontWeight: 600 }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${fmt(v)}`} />
-            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n === 'costoMP' ? 'Costo MP' : 'Costos adicionales']} />
-            <Bar dataKey="costoMP"       stackId="b" fill={TEAL_DARK} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="costoAdicional" stackId="b" fill={RED}      radius={[4, 4, 0, 0]} />
+      </div>
+
+      {/* Bar chart: rentabilidad por SKU */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+        <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: 15, marginBottom: 4 }}>Desglose Financiero por SKU</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Ingreso proyectado vs. costos vs. margen neto por producto — S/ ({horizon} semanas)</div>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={barData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="sku" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={fmtV} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, n) => [`S/ ${v.toLocaleString()}`, n]} />
+            <Legend />
+            <Bar dataKey="Ingreso" fill="#3b82f6" radius={[3,3,0,0]} />
+            <Bar dataKey="Costo MP" fill="#ef4444" radius={[3,3,0,0]} />
+            <Bar dataKey="Overhead" fill="#f59e0b" radius={[3,3,0,0]} />
+            <Bar dataKey="Margen neto" fill="#166534" radius={[3,3,0,0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* ── Tabla por SKU ── */}
-      <div style={{ background: 'white', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', overflowX: 'auto' }}>
-        <h3 style={{ margin: '0 0 14px', color: '#991b1b', fontSize: 15, fontWeight: 700 }}>Detalle por producto</h3>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
-          <thead>
-            <tr style={{ background: '#fff1f2' }}>
-              {['SKU', 'Plancha', 'Producido', 'Vendido', 'Sobreproducido', 'Eficiencia', 'Costo MP excedente', 'Impacto total est.'].map(h => (
-                <th key={h} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#991b1b', borderBottom: '2px solid #fca5a5', whiteSpace: 'nowrap' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {skuData.map((d, i) => (
-              <tr key={d.sku} style={{ background: i % 2 === 0 ? '#fafafa' : 'white' }}>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: d.color, textAlign: 'right' }}>{d.sku}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
-                  <span style={{ background: d.tipo === '0.75' ? '#eff6ff' : '#fefce8', color: d.tipo === '0.75' ? BLUE : '#92400e', border: `1px solid ${d.tipo === '0.75' ? '#bfdbfe' : '#fde68a'}`, borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-                    F.G. {d.tipo}
-                  </span>
-                </td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmt(d.produccion_total)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{fmt(d.ventas_total)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontWeight: 600, color: d.sobreprod > 0 ? RED : GREEN }}>{fmt(d.sobreprod)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', fontWeight: 600, color: d.eficiencia >= 98 ? GREEN : d.eficiencia >= 90 ? ORANGE : RED }}>{fmtDec(d.eficiencia)}%</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', color: TEAL_DARK, fontWeight: 600 }}>S/ {fmt(d.costoMP)}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'right', color: RED, fontWeight: 700 }}>S/ {fmt(d.costoMP * multiplicador)}</td>
+      {/* Weekly income projection */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+        <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: 15, marginBottom: 4 }}>Proyección Semanal de Ingresos</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Ingreso y margen bruto semanales basados en predicciones ML</div>
+        <ResponsiveContainer width="100%" height={250}>
+          <ComposedChart data={weeklyData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="semana" tick={{ fontSize: 10 }} interval={Math.floor(horizon / 8)} />
+            <YAxis tickFormatter={v => `S/ ${fmtV(v)}`} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v) => [`S/ ${v.toLocaleString()}`]} />
+            <Legend />
+            <Area type="monotone" dataKey="ingreso" fill="#dbeafe" stroke="#3b82f6" strokeWidth={2} name="Ingreso" />
+            <Line type="monotone" dataKey="margen" stroke="#166534" strokeWidth={2} dot={false} name="Margen bruto" />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Ranking table */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px' }}>
+        <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: 15, marginBottom: 16 }}>Ranking de Rentabilidad por SKU</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                {['#', 'SKU', 'Unidades', 'Ingreso', 'Costo MP', 'Overhead', 'Margen Neto', '% Margen'].map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: h === '#' || h === 'SKU' ? (h === '#' ? 'center' : 'left') : 'right', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-            <tr style={{ background: '#fff1f2', fontWeight: 700 }}>
-              <td colSpan={4} style={{ padding: '9px 12px', textAlign: 'right', color: '#991b1b', borderTop: '2px solid #fca5a5' }}>TOTAL</td>
-              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: RED }}>{fmt(totalSobreprod)}</td>
-              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: avgEfic >= 98 ? GREEN : ORANGE }}>{fmtDec(avgEfic)}%</td>
-              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: TEAL_DARK }}>S/ {fmt(totalCostoMP)}</td>
-              <td style={{ padding: '9px 12px', textAlign: 'right', borderTop: '2px solid #fca5a5', color: RED }}>S/ {fmt(impactoTotal)}</td>
-            </tr>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {skuData.map((d, i) => (
+                <tr key={d.sku} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 ? '#fafafa' : '#fff' }}>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i === 0 ? '#166534' : i === skuData.length - 1 ? '#dc2626' : '#64748b' }}>{i + 1}</td>
+                  <td style={{ padding: '10px 12px' }}><span style={{ fontWeight: 700, color: d.color }}>{d.sku}</span></td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{d.totalUnidades.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#1e3a5f' }}>S/ {d.ingreso.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#dc2626' }}>S/ {d.costoMP.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#92400e' }}>S/ {d.overhead.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: d.margenN >= 0 ? '#166534' : '#dc2626' }}>S/ {d.margenN.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                    <span style={{ background: parseFloat(d.pctMargenN) >= 20 ? '#dcfce7' : parseFloat(d.pctMargenN) >= 10 ? '#fef9c3' : '#fff1f2', color: parseFloat(d.pctMargenN) >= 20 ? '#166534' : parseFloat(d.pctMargenN) >= 10 ? '#92400e' : '#dc2626', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{d.pctMargenN}%</span>
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ background: '#f0f4ff', fontWeight: 700 }}>
+                <td colSpan={2} style={{ padding: '10px 12px', color: '#1e3a5f' }}>TOTAL</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right' }}>—</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#1e3a5f' }}>S/ {totIngreso.toLocaleString()}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#dc2626' }}>S/ {totCostoMP.toLocaleString()}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#92400e' }}>S/ {totOverhead.toLocaleString()}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: totMargenN >= 0 ? '#166534' : '#dc2626' }}>S/ {totMargenN.toLocaleString()}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                  <span style={{ background: parseFloat(pctMargenGlobal) >= 20 ? '#dcfce7' : parseFloat(pctMargenGlobal) >= 10 ? '#fef9c3' : '#fff1f2', color: parseFloat(pctMargenGlobal) >= 20 ? '#166534' : parseFloat(pctMargenGlobal) >= 10 ? '#92400e' : '#dc2626', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{pctMargenGlobal}%</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Tab: Costos Laborales ────────────────────────────────────────────────────
+
+function TabCostosLaborales() {
+  const [operarios, setOperarios]     = useState([])
+  const [sueldos, setSueldos]         = useState({})
+  const [cargasPct, setCargasPct]     = useState(14.5)
+  const [editando, setEditando]       = useState(false)
+  const [sueldosTemp, setSueldosTemp] = useState({})
+  const [cargasTemp, setCargasTemp]   = useState(14.5)
+  const [guardando, setGuardando]     = useState(false)
+  const [msg, setMsg]                 = useState(null)
+
+  useEffect(() => {
+    fetch('/api/operarios').then(r => r.json()).then(ops => { if (Array.isArray(ops)) setOperarios(ops) }).catch(() => {})
+    fetch('/api/finanzas').then(r => r.json()).then(d => {
+      if (d.sueldos)               setSueldos(d.sueldos)
+      if (d.cargas_sociales_pct != null) setCargasPct(d.cargas_sociales_pct)
+    }).catch(() => {})
+  }, [])
+
+  const getSueldo = id => sueldos[id] ?? 1800
+
+  const opData = operarios.map(op => {
+    const base   = getSueldo(op.id)
+    const cargas = Math.round(base * cargasPct / 100)
+    const total  = base + cargas
+    const semanal = Math.round(total / 4.333)
+    return { ...op, base, cargas, total, semanal }
+  })
+
+  const totBase    = opData.reduce((s, o) => s + o.base, 0)
+  const totCargas  = opData.reduce((s, o) => s + o.cargas, 0)
+  const totMensual = opData.reduce((s, o) => s + o.total, 0)
+  const totSemanal = opData.reduce((s, o) => s + o.semanal, 0)
+
+  const barData = opData.map(o => ({ nombre: o.nombre.split(' ')[0], 'Sueldo base': o.base, 'Cargas sociales': o.cargas }))
+
+  const iniciarEdicion = () => {
+    const t = {}; operarios.forEach(o => { t[o.id] = getSueldo(o.id) })
+    setSueldosTemp(t); setCargasTemp(cargasPct); setEditando(true)
+  }
+  const guardarConfig = async () => {
+    setGuardando(true)
+    try {
+      const res = await fetch('/api/finanzas', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sueldos: sueldosTemp, cargas_sociales_pct: parseFloat(cargasTemp) || 14.5 }),
+      })
+      if (res.ok) {
+        setSueldos({ ...sueldosTemp }); setCargasPct(parseFloat(cargasTemp) || 14.5)
+        setEditando(false); setMsg({ ok: true, text: 'Sueldos guardados.' })
+      } else { setMsg({ ok: false, text: 'Error al guardar.' }) }
+    } catch (_) { setMsg({ ok: false, text: 'Error de red.' }) }
+    finally { setGuardando(false); setTimeout(() => setMsg(null), 3000) }
+  }
+
+  if (operarios.length === 0) return (
+    <div style={{ padding: '40px 0', textAlign: 'center', color: '#64748b' }}>
+      <div style={{ fontSize: 36, marginBottom: 12 }}>👷</div>
+      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>No hay operarios registrados</div>
+      <div style={{ fontSize: 13 }}>Registra operarios en <strong>Módulo Producción → Operarios</strong></div>
+    </div>
+  )
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
+        {[
+          { label: 'Planilla mensual total',  value: `S/ ${totMensual.toLocaleString()}`,  color: '#1e3a5f', bg: '#f0f4ff', sub: `${operarios.length} operarios` },
+          { label: 'Costo semanal estimado',  value: `S/ ${totSemanal.toLocaleString()}`,  color: '#0e7490', bg: '#f0fdfe', sub: 'Planilla ÷ 4.33 semanas' },
+          { label: 'Cargas sociales totales', value: `S/ ${totCargas.toLocaleString()}`,   color: '#7c3aed', bg: '#faf5ff', sub: `${cargasPct}% sobre sueldos base` },
+          { label: 'Sueldo base total',       value: `S/ ${totBase.toLocaleString()}`,     color: '#92400e', bg: '#fffbeb', sub: 'Sin cargas sociales' },
+        ].map((k, i) => (
+          <div key={i} style={{ flex: 1, minWidth: 160, background: k.bg, borderLeft: `4px solid ${k.color}`, borderRadius: 8, padding: '14px 18px' }}>
+            <div style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{k.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Salary editor */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: 15 }}>Sueldos Mensuales por Operario</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Ingresa el sueldo bruto mensual de cada operario y el porcentaje de cargas sociales (Essalud, CTS, vacaciones)</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!editando ? (
+              <button onClick={iniciarEdicion} style={{ padding: '7px 16px', background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Editar sueldos</button>
+            ) : (
+              <>
+                <button onClick={() => setEditando(false)} style={{ padding: '7px 16px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={guardarConfig} disabled={guardando} style={{ padding: '7px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: guardando ? 0.7 : 1 }}>
+                  {guardando ? 'Guardando...' : 'Guardar'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        {msg && <div style={{ marginBottom: 12, padding: '8px 14px', borderRadius: 6, background: msg.ok ? '#f0fdf4' : '#fff1f2', color: msg.ok ? '#166534' : '#dc2626', fontSize: 13, fontWeight: 600, border: `1px solid ${msg.ok ? '#bbf7d0' : '#fca5a5'}` }}>{msg.text}</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+          {operarios.map(op => (
+            <div key={op.id} style={{ background: '#f8fafc', borderRadius: 8, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#1e3a5f', marginBottom: 2 }}>{op.nombre}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{op.email}</div>
+              {editando ? (
+                <>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Sueldo mensual (S/)</div>
+                  <input type="number" min="0" step="10" value={sueldosTemp[op.id] ?? getSueldo(op.id)} onChange={e => setSueldosTemp(p => ({ ...p, [op.id]: parseFloat(e.target.value) || 0 }))}
+                    style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #3b82f6', borderRadius: 6, fontSize: 14, fontWeight: 700, boxSizing: 'border-box', color: '#1e3a5f' }} />
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1e3a5f' }}>S/ {getSueldo(op.id).toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: '#7c3aed', marginTop: 2 }}>+ S/ {Math.round(getSueldo(op.id) * cargasPct / 100).toLocaleString()} cargas ({cargasPct}%)</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0e7490', marginTop: 2 }}>Total: S/ {(getSueldo(op.id) + Math.round(getSueldo(op.id) * cargasPct / 100)).toLocaleString()}/mes</div>
+                </>
+              )}
+            </div>
+          ))}
+          <div style={{ background: '#f8fafc', borderRadius: 8, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#7c3aed', marginBottom: 2 }}>Cargas Sociales</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Essalud + CTS + Vacaciones (% sobre sueldo base)</div>
+            {editando ? (
+              <input type="number" min="0" max="100" step="0.1" value={cargasTemp} onChange={e => setCargasTemp(e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #3b82f6', borderRadius: 6, fontSize: 14, fontWeight: 700, boxSizing: 'border-box', color: '#1e3a5f' }} />
+            ) : (
+              <>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#7c3aed' }}>{cargasPct}%</div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Essalud 9% + CTS + Vacaciones</div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bar chart */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+        <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: 15, marginBottom: 4 }}>Composición del Costo Laboral por Operario</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Sueldo base vs. cargas sociales mensuales (S/)</div>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={barData} margin={{ top: 10, right: 20, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={v => `S/ ${v.toLocaleString()}`} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v, n) => [`S/ ${v.toLocaleString()}`, n]} />
+            <Legend />
+            <Bar dataKey="Sueldo base" fill="#1e3a5f" stackId="a" />
+            <Bar dataKey="Cargas sociales" fill="#7c3aed" stackId="a" radius={[3,3,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Detail table */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '18px 20px' }}>
+        <div style={{ fontWeight: 700, color: '#1e3a5f', fontSize: 15, marginBottom: 16 }}>Detalle de Planilla Mensual</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                {['Operario', 'Email', 'Sueldo Base', `Cargas (${cargasPct}%)`, 'Costo Mensual', 'Costo Semanal'].map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: h === 'Operario' || h === 'Email' ? 'left' : 'right', color: '#475569', fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {opData.map((o, i) => (
+                <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 ? '#fafafa' : '#fff' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1e3a5f' }}>{o.nombre}</td>
+                  <td style={{ padding: '10px 12px', color: '#64748b', fontSize: 12 }}>{o.email}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>S/ {o.base.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed' }}>S/ {o.cargas.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#1e3a5f' }}>S/ {o.total.toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0e7490' }}>S/ {o.semanal.toLocaleString()}</td>
+                </tr>
+              ))}
+              <tr style={{ background: '#f0f4ff', fontWeight: 700 }}>
+                <td colSpan={2} style={{ padding: '10px 12px', color: '#1e3a5f' }}>TOTAL ({operarios.length} operarios)</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#92400e' }}>S/ {totBase.toLocaleString()}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed' }}>S/ {totCargas.toLocaleString()}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#1e3a5f' }}>S/ {totMensual.toLocaleString()}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#0e7490' }}>S/ {totSemanal.toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -3837,210 +4054,6 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
   )
 }
 
-// ─── Tab: Simulación con Predicast ───────────────────────────────────────────
-
-function TabSimulacionPredicast({ backtest, safetyWeeks, setSafetyWeeks, precios, skuPlancha }) {
-  const skus = backtest?.skus || {}
-  const timeline = backtest?.timeline || []
-
-  const metrics = useMemo(() => {
-    return Object.entries(skus).map(([sku, d]) => {
-      const cfg = skuPlancha[sku]
-      if (!cfg) return null
-      const unitCost = (precios[cfg.tipo] || 0) / cfg.prod_por_plancha
-      const { produccion_total, ventas_total, n_semanas, avg_semanal } = d.totales
-      const sobreProdReal = Math.max(0, produccion_total - ventas_total)
-      const sobreProdSistema = Math.round(avg_semanal * safetyWeeks)
-      const costoReal = Math.round(sobreProdReal * unitCost)
-      const costoSistema = Math.round(sobreProdSistema * unitCost)
-      const ahorro = Math.max(0, costoReal - costoSistema)
-      return { sku, sobreProdReal, sobreProdSistema, costoReal, costoSistema, ahorro, n_semanas }
-    }).filter(Boolean)
-  }, [skus, safetyWeeks, precios, skuPlancha])
-
-  const totalReal    = metrics.reduce((s, m) => s + m.costoReal, 0)
-  const totalSistema = metrics.reduce((s, m) => s + Math.min(m.costoSistema, m.costoReal), 0)
-  const totalAhorro  = metrics.reduce((s, m) => s + m.ahorro, 0)
-  const reduccion    = totalReal > 0 ? (totalAhorro / totalReal * 100).toFixed(1) : 0
-
-  const barData = metrics.map(m => ({
-    sku: m.sku,
-    sistema: Math.min(m.costoSistema, m.costoReal),
-    ahorro: m.ahorro,
-  }))
-
-  const monthly = useMemo(() => {
-    const map = {}
-    for (const r of timeline) {
-      const mes = r.semana.substring(0, 7)
-      if (!map[mes]) map[mes] = { mes, ventas: 0, produccion: 0 }
-      map[mes].ventas    += r.ventas
-      map[mes].produccion += r.produccion
-    }
-    return Object.values(map).sort((a, b) => a.mes.localeCompare(b.mes))
-  }, [timeline])
-
-  const n_semanas = metrics[0]?.n_semanas || 0
-  const periodo   = timeline.length
-    ? `${timeline[0].semana.substring(0, 7)} → ${timeline[timeline.length - 1].semana.substring(0, 7)}`
-    : ''
-
-  if (!backtest) return (
-    <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8' }}>
-      Cargando datos históricos...
-    </div>
-  )
-
-  return (
-    <div>
-      {/* Info / controls banner */}
-      <div style={{
-        background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 10,
-        padding: '14px 20px', marginBottom: 24,
-        display: 'flex', gap: 32, flexWrap: 'wrap', alignItems: 'center',
-      }}>
-        <div>
-          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>Período analizado</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TEAL_DARK }}>{periodo}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>Semanas de datos</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TEAL_DARK }}>{n_semanas} sem.</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>SKUs analizados</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TEAL_DARK }}>7 productos</div>
-        </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <div style={{ fontSize: 11, color: '#0891b2', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>
-            Buffer de seguridad: <span style={{ color: TEAL_DARK }}>{safetyWeeks} sem.</span>
-          </div>
-          <input type="range" min={0} max={8} value={safetyWeeks}
-            onChange={e => setSafetyWeeks(Number(e.target.value))}
-            style={{ width: 140, accentColor: TEAL_DARK }}
-          />
-        </div>
-      </div>
-
-      {/* KPI strip */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
-        <StatCard label="Sobrecosto real (mat. prima)" value={`S/ ${fmt(totalReal)}`}
-          sub="Sobreproducción histórica acumulada" color={RED} bg="#fef2f2" />
-        <StatCard label="Sobrecosto con Predicast" value={`S/ ${fmt(totalSistema)}`}
-          sub={`Buffer intencional de ${safetyWeeks} sem.`} color={TEAL_DARK} bg="#f0fdfe" />
-        <StatCard label="Ahorro potencial total" value={`S/ ${fmt(totalAhorro)}`}
-          sub="Si se hubiera usado el sistema" color={GREEN} bg="#f0fdf4" />
-        <StatCard label="Reducción de sobrecosto" value={`${reduccion}%`}
-          sub="Eficiencia ganada con Predicast" color={PURPLE} bg="#f5f3ff" />
-      </div>
-
-      {/* Chart 1: stacked bar por SKU */}
-      <SectionTitle sub="Costo de sobreproducción de materia prima por SKU — Real (apilado) vs si se hubiera usado Predicast">
-        Comparativa de sobrecosto por SKU
-      </SectionTitle>
-      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: '20px 8px 8px', marginBottom: 28 }}>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={barData} margin={{ top: 8, right: 24, left: 10, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="sku" tick={{ fontSize: 12 }} />
-            <YAxis tickFormatter={v => `S/${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v, n) => [`S/ ${fmt(v)}`, n === 'sistema' ? 'Con Predicast (buffer mín.)' : 'Ahorro potencial']} />
-            <Legend formatter={v => v === 'sistema' ? 'Con Predicast (buffer mínimo)' : 'Ahorro potencial'} />
-            <Bar dataKey="sistema" name="sistema" stackId="a" fill={TEAL_LIGHT} />
-            <Bar dataKey="ahorro"  name="ahorro"  stackId="a" fill={GREEN} radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-        <p style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
-          Barra completa = costo real de sobreproducción. Sección verde = ahorro potencial con Predicast.
-        </p>
-      </div>
-
-      {/* Chart 2: timeline producción vs ventas mensual */}
-      <SectionTitle sub="Producción real vs ventas reales (todos los SKUs, agregado mensual) — la brecha visible es la sobreproducción">
-        Evolución histórica: Producción vs Ventas (mensual)
-      </SectionTitle>
-      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', padding: '20px 8px 8px', marginBottom: 28 }}>
-        <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={monthly} margin={{ top: 8, right: 24, left: 10, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="mes" tick={{ fontSize: 10 }} interval={5} />
-            <YAxis tickFormatter={v => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v, n) => [`${fmt(v)} uds.`, n === 'produccion' ? 'Producción real' : 'Ventas reales']} />
-            <Legend formatter={v => v === 'produccion' ? 'Producción real' : 'Ventas reales'} />
-            <Area type="monotone" dataKey="produccion" name="produccion"
-              fill="#bfdbfe" stroke={BLUE_LIGHT} strokeWidth={1.5} fillOpacity={0.7} />
-            <Line type="monotone" dataKey="ventas" name="ventas"
-              stroke={GREEN} strokeWidth={2} dot={false} />
-          </ComposedChart>
-        </ResponsiveContainer>
-        <p style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
-          Área azul sobre la línea verde = sobreproducción histórica. Con Predicast, la producción habría seguido de cerca la línea de ventas.
-        </p>
-      </div>
-
-      {/* Tabla detalle */}
-      <SectionTitle sub="Desglose numérico por SKU">Detalle por SKU</SectionTitle>
-      <div style={{ overflowX: 'auto', marginBottom: 16 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: '#f8fafc' }}>
-              {['SKU', 'Sobreprod. real (uds)', 'Sobreprod. Predicast (uds)', 'Costo real (S/)', 'Costo c/ Predicast (S/)', 'Ahorro (S/)'].map((h, i) => (
-                <th key={h} style={{
-                  padding: '10px 14px', textAlign: i === 0 ? 'left' : 'right',
-                  color: i === 3 ? RED : i === 4 ? TEAL_DARK : i === 5 ? GREEN : '#475569',
-                  fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap',
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {metrics.map((m, i) => (
-              <tr key={m.sku} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                <td style={{ padding: '9px 14px', fontWeight: 600, color: TEAL_DARK }}>{m.sku}</td>
-                <td style={{ padding: '9px 14px', textAlign: 'right' }}>{fmt(m.sobreProdReal)}</td>
-                <td style={{ padding: '9px 14px', textAlign: 'right', color: '#64748b' }}>{fmt(m.sobreProdSistema)}</td>
-                <td style={{ padding: '9px 14px', textAlign: 'right', color: RED }}>{fmt(m.costoReal)}</td>
-                <td style={{ padding: '9px 14px', textAlign: 'right', color: TEAL_DARK }}>{fmt(Math.min(m.costoSistema, m.costoReal))}</td>
-                <td style={{ padding: '9px 14px', textAlign: 'right', color: GREEN, fontWeight: 600 }}>
-                  {m.ahorro > 0 ? fmt(m.ahorro) : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr style={{ background: '#f0fdf4', fontWeight: 700 }}>
-              <td style={{ padding: '10px 14px', borderTop: '2px solid #86efac', color: BLUE }}>TOTAL</td>
-              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac' }}>
-                {fmt(metrics.reduce((s, m) => s + m.sobreProdReal, 0))}
-              </td>
-              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: '#64748b' }}>
-                {fmt(metrics.reduce((s, m) => s + m.sobreProdSistema, 0))}
-              </td>
-              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: RED }}>
-                S/ {fmt(totalReal)}
-              </td>
-              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: TEAL_DARK }}>
-                S/ {fmt(totalSistema)}
-              </td>
-              <td style={{ padding: '10px 14px', textAlign: 'right', borderTop: '2px solid #86efac', color: GREEN }}>
-                S/ {fmt(totalAhorro)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      {/* Nota metodológica */}
-      <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 16px', fontSize: 12, color: '#92400e' }}>
-        <strong>Metodología:</strong> La sobreproducción real proviene de los datos históricos semana a semana (2021–2025).
-        El escenario &quot;Con Predicast&quot; simula la producción ajustada a la demanda histórica real más un buffer
-        intencional de <strong>{safetyWeeks} semana(s)</strong> de demanda promedio por SKU — representa el ahorro máximo alcanzable con forecast perfecto.
-        El modelo ML actual (R² CV ≈ 0.65) captura una fracción de este potencial, que mejora con mayor horizonte histórico.
-        El ahorro es la diferencia entre ambos escenarios de costo de materia prima (planchas).
-      </div>
-    </div>
-  )
-}
 
 // ─── Tab nav ──────────────────────────────────────────────────────────────────
 
@@ -4115,25 +4128,25 @@ const GUIA_CONTENT = {
     ],
     tip: 'Actualiza el precio cuando cambie en el mercado para mantener proyecciones precisas.',
   },
-  analisis_financiero: {
-    titulo: 'Análisis Financiero Histórico',
-    desc: 'Evalúa el impacto económico de las decisiones de producción en el tiempo.',
+  rentabilidad_sku: {
+    titulo: 'Rentabilidad por SKU',
+    desc: 'Proyecta ingresos, costos y márgenes para cada producto según las predicciones del modelo ML.',
     puntos: [
-      'Revisa la inversión acumulada por período',
-      'Compara costos de sobreproducción vs. demanda insatisfecha',
-      'Identifica los SKUs de mayor peso en el presupuesto',
+      'Define el precio de venta por SKU',
+      'Ajusta el porcentaje de costos operativos indirectos',
+      'Visualiza el ranking de rentabilidad y la proyección semanal de ingresos',
     ],
-    tip: 'Cruza esta vista con Planificación/GAP para cuantificar cuánto costaron las desviaciones.',
+    tip: 'Mantén los precios actualizados para que las proyecciones reflejen la realidad del mercado.',
   },
-  backtest_predicast: {
-    titulo: 'Simulación con Predicast',
-    desc: 'Retrospectiva: ¿cuánto se habría ahorrado si Predicast hubiera guiado la producción histórica?',
+  costos_laborales: {
+    titulo: 'Costos Laborales',
+    desc: 'Registra los sueldos mensuales de los operarios y visualiza el costo total de planilla.',
     puntos: [
-      'Ajusta las semanas de safety stock con el slider',
-      'Compara producción real vs. producción guiada por el modelo',
-      'Ve el ahorro en unidades y costos por SKU',
+      'Ingresa el sueldo bruto mensual de cada operario',
+      'Ajusta el porcentaje de cargas sociales (Essalud, CTS, vacaciones)',
+      'Ve el desglose por operario y el costo semanal estimado',
     ],
-    tip: 'Esta vista es ideal para presentar el valor del sistema ante la gerencia general.',
+    tip: 'Las cargas sociales en Perú suelen ser 14–20% sobre el sueldo base (Essalud 9% + provisiones).',
   },
   produccion: {
     titulo: 'Plan de Producción',
@@ -4591,21 +4604,15 @@ export default function Home() {
               skuPlancha={planchaConfig.skus}
             />
           )}
-          {tab === 'analisis_financiero' && (
-            <TabAnalisisFinanciero
-              eficiencia={eficiencia}
+          {tab === 'rentabilidad_sku' && (
+            <TabRentabilidadSKU
+              produccion={produccion}
               precios={planchaConfig.precios}
               skuPlancha={planchaConfig.skus}
             />
           )}
-          {tab === 'backtest_predicast' && (
-            <TabSimulacionPredicast
-              backtest={backtest}
-              safetyWeeks={safetyWeeks}
-              setSafetyWeeks={setSafetyWeeks}
-              precios={planchaConfig.precios}
-              skuPlancha={planchaConfig.skus}
-            />
+          {tab === 'costos_laborales' && (
+            <TabCostosLaborales />
           )}
           {tab === 'produccion' && (
             <TabProduccion
