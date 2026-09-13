@@ -13,6 +13,7 @@ function IdleWatcher() {
   const timerRef = useRef(null)
   const warnRef = useRef(null)
   const countRef = useRef(null)
+  const warningActiveRef = useRef(false)
 
   // Carga el timeout configurado desde el servidor
   useEffect(() => {
@@ -31,6 +32,7 @@ function IdleWatcher() {
   }, [])
 
   const reset = useCallback(() => {
+    warningActiveRef.current = false
     setShowWarning(false)
     clearTimeout(timerRef.current)
     clearTimeout(warnRef.current)
@@ -39,6 +41,7 @@ function IdleWatcher() {
     const warnMs = warnBeforeMs(timeoutMs)
     const warnAt = timeoutMs - warnMs
     warnRef.current = setTimeout(() => {
+      warningActiveRef.current = true
       setSecondsLeft(Math.round(warnMs / 1000))
       setShowWarning(true)
       countRef.current = setInterval(() => {
@@ -56,7 +59,7 @@ function IdleWatcher() {
   useEffect(() => {
     if (!session) return
     const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
-    const handler = () => reset()
+    const handler = () => { if (!warningActiveRef.current) reset() }
     events.forEach(e => window.addEventListener(e, handler, { passive: true }))
     reset()
     return () => {
