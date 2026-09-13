@@ -1799,6 +1799,7 @@ function TabAdmin() {
   const [form, setForm] = useState({ open: false, email: '', password: '', name: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [editName, setEditName] = useState(null) // { userId, value }
 
   // ── Config del sistema ──
   const [idleMinutes, setIdleMinutes] = useState(30)
@@ -1884,6 +1885,19 @@ function TabAdmin() {
     }
   }
 
+  const handleNameSave = async () => {
+    if (!editName) return
+    const { userId, value } = editName
+    if (!value.trim()) { flash('El nombre no puede estar vacío', false); return }
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: value.trim() }),
+    })
+    if (res.ok) { flash('Nombre actualizado'); setEditName(null); load() }
+    else { const e = await res.json(); flash(e.error || 'Error al actualizar', false) }
+  }
+
   if (loading) return <p style={{ color: '#64748b', padding: 24 }}>Cargando usuarios...</p>
   if (error) return <p style={{ color: RED, padding: 24 }}>Error: {error}</p>
 
@@ -1967,13 +1981,40 @@ function TabAdmin() {
                 <td style={td}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {u.picture
-                      ? <img src={u.picture} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />
-                      : <div style={{ width: 32, height: 32, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 13 }}>
+                      ? <img src={u.picture} alt="" style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }} />
+                      : <div style={{ width: 32, height: 32, borderRadius: '50%', background: BLUE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
                           {(u.name || u.email || '?')[0].toUpperCase()}
                         </div>
                     }
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#1e293b' }}>{u.name || '—'}</div>
+                    <div style={{ minWidth: 0 }}>
+                      {editName?.userId === u.user_id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <input
+                            autoFocus
+                            value={editName.value}
+                            onChange={e => setEditName(n => ({ ...n, value: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') handleNameSave(); if (e.key === 'Escape') setEditName(null) }}
+                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 160 }}
+                          />
+                          <button onClick={handleNameSave}
+                            style={{ padding: '3px 10px', background: GREEN, color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                            OK
+                          </button>
+                          <button onClick={() => setEditName(null)}
+                            style={{ padding: '3px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#64748b' }}>
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontWeight: 600, color: '#1e293b' }}>{u.name || '—'}</span>
+                          <button
+                            title="Editar nombre"
+                            onClick={() => setEditName({ userId: u.user_id, value: u.name || '' })}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
+                          >✏️</button>
+                        </div>
+                      )}
                       <div style={{ color: '#64748b', fontSize: 12 }}>{u.email}</div>
                     </div>
                   </div>

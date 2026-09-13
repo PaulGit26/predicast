@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '../../auth/[...nextauth]'
-import { deleteUser, setUserRole } from '../../../../lib/auth0-mgmt'
+import { deleteUser, setUserRole, updateUser } from '../../../../lib/auth0-mgmt'
 
 export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions)
@@ -23,9 +23,15 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { roleId } = req.body
+    const { roleId, name } = req.body
     try {
-      await setUserRole(id, roleId)
+      if (name !== undefined) {
+        if (!name.trim()) return res.status(400).json({ error: 'El nombre no puede estar vacío' })
+        await updateUser(id, { name: name.trim() })
+      }
+      if (roleId !== undefined) {
+        await setUserRole(id, roleId)
+      }
       return res.status(200).json({ ok: true })
     } catch (e) {
       return res.status(500).json({ error: e.message })

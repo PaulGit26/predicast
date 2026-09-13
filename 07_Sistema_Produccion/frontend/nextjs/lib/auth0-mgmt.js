@@ -68,6 +68,13 @@ export async function deleteUser(userId) {
   return mgmt(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
 }
 
+export async function updateUser(userId, fields) {
+  return mgmt(`/users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(fields),
+  })
+}
+
 export async function setUserRole(userId, roleId) {
   const current = await mgmt(`/users/${encodeURIComponent(userId)}/roles`)
   if (Array.isArray(current) && current.length > 0) {
