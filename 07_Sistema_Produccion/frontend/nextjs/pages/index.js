@@ -1885,6 +1885,18 @@ function TabAdmin() {
     }
   }
 
+  const handleToggleBlock = async (userId, currentlyBlocked) => {
+    const accion = currentlyBlocked ? 'activar' : 'desactivar'
+    if (!confirm(`¿${accion.charAt(0).toUpperCase() + accion.slice(1)} este usuario?`)) return
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blocked: !currentlyBlocked }),
+    })
+    if (res.ok) { flash(`Usuario ${currentlyBlocked ? 'activado' : 'desactivado'}`); load() }
+    else { const e = await res.json(); flash(e.error || 'Error al actualizar', false) }
+  }
+
   const handleNameSave = async () => {
     if (!editName) return
     const { userId, value } = editName
@@ -1972,6 +1984,7 @@ function TabAdmin() {
               <th style={th}>Usuario</th>
               <th style={th}>Último acceso</th>
               <th style={th}>Rol</th>
+              <th style={th}>Estado</th>
               <th style={th}>Acciones</th>
             </tr>
           </thead>
@@ -2040,12 +2053,37 @@ function TabAdmin() {
                   </select>
                 </td>
                 <td style={td}>
-                  <button
-                    onClick={() => handleDelete(u.user_id, u.email)}
-                    style={{ padding: '5px 10px', background: '#fef2f2', color: RED, border: `1px solid #fca5a5`, borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                  >
-                    Eliminar
-                  </button>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    background: u.blocked ? '#fef2f2' : '#f0fdf4',
+                    color: u.blocked ? RED : GREEN,
+                    border: `1px solid ${u.blocked ? '#fca5a5' : '#86efac'}`,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: u.blocked ? RED : GREEN, display: 'inline-block' }} />
+                    {u.blocked ? 'Bloqueado' : 'Activo'}
+                  </span>
+                </td>
+                <td style={td}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => handleToggleBlock(u.user_id, u.blocked)}
+                      style={{
+                        padding: '5px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: '1px solid',
+                        background: u.blocked ? '#f0fdf4' : '#fffbeb',
+                        color: u.blocked ? GREEN : ORANGE,
+                        borderColor: u.blocked ? '#86efac' : '#fde68a',
+                      }}
+                    >
+                      {u.blocked ? 'Activar' : 'Desactivar'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(u.user_id, u.email)}
+                      style={{ padding: '5px 10px', background: '#fef2f2', color: RED, border: `1px solid #fca5a5`, borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

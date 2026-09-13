@@ -23,11 +23,14 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { roleId, name } = req.body
+    const { roleId, name, blocked } = req.body
     try {
       if (name !== undefined) {
         if (!name.trim()) return res.status(400).json({ error: 'El nombre no puede estar vacío' })
         await updateUser(id, { name: name.trim() })
+      }
+      if (blocked !== undefined) {
+        await updateUser(id, { blocked: Boolean(blocked) })
       }
       if (roleId !== undefined) {
         await setUserRole(id, roleId)
