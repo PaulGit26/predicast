@@ -1807,15 +1807,15 @@ function TabAdmin() {
   const [savingIdle, setSavingIdle]   = useState(false)
   const [idleMsg, setIdleMsg]         = useState(null)
 
-  const load = () => {
-    setLoading(true)
+  const load = (showSpinner = false) => {
+    if (showSpinner) setLoading(true)
     fetch('/api/admin/users')
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(true) }, [])
 
   useEffect(() => {
     fetch('/api/admin/config')
