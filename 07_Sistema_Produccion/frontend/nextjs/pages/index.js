@@ -1927,11 +1927,16 @@ function TabAdmin() {
               value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               style={{ flex: 1, minWidth: 220, padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
             />
-            <input
-              required type="password" placeholder="Contraseña temporal"
-              value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              style={{ flex: 1, minWidth: 180, padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
-            />
+            <div style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <input
+                required type="password" placeholder="Contraseña temporal"
+                value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+              />
+              <span style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                Mín. 8 caracteres · mayúscula · minúscula · número · símbolo (ej: <code style={{ fontFamily: 'monospace' }}>Abc123!</code>)
+              </span>
+            </div>
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
             <button type="submit" disabled={saving}
