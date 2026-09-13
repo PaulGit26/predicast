@@ -2364,6 +2364,21 @@ function TabAsignacionSeguimiento({ produccion }) {
 
   const saveAsignacion = async () => {
     if (!week) return
+
+    // Validate: every row must have a name
+    const nameless = operarios.filter(op => !op.nombre.trim())
+    if (nameless.length > 0) {
+      setMsg({ ok: false, text: `Faltan ${nameless.length === 1 ? 'un operario' : `${nameless.length} operarios`} sin nombre. Selecciona o escribe el nombre de cada operario antes de guardar.` })
+      return
+    }
+
+    // Validate: no duplicate operator names in same week
+    const nombres = operarios.map(op => op.nombre.trim().toLowerCase())
+    if (nombres.length !== new Set(nombres).size) {
+      setMsg({ ok: false, text: 'Hay operarios duplicados en esta semana. Cada operario solo puede aparecer una vez por semana.' })
+      return
+    }
+
     setSaving(true); setMsg(null)
     try {
       const r = await fetch('/api/asignaciones', {
@@ -2708,15 +2723,28 @@ function TabAsignacionSeguimiento({ produccion }) {
                   <tbody>
                     {operarios.map((op, i) => {
                       const total = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
+                      const sinNombre = !op.nombre.trim()
+                      const esDuplicado = operarios.filter(o => o.nombre.trim() && o.nombre === op.nombre).length > 1
+                      const rowError = sinNombre || esDuplicado
                       return (
-                        <tr key={op.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f1f5f9' }}>
+                        <tr key={op.id} style={{ background: rowError ? '#fef9f0' : i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: `1px solid ${rowError ? '#fde68a' : '#f1f5f9'}`, outline: rowError ? '1.5px solid #fbbf24' : 'none', outlineOffset: -1 }}>
                           <td style={{ padding: '10px 16px', minWidth: 200 }}>
+                            {sinNombre && <div style={{ fontSize: 11, color: '#92400e', fontWeight: 600, marginBottom: 5 }}>⚠ Selecciona un operario</div>}
+                            {esDuplicado && <div style={{ fontSize: 11, color: '#991b1b', fontWeight: 600, marginBottom: 5 }}>✕ Operario duplicado</div>}
                             {catalogoLoaded && catalogoOps.length > 0 ? (
                               <>
                                 <select
                                   value={catalogoOps.find(c => c.nombre === op.nombre)?.id || ''}
                                   onChange={e => {
                                     const found = catalogoOps.find(c => c.id === e.target.value)
+                                    if (found) {
+                                      const yaAsignado = operarios.some(o => o.id !== op.id && o.nombre === found.nombre)
+                                      if (yaAsignado) {
+                                        setMsg({ ok: false, text: `"${found.nombre}" ya está en la lista de esta semana. No puedes asignar al mismo operario dos veces.` })
+                                        setTimeout(() => setMsg(null), 4000)
+                                        return
+                                      }
+                                    }
                                     updateOp(op.id, 'nombre', found ? found.nombre : '')
                                     updateOp(op.id, 'email',  found ? found.email  : '')
                                   }}
