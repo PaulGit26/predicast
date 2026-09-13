@@ -1457,6 +1457,45 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
   return (
     <div>
 
+      {/* ── Orientación ── */}
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+          Qué encontrarás en esta sección
+        </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {[
+            {
+              icon: '💲',
+              title: 'Precios de plancha',
+              desc: 'Ajusta el costo actual por tipo de plancha (F.G. 0.75 y F.G. 1.20). Afecta todos los cálculos de inversión.',
+            },
+            {
+              icon: '📊',
+              title: 'Gráfico general',
+              desc: 'Inversión semanal apilada por los 52 semanas y todos los SKUs. Identifica los picos de mayor gasto.',
+            },
+            {
+              icon: '🏷️',
+              title: 'Análisis por producto',
+              desc: 'Selecciona un SKU para ver su inversión individual, cronograma mensual y las semanas más críticas.',
+            },
+            {
+              icon: '📋',
+              title: 'Tabla de detalle',
+              desc: 'Semana a semana: unidades a producir, planchas requeridas y costo. Exportable a CSV.',
+            },
+          ].map(({ icon, title, desc }) => (
+            <div key={title} style={{ display: 'flex', gap: 10, flex: '1 1 200px', minWidth: 180, background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 20, flexShrink: 0, lineHeight: 1.2 }}>{icon}</div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', marginBottom: 3 }}>{title}</div>
+                <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── Precio editor ── */}
       <div style={{ background: '#f0fdfe', border: '1px solid #a5f3fc', borderRadius: 10, padding: '14px 20px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
