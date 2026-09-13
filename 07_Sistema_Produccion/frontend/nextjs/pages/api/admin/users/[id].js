@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '../../auth/[...nextauth]'
-import { deleteUser, setUserRole, updateUser } from '../../../../lib/auth0-mgmt'
+import { deleteUser, setUserRole, updateUser, sendPasswordResetTicket } from '../../../../lib/auth0-mgmt'
 
 export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions)
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { roleId, name, blocked } = req.body
+    const { roleId, name, blocked, password, sendResetEmail } = req.body
     try {
       if (name !== undefined) {
         if (!name.trim()) return res.status(400).json({ error: 'El nombre no puede estar vacío' })
@@ -31,6 +31,15 @@ export default async function handler(req, res) {
       }
       if (blocked !== undefined) {
         await updateUser(id, { blocked: Boolean(blocked) })
+      }
+      if (password !== undefined) {
+        if (password.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' })
+        await updateUser(id, { password, connection: 'Username-Password-Authentication' })
+      }
+      if (sendResetEmail) {
+        const ticket = await sendPasswordResetTicket(id)
+        if (ticket?.ticket) return res.status(200).json({ ok: true, resetUrl: ticket.ticket })
+        throw new Error('No se pudo generar el enlace de recuperación')
       }
       if (roleId !== undefined) {
         await setUserRole(id, roleId)

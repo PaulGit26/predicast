@@ -1800,6 +1800,10 @@ function TabAdmin() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [editName, setEditName] = useState(null) // { userId, value }
+  const [pwdModal, setPwdModal] = useState(null) // { userId, email, name }
+  const [newPwd, setNewPwd] = useState('')
+  const [pwdSaving, setPwdSaving] = useState(false)
+  const [pwdMsg, setPwdMsg] = useState(null)
 
   // ── Config del sistema ──
   const [idleMinutes, setIdleMinutes] = useState(30)
@@ -1885,6 +1889,47 @@ function TabAdmin() {
     }
   }
 
+  const flashPwd = (text, ok = true) => {
+    setPwdMsg({ text, ok })
+    setTimeout(() => setPwdMsg(null), 4000)
+  }
+
+  const handleSendReset = async () => {
+    if (!pwdModal) return
+    setPwdSaving(true)
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(pwdModal.userId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sendResetEmail: true }),
+    })
+    const body = await res.json()
+    setPwdSaving(false)
+    if (res.ok) {
+      flashPwd(`Correo de recuperación enviado a ${pwdModal.email}`)
+    } else {
+      flashPwd(body.error || 'Error al enviar correo', false)
+    }
+  }
+
+  const handleSetPassword = async () => {
+    if (!pwdModal) return
+    if (newPwd.length < 8) { flashPwd('Mínimo 8 caracteres', false); return }
+    setPwdSaving(true)
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(pwdModal.userId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPwd }),
+    })
+    const body = await res.json()
+    setPwdSaving(false)
+    if (res.ok) {
+      setNewPwd('')
+      flashPwd('Contraseña actualizada correctamente')
+    } else {
+      flashPwd(body.error || 'Error al actualizar contraseña', false)
+    }
+  }
+
   const handleToggleBlock = async (userId, currentlyBlocked) => {
     const accion = currentlyBlocked ? 'activar' : 'desactivar'
     if (!confirm(`¿${accion.charAt(0).toUpperCase() + accion.slice(1)} este usuario?`)) return
@@ -1917,6 +1962,68 @@ function TabAdmin() {
 
   return (
     <div>
+      {/* ── Modal contraseña ── */}
+      {pwdModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) { setPwdModal(null); setNewPwd('') } }}>
+          <div style={{ background: 'white', borderRadius: 12, padding: '32px 36px', width: 440, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 4px', color: BLUE, fontSize: 16, fontWeight: 700 }}>Contraseña de usuario</h3>
+            <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: 13 }}>{pwdModal.name || pwdModal.email}</p>
+
+            {pwdMsg && (
+              <div style={{ padding: '9px 14px', borderRadius: 6, marginBottom: 16, fontSize: 13,
+                background: pwdMsg.ok ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${pwdMsg.ok ? '#86efac' : '#fca5a5'}`,
+                color: pwdMsg.ok ? '#166534' : '#dc2626' }}>
+                {pwdMsg.text}
+              </div>
+            )}
+
+            {/* Opción 1: correo de recuperación */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px 18px', marginBottom: 16 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b', marginBottom: 4 }}>Enviar correo de recuperación</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
+                Auth0 enviará un enlace a <strong>{pwdModal.email}</strong> para que el usuario restablezca su propia contraseña.
+              </div>
+              <button onClick={handleSendReset} disabled={pwdSaving}
+                style={{ padding: '8px 18px', background: '#0369a1', color: 'white', border: 'none', borderRadius: 6, cursor: pwdSaving ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13 }}>
+                {pwdSaving ? 'Enviando...' : 'Enviar correo'}
+              </button>
+            </div>
+
+            {/* Opción 2: establecer nueva contraseña */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px 18px', marginBottom: 20 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b', marginBottom: 4 }}>Establecer nueva contraseña</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                El admin define la contraseña directamente. Deberás comunicársela al usuario.
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <input
+                    type="password" placeholder="Nueva contraseña"
+                    value={newPwd} onChange={e => setNewPwd(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSetPassword()}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13 }}
+                  />
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                    Mín. 8 caracteres · mayúscula · minúscula · número · símbolo
+                  </div>
+                </div>
+                <button onClick={handleSetPassword} disabled={pwdSaving || !newPwd}
+                  style={{ padding: '8px 16px', background: GREEN, color: 'white', border: 'none', borderRadius: 6, cursor: (pwdSaving || !newPwd) ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, alignSelf: 'flex-start' }}>
+                  {pwdSaving ? '...' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+
+            <button onClick={() => { setPwdModal(null); setNewPwd('') }}
+              style={{ padding: '8px 20px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h2 style={{ color: BLUE, margin: 0, fontSize: 17, fontWeight: 700 }}>Gestión de usuarios</h2>
@@ -2065,7 +2172,13 @@ function TabAdmin() {
                   </span>
                 </td>
                 <td style={td}>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => { setPwdModal({ userId: u.user_id, email: u.email, name: u.name }); setNewPwd(''); setPwdMsg(null) }}
+                      style={{ padding: '5px 10px', background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                    >
+                      Contraseña
+                    </button>
                     <button
                       onClick={() => handleToggleBlock(u.user_id, u.blocked)}
                       style={{

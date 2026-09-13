@@ -75,6 +75,17 @@ export async function updateUser(userId, fields) {
   })
 }
 
+export async function sendPasswordResetTicket(userId) {
+  return mgmt('/tickets/password-change', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: userId,
+      ttl_sec: 86400,
+      mark_email_as_verified: true,
+    }),
+  })
+}
+
 export async function setUserRole(userId, roleId) {
   const current = await mgmt(`/users/${encodeURIComponent(userId)}/roles`)
   if (Array.isArray(current) && current.length > 0) {
