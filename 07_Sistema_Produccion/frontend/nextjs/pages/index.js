@@ -1831,7 +1831,7 @@ function TabAdmin() {
 
   const handleSaveIdle = async () => {
     const mins = parseInt(idleTemp, 10)
-    if (isNaN(mins) || mins < 5 || mins > 480) { flashIdle('Debe ser entre 5 y 480 minutos', false); return }
+    if (isNaN(mins) || mins < 2 || mins > 480) { flashIdle('Debe ser entre 2 y 480 minutos', false); return }
     setSavingIdle(true)
     const res = await fetch('/api/admin/config', {
       method: 'PUT',
@@ -2047,13 +2047,13 @@ function TabAdmin() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <input
-                      type="range" min={5} max={120} step={5}
+                      type="range" min={2} max={120} step={1}
                       value={idleTemp}
                       onChange={e => setIdleTemp(Number(e.target.value))}
                       style={{ width: 140, accentColor: BLUE }}
                     />
                     <input
-                      type="number" min={5} max={480}
+                      type="number" min={2} max={480}
                       value={idleTemp}
                       onChange={e => setIdleTemp(Number(e.target.value))}
                       style={{ width: 64, padding: '5px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}

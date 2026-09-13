@@ -1,7 +1,8 @@
 import { SessionProvider, signOut, useSession } from 'next-auth/react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const WARN_BEFORE_MS = 2 * 60 * 1000  // aviso 2 min antes de expirar
+// aviso 2 min antes, pero no más del 50% del timeout total
+const warnBeforeMs = (timeoutMs) => Math.min(2 * 60 * 1000, Math.floor(timeoutMs * 0.5))
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 
 function IdleWatcher() {
@@ -35,9 +36,10 @@ function IdleWatcher() {
     clearTimeout(warnRef.current)
     clearInterval(countRef.current)
 
-    const warnAt = timeoutMs - WARN_BEFORE_MS
+    const warnMs = warnBeforeMs(timeoutMs)
+    const warnAt = timeoutMs - warnMs
     warnRef.current = setTimeout(() => {
-      setSecondsLeft(Math.round(WARN_BEFORE_MS / 1000))
+      setSecondsLeft(Math.round(warnMs / 1000))
       setShowWarning(true)
       countRef.current = setInterval(() => {
         setSecondsLeft(s => {

@@ -37,8 +37,8 @@ export default async function handler(req, res) {
     const { idle_timeout_minutes } = req.body
     if (idle_timeout_minutes !== undefined) {
       const mins = parseInt(idle_timeout_minutes, 10)
-      if (isNaN(mins) || mins < 5 || mins > 480) {
-        return res.status(400).json({ error: 'El tiempo debe estar entre 5 y 480 minutos' })
+      if (isNaN(mins) || mins < 2 || mins > 480) {
+        return res.status(400).json({ error: 'El tiempo debe estar entre 2 y 480 minutos' })
       }
       config.idle_timeout_minutes = mins
     }
