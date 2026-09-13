@@ -1800,6 +1800,13 @@ function TabAdmin() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
 
+  // ── Config del sistema ──
+  const [idleMinutes, setIdleMinutes] = useState(30)
+  const [idleTemp, setIdleTemp]       = useState(30)
+  const [editingIdle, setEditingIdle] = useState(false)
+  const [savingIdle, setSavingIdle]   = useState(false)
+  const [idleMsg, setIdleMsg]         = useState(null)
+
   const load = () => {
     setLoading(true)
     fetch('/api/admin/users')
@@ -1809,6 +1816,32 @@ function TabAdmin() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    fetch('/api/admin/config')
+      .then(r => r.json())
+      .then(d => { if (d.idle_timeout_minutes) { setIdleMinutes(d.idle_timeout_minutes); setIdleTemp(d.idle_timeout_minutes) } })
+      .catch(() => {})
+  }, [])
+
+  const flashIdle = (text, ok = true) => {
+    setIdleMsg({ text, ok })
+    setTimeout(() => setIdleMsg(null), 3500)
+  }
+
+  const handleSaveIdle = async () => {
+    const mins = parseInt(idleTemp, 10)
+    if (isNaN(mins) || mins < 5 || mins > 480) { flashIdle('Debe ser entre 5 y 480 minutos', false); return }
+    setSavingIdle(true)
+    const res = await fetch('/api/admin/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idle_timeout_minutes: mins }),
+    })
+    setSavingIdle(false)
+    if (res.ok) { setIdleMinutes(mins); setEditingIdle(false); flashIdle('Tiempo de inactividad actualizado') }
+    else { const e = await res.json(); flashIdle(e.error || 'Error al guardar', false) }
+  }
 
   const flash = (text, ok = true) => {
     setMsg({ text, ok })
@@ -1972,6 +2005,88 @@ function TabAdmin() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Configuración del sistema ── */}
+      <div style={{ marginTop: 32 }}>
+        <h2 style={{ color: BLUE, margin: '0 0 4px', fontSize: 17, fontWeight: 700 }}>Configuración del sistema</h2>
+        <p style={{ color: '#64748b', margin: '0 0 16px', fontSize: 13 }}>Parámetros de seguridad y comportamiento global.</p>
+
+        {idleMsg && (
+          <div style={{ padding: '10px 14px', borderRadius: 6, marginBottom: 14, fontSize: 13,
+            background: idleMsg.ok ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${idleMsg.ok ? '#86efac' : '#fca5a5'}`,
+            color: idleMsg.ok ? '#166534' : '#dc2626' }}>
+            {idleMsg.text}
+          </div>
+        )}
+
+        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 14, marginBottom: 3 }}>Tiempo de inactividad</div>
+              <div style={{ color: '#64748b', fontSize: 12 }}>
+                Cierra la sesión automáticamente tras este período sin actividad del usuario.
+                El sistema avisa 2 minutos antes de cerrar.
+              </div>
+            </div>
+            {!editingIdle ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                <span style={{ background: '#f1f5f9', padding: '6px 16px', borderRadius: 6, fontWeight: 700, fontSize: 15, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>
+                  {idleMinutes} min
+                </span>
+                <button
+                  onClick={() => { setIdleTemp(idleMinutes); setEditingIdle(true) }}
+                  style={{ padding: '7px 16px', background: BLUE, color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                >
+                  Editar
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      type="range" min={5} max={120} step={5}
+                      value={idleTemp}
+                      onChange={e => setIdleTemp(Number(e.target.value))}
+                      style={{ width: 140, accentColor: BLUE }}
+                    />
+                    <input
+                      type="number" min={5} max={480}
+                      value={idleTemp}
+                      onChange={e => setIdleTemp(Number(e.target.value))}
+                      style={{ width: 64, padding: '5px 8px', borderRadius: 5, border: '1px solid #cbd5e1', fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}
+                    />
+                    <span style={{ fontSize: 13, color: '#64748b' }}>min</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                    {[15, 30, 60, 90].map(v => (
+                      <button key={v} onClick={() => setIdleTemp(v)}
+                        style={{ padding: '3px 10px', fontSize: 11, borderRadius: 4, border: '1px solid #cbd5e1',
+                          background: idleTemp === v ? BLUE : 'white', color: idleTemp === v ? 'white' : '#475569',
+                          cursor: 'pointer', fontWeight: 600 }}>
+                        {v}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={handleSaveIdle} disabled={savingIdle}
+                  style={{ padding: '7px 16px', background: GREEN, color: 'white', border: 'none', borderRadius: 6, cursor: savingIdle ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13 }}
+                >
+                  {savingIdle ? 'Guardando...' : 'Guardar'}
+                </button>
+                <button
+                  onClick={() => setEditingIdle(false)}
+                  style={{ padding: '7px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: '#64748b' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -4179,14 +4294,14 @@ const GUIA_CONTENT = {
     tip: 'Sube el archivo mensualmente o al cierre de cada período para mantener las predicciones vigentes.',
   },
   admin: {
-    titulo: 'Administración de Usuarios',
-    desc: 'Gestiona quién tiene acceso al sistema y qué módulos puede ver.',
+    titulo: 'Administración del sistema',
+    desc: 'Gestiona usuarios, roles y configuración de seguridad del sistema.',
     puntos: [
       'Asigna roles: admin, gerente_financiero, gerente_produccion',
       'Crea o desactiva usuarios desde el panel',
-      'Los roles determinan qué módulos aparecen en el dashboard',
+      'Configura el tiempo de inactividad para cierre automático de sesión',
     ],
-    tip: 'Solo usuarios con rol admin pueden acceder a esta sección.',
+    tip: 'El sistema avisa 2 minutos antes de cerrar la sesión por inactividad. Solo admins pueden cambiar este valor.',
   },
 }
 
