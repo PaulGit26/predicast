@@ -2225,6 +2225,16 @@ function TabAsignacionSeguimiento({ produccion }) {
   const [resumeSelectedWeek, setResumeSelectedWeek] = useState('')
   const [resumeSelectedOp, setResumeSelectedOp]     = useState('')
 
+  // Operator catalog
+  const { data: session } = useSession()
+  const canManageOps = session?.roles?.includes('admin') || session?.roles?.includes('gerente_produccion')
+  const [catalogoOps, setCatalogoOps]       = useState([])
+  const [catalogoLoaded, setCatalogoLoaded] = useState(false)
+  const [newOpNombre, setNewOpNombre]       = useState('')
+  const [newOpEmail, setNewOpEmail]         = useState('')
+  const [savingOp, setSavingOp]             = useState(false)
+  const [opMsg, setOpMsg]                   = useState(null)
+
   useEffect(() => { setBaseUrl(window.location.origin) }, [])
 
   // Reset allWeeksLoaded when entering seguimiento (a view that doesn't need it)
@@ -2245,6 +2255,15 @@ function TabAsignacionSeguimiento({ produccion }) {
       })
       .catch(() => setAllWeeksLoaded(true))
   }, [view, allWeeksLoaded])
+
+  // Load operator catalog on mount
+  useEffect(() => {
+    fetch('/api/operarios')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setCatalogoOps(d) })
+      .catch(() => {})
+      .finally(() => setCatalogoLoaded(true))
+  }, [])
 
   // Extract weeks that have ≥1 SKU with recommended production
   const productionWeeks = useMemo(() => {
@@ -2306,6 +2325,42 @@ function TabAsignacionSeguimiento({ produccion }) {
     ))
 
   const removeOp = (id) => setOperarios(prev => prev.filter(o => o.id !== id))
+
+  const createOperario = async () => {
+    if (!newOpNombre.trim()) return
+    setSavingOp(true)
+    try {
+      const res = await fetch('/api/operarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: newOpNombre.trim(), email: newOpEmail.trim() }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setCatalogoOps(prev => [...prev, d].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+        setNewOpNombre(''); setNewOpEmail('')
+        setOpMsg({ ok: true, text: `Operario "${d.nombre}" registrado.` })
+      } else {
+        setOpMsg({ ok: false, text: d.error || 'Error al registrar.' })
+      }
+    } catch (_) {
+      setOpMsg({ ok: false, text: 'Error de red. Intenta de nuevo.' })
+    } finally {
+      setSavingOp(false)
+      setTimeout(() => setOpMsg(null), 3500)
+    }
+  }
+
+  const deactivateOp = async (catId) => {
+    try {
+      await fetch('/api/operarios', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: catId, activo: false }),
+      })
+      setCatalogoOps(prev => prev.filter(o => o.id !== catId))
+    } catch (_) {}
+  }
 
   const saveAsignacion = async () => {
     if (!week) return
@@ -2415,6 +2470,7 @@ function TabAsignacionSeguimiento({ produccion }) {
     asignar:     'Define cuántas unidades producirá cada operario esta semana. Distribuye la meta del sistema entre tu equipo y guarda la asignación para que quede registrada.',
     seguimiento: 'Registra el avance real de cada operario conforme avanza la semana. Actualiza los valores al consultar con tu equipo y guarda por separado para cada operario.',
     resumen:     'Visualiza el desempeño global de producción con gráficos en tiempo real. Analiza tendencias por semana, comparación entre SKUs y el avance acumulado de cada operario.',
+    operarios:   'Administra el catálogo de operarios disponibles. Los operarios registrados aquí aparecen como opciones al asignar metas semanales. Solo disponible para administradores y gerentes de producción.',
   }
 
   const ViewBtn = ({ id, label }) => (
@@ -2479,8 +2535,9 @@ function TabAsignacionSeguimiento({ produccion }) {
           <ViewBtn id="asignar"     label="① Asignar" />
           <ViewBtn id="seguimiento" label="② Seguimiento" />
           <ViewBtn id="resumen"     label="③ Resumen" />
+          {canManageOps && <ViewBtn id="operarios" label="Operarios" />}
         </div>
-        {view !== 'resumen' && <div style={{ paddingBottom: 10 }}><WeekSelect /></div>}
+        {!['resumen', 'operarios'].includes(view) && <div style={{ paddingBottom: 10 }}><WeekSelect /></div>}
       </div>
 
       {/* Description strip */}
@@ -2653,13 +2710,33 @@ function TabAsignacionSeguimiento({ produccion }) {
                       const total = activeSKUs.reduce((s, k) => s + (op.asignaciones[k] || 0), 0)
                       return (
                         <tr key={op.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '10px 16px' }}>
-                            <input value={op.nombre} placeholder="Nombre del operario"
-                              onChange={e => updateOp(op.id, 'nombre', e.target.value)}
-                              style={{ width: '100%', padding: '5px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 13, fontWeight: 700, color: '#1e3a5f', boxSizing: 'border-box', background: '#fff' }} />
-                            <input value={op.email} placeholder="email@empresa.com"
-                              onChange={e => updateOp(op.id, 'email', e.target.value)}
-                              style={{ width: '100%', padding: '4px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 11, color: '#64748b', marginTop: 5, boxSizing: 'border-box', background: '#fff' }} />
+                          <td style={{ padding: '10px 16px', minWidth: 200 }}>
+                            {catalogoLoaded && catalogoOps.length > 0 ? (
+                              <>
+                                <select
+                                  value={catalogoOps.find(c => c.nombre === op.nombre)?.id || ''}
+                                  onChange={e => {
+                                    const found = catalogoOps.find(c => c.id === e.target.value)
+                                    updateOp(op.id, 'nombre', found ? found.nombre : '')
+                                    updateOp(op.id, 'email',  found ? found.email  : '')
+                                  }}
+                                  style={{ width: '100%', padding: '7px 10px', border: '1.5px solid #e2e8f0', borderRadius: 7, fontSize: 13, fontWeight: 600, color: op.nombre ? '#1e3a5f' : '#94a3b8', background: '#fff', cursor: 'pointer', boxSizing: 'border-box' }}
+                                >
+                                  <option value="">— Seleccionar operario —</option>
+                                  {catalogoOps.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                </select>
+                                {op.email && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4, padding: '0 2px' }}>{op.email}</div>}
+                              </>
+                            ) : (
+                              <>
+                                <input value={op.nombre} placeholder="Nombre del operario"
+                                  onChange={e => updateOp(op.id, 'nombre', e.target.value)}
+                                  style={{ width: '100%', padding: '5px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 13, fontWeight: 700, color: '#1e3a5f', boxSizing: 'border-box', background: '#fff' }} />
+                                <input value={op.email} placeholder="email@empresa.com"
+                                  onChange={e => updateOp(op.id, 'email', e.target.value)}
+                                  style={{ width: '100%', padding: '4px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 11, color: '#64748b', marginTop: 5, boxSizing: 'border-box', background: '#fff' }} />
+                              </>
+                            )}
                           </td>
                           {activeSKUs.map(s => {
                             const meta = week.metas[s] || 0
@@ -3210,6 +3287,116 @@ function TabAsignacionSeguimiento({ produccion }) {
           </div>
         )
       })()}
+
+      {/* ── VISTA OPERARIOS ───────────────────────────────────────────────────── */}
+      {view === 'operarios' && canManageOps && (
+        <div>
+          {/* Create form */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '20px 22px', marginBottom: 22, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14, marginBottom: 4 }}>Registrar nuevo operario</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+              Los operarios registrados aquí aparecerán en el menú desplegable al asignar metas semanales.
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 180px' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Nombre completo *</label>
+                <input
+                  value={newOpNombre}
+                  onChange={e => setNewOpNombre(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && createOperario()}
+                  placeholder="Ej: Juan Pérez"
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+              <div style={{ flex: '1 1 200px' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Correo electrónico (opcional)</label>
+                <input
+                  value={newOpEmail}
+                  onChange={e => setNewOpEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && createOperario()}
+                  placeholder="juan@empresa.com"
+                  type="email"
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+              <button
+                onClick={createOperario}
+                disabled={!newOpNombre.trim() || savingOp}
+                style={{
+                  background: newOpNombre.trim() && !savingOp ? '#166534' : '#e2e8f0',
+                  color: newOpNombre.trim() && !savingOp ? '#fff' : '#94a3b8',
+                  border: 'none', borderRadius: 8, padding: '9px 22px', cursor: newOpNombre.trim() && !savingOp ? 'pointer' : 'not-allowed',
+                  fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                  boxShadow: newOpNombre.trim() && !savingOp ? '0 2px 6px rgba(22,101,52,0.2)' : 'none',
+                }}
+              >
+                {savingOp && <div style={{ width: 13, height: 13, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
+                {savingOp ? 'Guardando...' : '+ Registrar'}
+              </button>
+            </div>
+            {opMsg && (
+              <div style={{ marginTop: 12, fontSize: 12, fontWeight: 600, color: opMsg.ok ? '#166534' : '#991b1b', background: opMsg.ok ? '#f0fdf4' : '#fef2f2', border: `1px solid ${opMsg.ok ? '#86efac' : '#fca5a5'}`, borderRadius: 7, padding: '8px 14px' }}>
+                {opMsg.text}
+              </div>
+            )}
+          </div>
+
+          {/* Operator list */}
+          {!catalogoLoaded ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <div style={{ width: 16, height: 16, border: '2px solid #e2e8f0', borderTop: '2px solid #166534', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+              Cargando catálogo...
+            </div>
+          ) : catalogoOps.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8', fontSize: 13 }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>👷</div>
+              No hay operarios registrados aún. Agrega el primero usando el formulario de arriba.
+            </div>
+          ) : (
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 13 }}>Operarios activos</div>
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>{catalogoOps.length} registrado{catalogoOps.length !== 1 ? 's' : ''}</div>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    <th style={{ padding: '11px 18px', textAlign: 'left', color: '#374151', fontWeight: 700, fontSize: 12, borderBottom: '2px solid #e2e8f0' }}>#</th>
+                    <th style={{ padding: '11px 18px', textAlign: 'left', color: '#374151', fontWeight: 700, fontSize: 12, borderBottom: '2px solid #e2e8f0' }}>Nombre</th>
+                    <th style={{ padding: '11px 18px', textAlign: 'left', color: '#374151', fontWeight: 700, fontSize: 12, borderBottom: '2px solid #e2e8f0' }}>Correo electrónico</th>
+                    <th style={{ padding: '11px 18px', textAlign: 'left', color: '#374151', fontWeight: 700, fontSize: 12, borderBottom: '2px solid #e2e8f0' }}>Registrado</th>
+                    <th style={{ padding: '11px 18px', textAlign: 'center', color: '#374151', fontWeight: 700, fontSize: 12, borderBottom: '2px solid #e2e8f0' }}>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalogoOps.map((op, i) => (
+                    <tr key={op.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding: '13px 18px', color: '#94a3b8', fontWeight: 600, fontSize: 12 }}>{i + 1}</td>
+                      <td style={{ padding: '13px 18px', fontWeight: 700, color: '#1e293b', fontSize: 14 }}>{op.nombre}</td>
+                      <td style={{ padding: '13px 18px', color: '#64748b' }}>{op.email || <span style={{ color: '#cbd5e1' }}>Sin correo</span>}</td>
+                      <td style={{ padding: '13px 18px', color: '#94a3b8', fontSize: 12 }}>
+                        {op.created_at ? new Date(op.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                      <td style={{ padding: '13px 18px', textAlign: 'center' }}>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`¿Desactivar a "${op.nombre}"? Ya no aparecerá en el menú de asignaciones.`)) {
+                              deactivateOp(op.id)
+                            }
+                          }}
+                          style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 7, padding: '5px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                        >
+                          Desactivar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
