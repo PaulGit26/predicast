@@ -40,15 +40,23 @@ export default function handler(req, res) {
   if (req.method === 'POST') {
     const { nombre, email } = req.body
     if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre es requerido.' })
-    const dup = (data.operarios || []).find(
+    if (!email?.trim())  return res.status(400).json({ error: 'El correo electrónico es requerido.' })
+
+    const emailNorm = email.trim().toLowerCase()
+    const dupNombre = (data.operarios || []).find(
       o => o.activo !== false && o.nombre.toLowerCase() === nombre.trim().toLowerCase()
     )
-    if (dup) return res.status(400).json({ error: `Ya existe un operario con el nombre "${nombre.trim()}".` })
+    if (dupNombre) return res.status(400).json({ error: `Ya existe un operario con el nombre "${nombre.trim()}".` })
+
+    const dupEmail = (data.operarios || []).find(
+      o => o.activo !== false && o.email.toLowerCase() === emailNorm
+    )
+    if (dupEmail) return res.status(400).json({ error: `El correo "${email.trim()}" ya está registrado en otro operario.` })
 
     const op = {
       id: crypto.randomBytes(4).toString('hex'),
       nombre: nombre.trim(),
-      email: email?.trim() || '',
+      email: email.trim(),
       activo: true,
       created_at: new Date().toISOString(),
     }

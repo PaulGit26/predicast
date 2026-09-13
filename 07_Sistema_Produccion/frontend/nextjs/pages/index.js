@@ -3323,7 +3323,7 @@ function TabAsignacionSeguimiento({ produccion }) {
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '20px 22px', marginBottom: 22, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 14, marginBottom: 4 }}>Registrar nuevo operario</div>
             <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
-              Los operarios registrados aquí aparecerán en el menú desplegable al asignar metas semanales.
+              Los operarios registrados aparecen en el menú al asignar metas. El correo es único por operario y se usa para enviar reportes.
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <div style={{ flex: '1 1 180px' }}>
@@ -3337,7 +3337,7 @@ function TabAsignacionSeguimiento({ produccion }) {
                 />
               </div>
               <div style={{ flex: '1 1 200px' }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Correo electrónico (opcional)</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 5 }}>Correo electrónico *</label>
                 <input
                   value={newOpEmail}
                   onChange={e => setNewOpEmail(e.target.value)}
@@ -3349,13 +3349,13 @@ function TabAsignacionSeguimiento({ produccion }) {
               </div>
               <button
                 onClick={createOperario}
-                disabled={!newOpNombre.trim() || savingOp}
+                disabled={!newOpNombre.trim() || !newOpEmail.trim() || savingOp}
                 style={{
-                  background: newOpNombre.trim() && !savingOp ? '#166534' : '#e2e8f0',
-                  color: newOpNombre.trim() && !savingOp ? '#fff' : '#94a3b8',
-                  border: 'none', borderRadius: 8, padding: '9px 22px', cursor: newOpNombre.trim() && !savingOp ? 'pointer' : 'not-allowed',
+                  background: newOpNombre.trim() && newOpEmail.trim() && !savingOp ? '#166534' : '#e2e8f0',
+                  color: newOpNombre.trim() && newOpEmail.trim() && !savingOp ? '#fff' : '#94a3b8',
+                  border: 'none', borderRadius: 8, padding: '9px 22px', cursor: newOpNombre.trim() && newOpEmail.trim() && !savingOp ? 'pointer' : 'not-allowed',
                   fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                  boxShadow: newOpNombre.trim() && !savingOp ? '0 2px 6px rgba(22,101,52,0.2)' : 'none',
+                  boxShadow: newOpNombre.trim() && newOpEmail.trim() && !savingOp ? '0 2px 6px rgba(22,101,52,0.2)' : 'none',
                 }}
               >
                 {savingOp && <div style={{ width: 13, height: 13, border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />}
