@@ -23,11 +23,17 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { roleId, name, blocked, password, sendResetEmail } = req.body
+    const { roleId, name, email, blocked, password, sendResetEmail } = req.body
     try {
       if (name !== undefined) {
         if (!name.trim()) return res.status(400).json({ error: 'El nombre no puede estar vacío' })
         await updateUser(id, { name: name.trim() })
+      }
+      if (email !== undefined) {
+        if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+          return res.status(400).json({ error: 'Correo electrónico inválido' })
+        }
+        await updateUser(id, { email: email.trim(), email_verified: false })
       }
       if (blocked !== undefined) {
         await updateUser(id, { blocked: Boolean(blocked) })

@@ -1799,7 +1799,7 @@ function TabAdmin() {
   const [form, setForm] = useState({ open: false, email: '', password: '', name: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
-  const [editName, setEditName] = useState(null) // { userId, value }
+  const [editName, setEditName] = useState(null) // { userId, name, email }
   const [pwdModal, setPwdModal] = useState(null) // { userId, email, name }
   const [newPwd, setNewPwd] = useState('')
   const [pwdSaving, setPwdSaving] = useState(false)
@@ -1944,14 +1944,17 @@ function TabAdmin() {
 
   const handleNameSave = async () => {
     if (!editName) return
-    const { userId, value } = editName
-    if (!value.trim()) { flash('El nombre no puede estar vacío', false); return }
+    const { userId, name, email } = editName
+    if (!name.trim()) { flash('El nombre no puede estar vacío', false); return }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      flash('Correo electrónico inválido', false); return
+    }
     const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: value.trim() }),
+      body: JSON.stringify({ name: name.trim(), email: email.trim() }),
     })
-    if (res.ok) { flash('Nombre actualizado'); setEditName(null); load() }
+    if (res.ok) { flash('Usuario actualizado'); setEditName(null); load() }
     else { const e = await res.json(); flash(e.error || 'Error al actualizar', false) }
   }
 
@@ -2108,34 +2111,47 @@ function TabAdmin() {
                     }
                     <div style={{ minWidth: 0 }}>
                       {editName?.userId === u.user_id ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                           <input
                             autoFocus
-                            value={editName.value}
-                            onChange={e => setEditName(n => ({ ...n, value: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') handleNameSave(); if (e.key === 'Escape') setEditName(null) }}
-                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 160 }}
+                            placeholder="Nombre completo"
+                            value={editName.name}
+                            onChange={e => setEditName(n => ({ ...n, name: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Escape') setEditName(null) }}
+                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 200 }}
                           />
-                          <button onClick={handleNameSave}
-                            style={{ padding: '3px 10px', background: GREEN, color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                            OK
-                          </button>
-                          <button onClick={() => setEditName(null)}
-                            style={{ padding: '3px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#64748b' }}>
-                            ✕
-                          </button>
+                          <input
+                            type="email"
+                            placeholder="Correo electrónico"
+                            value={editName.email}
+                            onChange={e => setEditName(n => ({ ...n, email: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') handleNameSave(); if (e.key === 'Escape') setEditName(null) }}
+                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 200 }}
+                          />
+                          <div style={{ display: 'flex', gap: 5 }}>
+                            <button onClick={handleNameSave}
+                              style={{ padding: '3px 12px', background: GREEN, color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                              Guardar
+                            </button>
+                            <button onClick={() => setEditName(null)}
+                              style={{ padding: '3px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#64748b' }}>
+                              Cancelar
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontWeight: 600, color: '#1e293b' }}>{u.name || '—'}</span>
                           <button
-                            title="Editar nombre"
-                            onClick={() => setEditName({ userId: u.user_id, value: u.name || '' })}
+                            title="Editar nombre y correo"
+                            onClick={() => setEditName({ userId: u.user_id, name: u.name || '', email: u.email || '' })}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
                           >✏️</button>
                         </div>
                       )}
-                      <div style={{ color: '#64748b', fontSize: 12 }}>{u.email}</div>
+                      {editName?.userId !== u.user_id && (
+                        <div style={{ color: '#64748b', fontSize: 12 }}>{u.email}</div>
+                      )}
                     </div>
                   </div>
                 </td>
