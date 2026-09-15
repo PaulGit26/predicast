@@ -80,6 +80,7 @@ function IdleWatcher() {
     : `${secs} seg`
 
   return (
+    <>
     <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
@@ -135,6 +136,7 @@ function IdleWatcher() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
