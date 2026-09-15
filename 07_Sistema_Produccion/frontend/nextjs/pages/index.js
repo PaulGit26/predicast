@@ -4625,6 +4625,7 @@ export default function Home() {
   const [currentModule, setCurrentModule] = useState(null)
   const [tab, setTab] = useState(null)
   const [sku, setSku] = useState(null)
+  const [loggingOut, setLoggingOut] = useState(false)
 
 
   const [predictions, setPredictions] = useState(null)
@@ -4849,16 +4850,22 @@ export default function Home() {
               </span>
               <button
                 onClick={async () => {
+                  setLoggingOut(true)
                   await signOut({ redirect: false })
                   window.location.href = '/api/logout'
                 }}
+                disabled={loggingOut}
                 style={{
                   padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0',
-                  background: 'white', color: '#64748b',
-                  cursor: 'pointer', fontSize: 12, fontWeight: 500,
+                  background: 'white', color: loggingOut ? '#94a3b8' : '#64748b',
+                  cursor: loggingOut ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: 5,
                 }}
               >
-                Cerrar sesión
+                {loggingOut && (
+                  <span style={{ width: 10, height: 10, border: '2px solid #cbd5e1', borderTop: '2px solid #64748b', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                )}
+                {loggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
               </button>
             </div>
           </div>

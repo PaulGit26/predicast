@@ -10,6 +10,7 @@ function IdleWatcher() {
   const [timeoutMs, setTimeoutMs] = useState(DEFAULT_TIMEOUT_MS)
   const [showWarning, setShowWarning] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState(120)
+  const [closingSession, setClosingSession] = useState(false)
   const timerRef = useRef(null)
   const warnRef = useRef(null)
   const countRef = useRef(null)
@@ -79,6 +80,7 @@ function IdleWatcher() {
     : `${secs} seg`
 
   return (
+    <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
       background: 'rgba(15,23,42,0.65)',
@@ -119,14 +121,16 @@ function IdleWatcher() {
             Continuar sesión
           </button>
           <button
-            onClick={logout}
+            onClick={() => { setClosingSession(true); logout() }}
+            disabled={closingSession}
             style={{
-              padding: '10px 20px', background: 'white', color: '#64748b',
-              border: '1px solid #e2e8f0', borderRadius: 7, cursor: 'pointer',
-              fontWeight: 600, fontSize: 14,
+              padding: '10px 20px', background: 'white', color: closingSession ? '#94a3b8' : '#64748b',
+              border: '1px solid #e2e8f0', borderRadius: 7, cursor: closingSession ? 'not-allowed' : 'pointer',
+              fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
-            Cerrar sesión
+            {closingSession && <span style={{ width: 10, height: 10, border: '2px solid #e2e8f0', borderTop: '2px solid #94a3b8', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+            {closingSession ? 'Cerrando...' : 'Cerrar sesión'}
           </button>
         </div>
       </div>
