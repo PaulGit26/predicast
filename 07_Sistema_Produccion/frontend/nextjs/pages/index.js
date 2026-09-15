@@ -4109,6 +4109,7 @@ function downloadMovimientosTemplate() {
 }
 
 function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
+  const { data: session } = useSession()
   const [fileInfo, setFileInfo]       = useState(null)   // { name, base64, preview, totalRows, hasRequired, year }
   const [uploadError, setUploadError] = useState('')
   const [uploading, setUploading]     = useState(false)
@@ -4166,6 +4167,10 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
   }
 
   const handleRetrain = async () => {
+    if (!session?.roles?.includes('admin')) {
+      alert('Solo el Administrador podrá ejecutar esta opción')
+      return
+    }
     setRetraining(true)
     try {
       const r = await fetch('/api/pipeline', { method: 'POST' })
