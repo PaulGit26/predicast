@@ -23,13 +23,15 @@ function writeConfig(d) {
 }
 
 export default async function handler(req, res) {
-  const session = await getServerSession(req, res, authOptions)
-
   if (req.method === 'GET') {
     return res.status(200).json(readConfig())
   }
 
   if (req.method === 'PUT') {
+    let session
+    try { session = await getServerSession(req, res, authOptions) } catch (e) {
+      return res.status(500).json({ error: `Error de autenticación: ${e.message}` })
+    }
     if (!session?.roles?.includes('admin')) {
       return res.status(403).json({ error: 'Forbidden' })
     }

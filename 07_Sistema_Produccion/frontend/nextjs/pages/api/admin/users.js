@@ -3,7 +3,10 @@ import { authOptions } from '../auth/[...nextauth]'
 import { listUsers, createUser } from '../../../lib/auth0-mgmt'
 
 export default async function handler(req, res) {
-  const session = await getServerSession(req, res, authOptions)
+  let session
+  try { session = await getServerSession(req, res, authOptions) } catch (e) {
+    return res.status(500).json({ error: `Error de autenticación: ${e.message}` })
+  }
   if (!session?.roles?.includes('admin')) {
     return res.status(403).json({ error: 'Forbidden' })
   }

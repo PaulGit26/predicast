@@ -1815,7 +1815,11 @@ function TabAdmin() {
   const load = (showSpinner = false) => {
     if (showSpinner) setLoading(true)
     fetch('/api/admin/users')
-      .then(r => r.json())
+      .then(async r => {
+        const ct = r.headers.get('content-type') || ''
+        if (!ct.includes('application/json')) throw new Error(`El servidor devolvió una respuesta inesperada (HTTP ${r.status}). Intenta recargar la página.`)
+        return r.json()
+      })
       .then(d => { setData(d); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
   }
