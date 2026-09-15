@@ -7,6 +7,11 @@ export default async function handler(req, res) {
       const data = await r.json()
       return res.status(r.status).json(data)
     }
+    if (req.method === 'DELETE') {
+      const r = await fetch(`${PIPELINE_URL}/cancel`, { method: 'POST' })
+      const data = await r.json()
+      return res.status(r.status).json(data)
+    }
     const r = await fetch(`${PIPELINE_URL}/status`)
     const data = await r.json()
     return res.status(200).json(data)

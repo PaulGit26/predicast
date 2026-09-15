@@ -4143,8 +4143,9 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
   const [history, setHistory]         = useState([])
   const [dragging, setDragging]       = useState(false)
   const [retraining, setRetraining]   = useState(false)
-  const [pipelineMsg, setPipelineMsg]     = useState(null)
+  const [pipelineMsg, setPipelineMsg]       = useState(null)
   const [pipelineStages, setPipelineStages] = useState({ done: new Set(), current: null })
+  const [cancelling, setCancelling]         = useState(false)
 
   useEffect(() => {
     fetch('/api/ingest-data').then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {})
@@ -4159,6 +4160,7 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
           setPipeline({ status: data.status })
           if (Array.isArray(data.logs)) setPipelineStages(parseStagesFromLogs(data.logs))
           if (data.status === 'success') setPipelineMsg({ type: 'success', text: 'Pipeline finalizado con éxito' })
+          if (data.status === 'cancelled') setPipelineMsg({ type: 'cancelled', text: 'Pipeline cancelado de forma segura' })
           if (data.status === 'error') setPipelineMsg({ type: 'error', text: 'El pipeline terminó con un error. Revisa los registros del servidor.' })
         }
       })
@@ -4181,6 +4183,9 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
           if (data.status === 'success') {
             setPipelineMsg({ type: 'success', text: 'Pipeline finalizado con éxito' })
             setPipelineStages(parseStagesFromLogs(data.logs || []))
+          } else if (data.status === 'cancelled') {
+            setPipelineMsg({ type: 'cancelled', text: 'Pipeline cancelado de forma segura' })
+            setPipelineStages({ done: new Set(), current: null })
           } else if (data.status === 'error') {
             setPipelineMsg({ type: 'error', text: 'El pipeline terminó con un error. Revisa los registros del servidor.' })
           }
@@ -4246,6 +4251,14 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
       setPipeline({ status: data.status || 'running' })
     } catch (_) {}
     finally { setRetraining(false) }
+  }
+
+  const handleCancel = async () => {
+    setCancelling(true)
+    try {
+      await fetch('/api/pipeline', { method: 'DELETE' })
+    } catch (_) {}
+    finally { setCancelling(false) }
   }
 
   const existsInHistory = fileInfo?.name && history.some(h => h.filename === fileInfo.name)
@@ -4431,24 +4444,42 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
               </span>
             </div>
           </div>
-          <button
-            onClick={handleRetrain}
-            disabled={retraining || pipeline?.status === 'running'}
-            style={{
-              background: retraining || pipeline?.status === 'running' ? '#e2e8f0' : '#166534',
-              color: retraining || pipeline?.status === 'running' ? '#94a3b8' : '#fff',
-              border: 'none', borderRadius: 8,
-              padding: '12px 24px', cursor: retraining || pipeline?.status === 'running' ? 'not-allowed' : 'pointer',
-              fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}
-          >
-            <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
-            {(retraining || pipeline?.status === 'running') && (
-              <span style={{ width: 14, height: 14, border: '2px solid #cbd5e1', borderTop: '2px solid #94a3b8', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              onClick={handleRetrain}
+              disabled={retraining || pipeline?.status === 'running'}
+              style={{
+                background: retraining || pipeline?.status === 'running' ? '#e2e8f0' : '#166534',
+                color: retraining || pipeline?.status === 'running' ? '#94a3b8' : '#fff',
+                border: 'none', borderRadius: 8,
+                padding: '12px 24px', cursor: retraining || pipeline?.status === 'running' ? 'not-allowed' : 'pointer',
+                fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+              {(retraining || pipeline?.status === 'running') && (
+                <span style={{ width: 14, height: 14, border: '2px solid #cbd5e1', borderTop: '2px solid #94a3b8', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+              )}
+              {retraining ? 'Iniciando...' : pipeline?.status === 'running' ? 'En proceso...' : '▶ Ejecutar pipeline'}
+            </button>
+            {pipeline?.status === 'running' && (
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                style={{
+                  background: 'white', color: cancelling ? '#94a3b8' : '#dc2626',
+                  border: `1.5px solid ${cancelling ? '#e2e8f0' : '#fca5a5'}`, borderRadius: 8,
+                  padding: '12px 20px', cursor: cancelling ? 'not-allowed' : 'pointer',
+                  fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+              >
+                {cancelling && <span style={{ width: 12, height: 12, border: '2px solid #fca5a5', borderTop: '2px solid #dc2626', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}
+                {cancelling ? 'Cancelando...' : '✕ Cancelar'}
+              </button>
             )}
-            {retraining ? 'Iniciando...' : pipeline?.status === 'running' ? 'En proceso...' : '▶ Ejecutar pipeline'}
-          </button>
+          </div>
         </div>
         {(pipeline?.status === 'running' || (pipeline?.status === 'success' && pipelineStages.done.size > 0)) && (
           <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 20px', marginTop: 14 }}>
@@ -4494,6 +4525,13 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
             <span style={{ fontSize: 18 }}>✅</span>
             <strong>{pipelineMsg.text}</strong>
             <button onClick={() => setPipelineMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#166534', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+          </div>
+        )}
+        {pipelineMsg?.type === 'cancelled' && (
+          <div style={{ background: '#f0f9ff', border: '1px solid #7dd3fc', borderRadius: 8, padding: '12px 16px', marginTop: 12, fontSize: 13, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>🛑</span>
+            <strong>{pipelineMsg.text}</strong>
+            <button onClick={() => setPipelineMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
           </div>
         )}
         {pipelineMsg?.type === 'error' && (

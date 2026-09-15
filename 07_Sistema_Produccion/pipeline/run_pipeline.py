@@ -31,7 +31,7 @@ def _run_clustering():
     spec.loader.exec_module(mod)
 
 
-def main(log_callback=print):
+def main(log_callback=print, cancel_check=None):
     os.makedirs(EDA_DIR,      exist_ok=True)
     os.makedirs(PRED_DIR,     exist_ok=True)
     os.makedirs(ANALISIS_DIR, exist_ok=True)
@@ -53,6 +53,8 @@ def main(log_callback=print):
     ]
 
     for name, fn in stages:
+        if cancel_check:
+            cancel_check()  # Verifica antes de iniciar cada etapa
         ts = datetime.now(timezone.utc).isoformat()
         log_callback(f'[{ts}] START {name}')
         fn()

@@ -5,7 +5,11 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 _lock  = threading.Lock()
-_state = {'status': 'idle', 'started_at': None, 'finished_at': None, 'error': None, 'logs': []}
+_state = {'status': 'idle', 'started_at': None, 'finished_at': None, 'error': None, 'logs': [], 'cancel_requested': False}
+
+
+class PipelineCancelled(Exception):
+    pass
 
 
 def _log(msg):
@@ -16,13 +20,24 @@ def _log(msg):
     print(msg, flush=True)
 
 
+def _check_cancel():
+    with _lock:
+        if _state['cancel_requested']:
+            raise PipelineCancelled()
+
+
 def _execute():
     try:
         import run_pipeline  # lazy: load heavy ML libs only when pipeline runs
-        run_pipeline.main(log_callback=_log)
+        run_pipeline.main(log_callback=_log, cancel_check=_check_cancel)
         with _lock:
             _state['status'] = 'success'
             _state['finished_at'] = datetime.now(timezone.utc).isoformat()
+    except PipelineCancelled:
+        with _lock:
+            _state['status'] = 'cancelled'
+            _state['finished_at'] = datetime.now(timezone.utc).isoformat()
+        _log('[INFO] Pipeline cancelado por el usuario de forma segura.')
     except Exception as exc:
         with _lock:
             _state['status'] = 'error'
@@ -47,6 +62,7 @@ def run():
             'finished_at': None,
             'error': None,
             'logs': [],
+            'cancel_requested': False,
         })
     threading.Thread(target=_execute, daemon=True).start()
     return jsonify({'status': 'started'})
@@ -62,6 +78,15 @@ def status():
 def logs():
     with _lock:
         return jsonify(_state['logs'])
+
+
+@app.post('/cancel')
+def cancel():
+    with _lock:
+        if _state['status'] != 'running':
+            return jsonify({'error': 'Pipeline no está en ejecución'}), 400
+        _state['cancel_requested'] = True
+    return jsonify({'ok': True})
 
 
 if __name__ == '__main__':
