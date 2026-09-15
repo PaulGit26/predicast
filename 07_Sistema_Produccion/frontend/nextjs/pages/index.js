@@ -4150,6 +4150,21 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
     fetch('/api/ingest-data').then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {})
   }, [uploadOk])
 
+  // Al montar, recupera el estado real del servidor por si el pipeline ya estaba corriendo
+  useEffect(() => {
+    fetch('/api/pipeline')
+      .then(r => r.json())
+      .then(data => {
+        if (data.status && data.status !== 'idle') {
+          setPipeline({ status: data.status })
+          if (Array.isArray(data.logs)) setPipelineStages(parseStagesFromLogs(data.logs))
+          if (data.status === 'success') setPipelineMsg({ type: 'success', text: 'Pipeline finalizado con éxito' })
+          if (data.status === 'error') setPipelineMsg({ type: 'error', text: 'El pipeline terminó con un error. Revisa los registros del servidor.' })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   // Polling: cuando el pipeline está corriendo, consulta el estado cada 5 seg
   useEffect(() => {
     if (pipeline?.status !== 'running') return
@@ -4399,7 +4414,7 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
               2. Agregación semanal + feature engineering<br />
               3. Optimización de hiperparámetros (XGBoost)<br />
               4. Predicciones 52 semanas por SKU<br />
-              <strong>Duración estimada: 5–15 minutos.</strong>
+              <strong>Duración estimada: 60–90 minutos.</strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
