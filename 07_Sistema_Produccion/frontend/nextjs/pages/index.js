@@ -2918,7 +2918,19 @@ function TabAsignacionSeguimiento({ produccion }) {
       o.id === id ? { ...o, asignaciones: { ...o.asignaciones, [sku]: Number(val) || 0 } } : o
     ))
 
-  const removeOp = (id) => setOperarios(prev => prev.filter(o => o.id !== id))
+  const opTieneAvance = (id) => {
+    const avances = progreso[id]?.avances || {}
+    return Object.values(avances).some(v => Number(v) > 0)
+  }
+
+  const removeOp = (id) => {
+    if (opTieneAvance(id)) {
+      setMsg({ ok: false, text: 'No se puede eliminar: este operario ya tiene avance registrado en esta semana.' })
+      setTimeout(() => setMsg(null), 4000)
+      return
+    }
+    setOperarios(prev => prev.filter(o => o.id !== id))
+  }
 
   const createOperario = async () => {
     if (!newOpNombre.trim()) return
@@ -3374,8 +3386,24 @@ function TabAsignacionSeguimiento({ produccion }) {
                           })}
                           <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 800, color: '#1a237e', fontSize: 14 }}>{total.toLocaleString('es-PE')}</td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                            <button onClick={() => removeOp(op.id)}
-                              style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer', color: '#ef4444', fontSize: 14, fontWeight: 700, width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                            {(() => {
+                              const bloqueado = opTieneAvance(op.id)
+                              return (
+                                <button
+                                  onClick={() => removeOp(op.id)}
+                                  title={bloqueado ? 'No se puede eliminar: el operario ya tiene avance registrado' : 'Quitar operario'}
+                                  style={{
+                                    background: bloqueado ? '#f1f5f9' : '#fef2f2',
+                                    border: `1px solid ${bloqueado ? '#e2e8f0' : '#fca5a5'}`,
+                                    borderRadius: 6,
+                                    cursor: bloqueado ? 'not-allowed' : 'pointer',
+                                    color: bloqueado ? '#cbd5e1' : '#ef4444',
+                                    fontSize: 14, fontWeight: 700, width: 28, height: 28,
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  }}
+                                >×</button>
+                              )
+                            })()}
                           </td>
                         </tr>
                       )
