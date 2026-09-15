@@ -4861,6 +4861,12 @@ export default function Home() {
 
   const loadAllData = async () => {
     try {
+      // Modo de prueba: simula estado sin pipeline ejecutado (para CP025)
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('simulate_no_data') === 'true') {
+        setHasData(false)
+        setLoading(false)
+        return
+      }
       const predRes = await fetch('/api/predictions')
       const pred = predRes.ok ? await predRes.json() : {}
       if (!pred || Object.keys(pred).length === 0) {
