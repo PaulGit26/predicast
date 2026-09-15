@@ -36,13 +36,16 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Forbidden' })
     }
     const config = readConfig()
-    const { idle_timeout_minutes } = req.body
+    const { idle_timeout_minutes, simulate_no_data } = req.body
     if (idle_timeout_minutes !== undefined) {
       const mins = parseInt(idle_timeout_minutes, 10)
       if (isNaN(mins) || mins < 2 || mins > 480) {
         return res.status(400).json({ error: 'El tiempo debe estar entre 2 y 480 minutos' })
       }
       config.idle_timeout_minutes = mins
+    }
+    if (simulate_no_data !== undefined) {
+      config.simulate_no_data = Boolean(simulate_no_data)
     }
     try { writeConfig(config) } catch (e) {
       return res.status(500).json({ error: `Error guardando: ${e.message}` })

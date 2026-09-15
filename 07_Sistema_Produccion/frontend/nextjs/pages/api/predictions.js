@@ -1,9 +1,21 @@
 import fs from 'fs'
 import path from 'path'
 
+function readConfig(dataRoot) {
+  try {
+    const p = path.resolve(dataRoot, 'config.json')
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'))
+  } catch (_) {}
+  return {}
+}
+
 export default function handler(_req, res) {
   try {
     const dataRoot = process.env.DATA_ROOT || path.resolve(process.cwd(), '../../..')
+
+    const cfg = readConfig(dataRoot)
+    if (cfg.simulate_no_data === true) return res.status(200).json({})
+
     const csvPath = path.resolve(dataRoot, '01_Datos/predicciones_52semanas_largo_V4.csv')
     const text = fs.readFileSync(csvPath, 'utf-8')
     const lines = text.trim().split(/\r?\n/)

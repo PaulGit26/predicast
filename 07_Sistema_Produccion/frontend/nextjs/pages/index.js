@@ -1812,6 +1812,9 @@ function TabAdmin() {
   const [editingIdle, setEditingIdle] = useState(false)
   const [savingIdle, setSavingIdle]   = useState(false)
   const [idleMsg, setIdleMsg]         = useState(null)
+  const [simNoData, setSimNoData]     = useState(false)
+  const [savingSim, setSavingSim]     = useState(false)
+  const [simMsg, setSimMsg]           = useState(null)
 
   const load = (showSpinner = false) => {
     if (showSpinner) setLoading(true)
@@ -1830,7 +1833,10 @@ function TabAdmin() {
   useEffect(() => {
     fetch('/api/admin/config')
       .then(r => r.json())
-      .then(d => { if (d.idle_timeout_minutes) { setIdleMinutes(d.idle_timeout_minutes); setIdleTemp(d.idle_timeout_minutes) } })
+      .then(d => {
+        if (d.idle_timeout_minutes) { setIdleMinutes(d.idle_timeout_minutes); setIdleTemp(d.idle_timeout_minutes) }
+        setSimNoData(!!d.simulate_no_data)
+      })
       .catch(() => {})
   }, [])
 
@@ -1851,6 +1857,24 @@ function TabAdmin() {
     setSavingIdle(false)
     if (res.ok) { setIdleMinutes(mins); setEditingIdle(false); flashIdle('Tiempo de inactividad actualizado') }
     else { const e = await res.json(); flashIdle(e.error || 'Error al guardar', false) }
+  }
+
+  const flashSim = (text, ok = true) => {
+    setSimMsg({ text, ok })
+    setTimeout(() => setSimMsg(null), 3500)
+  }
+
+  const handleToggleSim = async () => {
+    const next = !simNoData
+    setSavingSim(true)
+    const res = await fetch('/api/admin/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ simulate_no_data: next }),
+    })
+    setSavingSim(false)
+    if (res.ok) { setSimNoData(next); flashSim(next ? 'Modo prueba activado: el sistema mostrará "sin datos"' : 'Modo prueba desactivado: datos reales visibles') }
+    else { const e = await res.json(); flashSim(e.error || 'Error al guardar', false) }
   }
 
   const flash = (text, ok = true) => {
@@ -2308,6 +2332,42 @@ function TabAdmin() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* ── Modo de prueba CP025 ── */}
+        <div style={{ marginTop: 12 }}>
+          {simMsg && (
+            <div style={{ marginBottom: 10, padding: '8px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+              background: simMsg.ok ? '#f0fdf4' : '#fef2f2', color: simMsg.ok ? '#166534' : '#991b1b',
+              border: `1px solid ${simMsg.ok ? '#bbf7d0' : '#fecaca'}` }}>
+              {simMsg.text}
+            </div>
+          )}
+          <div style={{ background: 'white', border: `1px solid ${simNoData ? '#fca5a5' : '#e2e8f0'}`, borderRadius: 8, padding: '20px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 14, marginBottom: 3 }}>
+                  Modo de prueba — sin datos
+                </div>
+                <div style={{ color: '#64748b', fontSize: 12 }}>
+                  Hace que el sistema muestre la pantalla "sin pipeline ejecutado" para validar el caso de prueba CP025.
+                  Afecta a todos los usuarios mientras esté activo.
+                </div>
+              </div>
+              <button
+                onClick={handleToggleSim}
+                disabled={savingSim}
+                style={{
+                  padding: '8px 20px', borderRadius: 6, border: 'none', cursor: savingSim ? 'not-allowed' : 'pointer',
+                  fontWeight: 700, fontSize: 13, flexShrink: 0,
+                  background: simNoData ? RED : '#e2e8f0',
+                  color: simNoData ? 'white' : '#475569',
+                }}
+              >
+                {savingSim ? 'Guardando...' : simNoData ? 'Activo — desactivar' : 'Desactivado — activar'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -4861,12 +4921,6 @@ export default function Home() {
 
   const loadAllData = async () => {
     try {
-      // Modo de prueba: simula estado sin pipeline ejecutado (para CP025)
-      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('simulate_no_data') === 'true') {
-        setHasData(false)
-        setLoading(false)
-        return
-      }
       const predRes = await fetch('/api/predictions')
       const pred = predRes.ok ? await predRes.json() : {}
       if (!pred || Object.keys(pred).length === 0) {
