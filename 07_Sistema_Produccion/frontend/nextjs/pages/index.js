@@ -1784,6 +1784,27 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
   )
 }
 
+// ─── Sin plan disponible ─────────────────────────────────────────────────────
+
+function NoPlanMessage({ onGoToIngesta }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+      <h3 style={{ color: '#1e293b', fontSize: 18, fontWeight: 700, marginBottom: 10, margin: '0 0 10px' }}>No hay plan disponible</h3>
+      <p style={{ color: '#64748b', fontSize: 14, maxWidth: 400, margin: '0 auto 24px', lineHeight: 1.6 }}>
+        Este módulo requiere que el pipeline de predicciones haya sido ejecutado.
+        Ve a <strong>Actualización de Datos</strong> para generarlo.
+      </p>
+      <button
+        onClick={onGoToIngesta}
+        style={{ background: '#1a237e', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+      >
+        Ir a Actualización de Datos
+      </button>
+    </div>
+  )
+}
+
 // ─── Tab: Administración ─────────────────────────────────────────────────────
 
 const ROLE_LABELS = {
@@ -5028,62 +5049,14 @@ export default function Home() {
     </main>
   )
 
-  if (hasData === false) {
-    const produccionMod = MODULES.find(m => m.id === 'produccion')
-    const adminMod = MODULES.find(m => m.id === 'admin')
-    const isAdmin = roles.includes('admin')
-    const goToIngesta = () => {
-      if (produccionMod) { selectModule(produccionMod); setTab('ingesta') }
-      setHasData(null); setLoading(true); loadAllData()
-    }
-    const goToAdmin = () => {
-      if (adminMod) { selectModule(adminMod); setTab('admin') }
-      setHasData(null)
-    }
-    return (
-      <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: '24px 32px' }}>
-        <header style={{ borderBottom: `3px solid ${BLUE}`, paddingBottom: 16, marginBottom: 40 }}>
-          <h1 style={{ color: BLUE, margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: 1 }}>PREDICAST</h1>
-        </header>
-        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ fontSize: 56, marginBottom: 20 }}>📂</div>
-          <h2 style={{ color: BLUE, fontSize: 22, fontWeight: 700, marginBottom: 12 }}>Sin datos cargados</h2>
-          <p style={{ color: '#475569', fontSize: 15, maxWidth: 480, margin: '0 auto 32px', lineHeight: 1.7 }}>
-            El sistema no encontró datos de predicciones. Para comenzar, sube tu archivo
-            de movimientos y ejecuta el pipeline desde la pestaña <strong>Actualización de Datos</strong>.
-          </p>
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '20px 28px', maxWidth: 420, margin: '0 auto 32px', textAlign: 'left', fontSize: 14, color: '#334155' }}>
-            <div style={{ fontWeight: 700, marginBottom: 10, color: BLUE }}>Pasos para comenzar:</div>
-            <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 2 }}>
-              <li>Sube tu archivo <code style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: 4 }}>Movimientos_MayorAuxiliar_YYYY.csv</code></li>
-              <li>Haz clic en <strong>Ejecutar pipeline</strong></li>
-              <li>Espera ~10 min a que termine</li>
-              <li>El dashboard se cargará automáticamente</li>
-            </ol>
-          </div>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={goToIngesta}
-              style={{ background: BLUE, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Ir a Actualización de Datos
-            </button>
-            {isAdmin && (
-              <button
-                onClick={goToAdmin}
-                style={{ background: 'white', color: BLUE, border: `2px solid ${BLUE}`, borderRadius: 8, padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
-              >
-                Ir a Administración
-              </button>
-            )}
-          </div>
-        </div>
-      </main>
-    )
-  }
 
   const skus = Object.keys(predictions || {})
   const hour = new Date().getHours()
+
+  const goToIngesta = () => {
+    const produccionMod = MODULES.find(m => m.id === 'produccion')
+    if (produccionMod) { selectModule(produccionMod); setTab('ingesta') }
+  }
   const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
   const firstName = (session?.user?.name || '').split(' ')[0] || 'Usuario'
 
@@ -5208,6 +5181,7 @@ export default function Home() {
             <TabModeloComparativa modeloComparativa={modeloComparativa} />
           )}
           {tab === 'costo_planchas' && (
+            hasData === false ? <NoPlanMessage onGoToIngesta={goToIngesta} /> :
             <TabCostoPlanchas
               produccion={produccion}
               safetyWeeks={safetyWeeks}
@@ -5218,6 +5192,7 @@ export default function Home() {
             />
           )}
           {tab === 'rentabilidad_sku' && (
+            hasData === false ? <NoPlanMessage onGoToIngesta={goToIngesta} /> :
             <TabRentabilidadSKU
               produccion={produccion}
               precios={planchaConfig.precios}
@@ -5225,9 +5200,11 @@ export default function Home() {
             />
           )}
           {tab === 'costos_laborales' && (
+            hasData === false ? <NoPlanMessage onGoToIngesta={goToIngesta} /> :
             <TabCostosLaborales />
           )}
           {tab === 'produccion' && (
+            hasData === false ? <NoPlanMessage onGoToIngesta={goToIngesta} /> :
             <TabProduccion
               produccion={produccion}
               safetyWeeks={safetyWeeks}
@@ -5236,6 +5213,7 @@ export default function Home() {
             />
           )}
           {tab === 'asignacion' && (
+            hasData === false ? <NoPlanMessage onGoToIngesta={goToIngesta} /> :
             <TabAsignacionSeguimiento produccion={produccion} />
           )}
           {tab === 'ingesta' && (
