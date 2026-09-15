@@ -4091,6 +4091,32 @@ function parseMovimientosPreview(buffer, maxRows = 25) {
   return { rows: preview, totalRows, hasRequired }
 }
 
+const PIPELINE_STAGES = [
+  'Análisis Datos Reales (EDA)',
+  'Análisis Planchas',
+  'Preparar TOP20',
+  'Limpieza y Preprocesamiento',
+  'Análisis Pareto',
+  'Agregación + Features',
+  'Clustering ADI/CV²',
+  'Selección de Features',
+  'Optimización Hiperparámetros',
+  'Predicciones Finales',
+]
+
+function parseStagesFromLogs(logs = []) {
+  const done = new Set()
+  let current = null
+  for (const line of logs) {
+    const d = line.match(/DONE\s+(.+)$/)
+    if (d) done.add(d[1].trim())
+    const s = line.match(/START\s+(.+)$/)
+    if (s) current = s[1].trim()
+  }
+  if (current && done.has(current)) current = null
+  return { done, current }
+}
+
 function downloadMovimientosTemplate() {
   const year = new Date().getFullYear()
   const lines = [
@@ -4117,7 +4143,8 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
   const [history, setHistory]         = useState([])
   const [dragging, setDragging]       = useState(false)
   const [retraining, setRetraining]   = useState(false)
-  const [pipelineMsg, setPipelineMsg] = useState(null)
+  const [pipelineMsg, setPipelineMsg]     = useState(null)
+  const [pipelineStages, setPipelineStages] = useState({ done: new Set(), current: null })
 
   useEffect(() => {
     fetch('/api/ingest-data').then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {})
@@ -4126,14 +4153,19 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
   // Polling: cuando el pipeline está corriendo, consulta el estado cada 5 seg
   useEffect(() => {
     if (pipeline?.status !== 'running') return
+    setPipelineStages({ done: new Set(), current: null })
     const interval = setInterval(async () => {
       try {
         const r = await fetch('/api/pipeline')
         const data = await r.json()
+        if (Array.isArray(data.logs)) {
+          setPipelineStages(parseStagesFromLogs(data.logs))
+        }
         if (data.status && data.status !== 'running') {
           setPipeline({ status: data.status })
           if (data.status === 'success') {
             setPipelineMsg({ type: 'success', text: 'Pipeline finalizado con éxito' })
+            setPipelineStages(parseStagesFromLogs(data.logs || []))
           } else if (data.status === 'error') {
             setPipelineMsg({ type: 'error', text: 'El pipeline terminó con un error. Revisa los registros del servidor.' })
           }
@@ -4403,10 +4435,43 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
             {retraining ? 'Iniciando...' : pipeline?.status === 'running' ? 'En proceso...' : '▶ Ejecutar pipeline'}
           </button>
         </div>
-        {pipeline?.status === 'running' && (
-          <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '12px 16px', marginTop: 12, fontSize: 13, color: '#92400e', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 14, height: 14, border: '2px solid #fcd34d', borderTop: '2px solid #f59e0b', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-            Pipeline en ejecución — esto puede tomar 5–15 minutos. No cierres la sesión.
+        {(pipeline?.status === 'running' || (pipeline?.status === 'success' && pipelineStages.done.size > 0)) && (
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 20px', marginTop: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              {pipeline?.status === 'running' && <span style={{ width: 12, height: 12, border: '2px solid #fcd34d', borderTop: '2px solid #f59e0b', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                {pipeline?.status === 'running' ? `Progreso del pipeline — etapa ${pipelineStages.done.size + (pipelineStages.current ? 1 : 0)} de ${PIPELINE_STAGES.length}` : 'Pipeline completado'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {PIPELINE_STAGES.map((stage, i) => {
+                const isDone    = pipelineStages.done.has(stage)
+                const isCurrent = pipelineStages.current === stage
+                const isPending = !isDone && !isCurrent
+                return (
+                  <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12,
+                      background: isDone ? '#dcfce7' : isCurrent ? '#fef9c3' : '#f1f5f9',
+                      color:      isDone ? '#166534' : isCurrent ? '#92400e' : '#94a3b8',
+                      border:     isDone ? '1.5px solid #86efac' : isCurrent ? '1.5px solid #fcd34d' : '1.5px solid #e2e8f0',
+                    }}>
+                      {isDone ? '✓' : isCurrent
+                        ? <span style={{ width: 8, height: 8, border: '2px solid #fcd34d', borderTop: '2px solid #f59e0b', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                        : <span style={{ fontSize: 10, color: '#cbd5e1' }}>{i + 1}</span>}
+                    </span>
+                    <span style={{ color: isDone ? '#166534' : isCurrent ? '#78350f' : '#94a3b8', fontWeight: isCurrent ? 600 : 400 }}>
+                      {stage}
+                      {isCurrent && <span style={{ marginLeft: 6, fontSize: 11, color: '#f59e0b' }}>procesando...</span>}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            {pipeline?.status === 'running' && (
+              <div style={{ marginTop: 10, fontSize: 11, color: '#94a3b8' }}>
+                El progreso se actualiza cada 5 segundos. No cierres la sesión.
+              </div>
+            )}
           </div>
         )}
         {pipelineMsg?.type === 'success' && (

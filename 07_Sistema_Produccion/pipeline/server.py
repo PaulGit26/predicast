@@ -21,7 +21,7 @@ def _execute():
         import run_pipeline  # lazy: load heavy ML libs only when pipeline runs
         run_pipeline.main(log_callback=_log)
         with _lock:
-            _state['status'] = 'done'
+            _state['status'] = 'success'
             _state['finished_at'] = datetime.now(timezone.utc).isoformat()
     except Exception as exc:
         with _lock:
