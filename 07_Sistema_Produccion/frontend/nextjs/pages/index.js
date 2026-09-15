@@ -4117,10 +4117,31 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
   const [history, setHistory]         = useState([])
   const [dragging, setDragging]       = useState(false)
   const [retraining, setRetraining]   = useState(false)
+  const [pipelineMsg, setPipelineMsg] = useState(null)
 
   useEffect(() => {
     fetch('/api/ingest-data').then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {})
   }, [uploadOk])
+
+  // Polling: cuando el pipeline está corriendo, consulta el estado cada 5 seg
+  useEffect(() => {
+    if (pipeline?.status !== 'running') return
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch('/api/pipeline')
+        const data = await r.json()
+        if (data.status && data.status !== 'running') {
+          setPipeline({ status: data.status })
+          if (data.status === 'success') {
+            setPipelineMsg({ type: 'success', text: 'Pipeline finalizado con éxito' })
+          } else if (data.status === 'error') {
+            setPipelineMsg({ type: 'error', text: 'El pipeline terminó con un error. Revisa los registros del servidor.' })
+          }
+        }
+      } catch (_) {}
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [pipeline?.status, setPipeline])
 
   const handleFile = (file) => {
     if (!file) return
@@ -4372,14 +4393,34 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
               border: 'none', borderRadius: 8,
               padding: '12px 24px', cursor: retraining || pipeline?.status === 'running' ? 'not-allowed' : 'pointer',
               fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: 8,
             }}
           >
+            <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+            {(retraining || pipeline?.status === 'running') && (
+              <span style={{ width: 14, height: 14, border: '2px solid #cbd5e1', borderTop: '2px solid #94a3b8', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+            )}
             {retraining ? 'Iniciando...' : pipeline?.status === 'running' ? 'En proceso...' : '▶ Ejecutar pipeline'}
           </button>
         </div>
         {pipeline?.status === 'running' && (
-          <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 16px', marginTop: 12, fontSize: 12, color: '#92400e' }}>
-            El pipeline está corriendo en segundo plano. Las nuevas predicciones estarán disponibles al terminar — no cierres la sesión.
+          <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '12px 16px', marginTop: 12, fontSize: 13, color: '#92400e', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 14, height: 14, border: '2px solid #fcd34d', borderTop: '2px solid #f59e0b', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+            Pipeline en ejecución — esto puede tomar 5–15 minutos. No cierres la sesión.
+          </div>
+        )}
+        {pipelineMsg?.type === 'success' && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '12px 16px', marginTop: 12, fontSize: 13, color: '#166534', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>✅</span>
+            <strong>{pipelineMsg.text}</strong>
+            <button onClick={() => setPipelineMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#166534', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+          </div>
+        )}
+        {pipelineMsg?.type === 'error' && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginTop: 12, fontSize: 13, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            {pipelineMsg.text}
+            <button onClick={() => setPipelineMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
           </div>
         )}
       </div>
