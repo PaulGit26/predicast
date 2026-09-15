@@ -1800,6 +1800,7 @@ function TabAdmin() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [editName, setEditName] = useState(null) // { userId, name, email }
+  const [savingName, setSavingName] = useState(false)
   const [pwdModal, setPwdModal] = useState(null) // { userId, email, name }
   const [newPwd, setNewPwd] = useState('')
   const [pwdSaving, setPwdSaving] = useState(false)
@@ -1947,17 +1948,19 @@ function TabAdmin() {
   }
 
   const handleNameSave = async () => {
-    if (!editName) return
+    if (!editName || savingName) return
     const { userId, name, email } = editName
     if (!name.trim()) { flash('El nombre no puede estar vacío', false); return }
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       flash('Correo electrónico inválido', false); return
     }
+    setSavingName(true)
     const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim(), email: email.trim() }),
     })
+    setSavingName(false)
     if (res.ok) { flash('Usuario actualizado'); setEditName(null); load() }
     else { const e = await res.json(); flash(e.error || 'Error al actualizar', false) }
   }
@@ -2120,25 +2123,28 @@ function TabAdmin() {
                             autoFocus
                             placeholder="Nombre completo"
                             value={editName.name}
+                            disabled={savingName}
                             onChange={e => setEditName(n => ({ ...n, name: e.target.value }))}
                             onKeyDown={e => { if (e.key === 'Escape') setEditName(null) }}
-                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 200 }}
+                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 200, opacity: savingName ? 0.6 : 1 }}
                           />
                           <input
                             type="email"
                             placeholder="Correo electrónico"
                             value={editName.email}
+                            disabled={savingName}
                             onChange={e => setEditName(n => ({ ...n, email: e.target.value }))}
                             onKeyDown={e => { if (e.key === 'Enter') handleNameSave(); if (e.key === 'Escape') setEditName(null) }}
-                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 200 }}
+                            style={{ padding: '4px 8px', borderRadius: 5, border: `1px solid ${BLUE_LIGHT}`, fontSize: 13, width: 200, opacity: savingName ? 0.6 : 1 }}
                           />
-                          <div style={{ display: 'flex', gap: 5 }}>
-                            <button onClick={handleNameSave}
-                              style={{ padding: '3px 12px', background: GREEN, color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                              Guardar
+                          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                            <button onClick={handleNameSave} disabled={savingName}
+                              style={{ padding: '3px 12px', background: savingName ? '#94a3b8' : GREEN, color: 'white', border: 'none', borderRadius: 5, cursor: savingName ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                              {savingName && <span style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTop: '2px solid white', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />}
+                              {savingName ? 'Guardando...' : 'Guardar'}
                             </button>
-                            <button onClick={() => setEditName(null)}
-                              style={{ padding: '3px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#64748b' }}>
+                            <button onClick={() => setEditName(null)} disabled={savingName}
+                              style={{ padding: '3px 8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 5, cursor: savingName ? 'not-allowed' : 'pointer', fontSize: 12, color: savingName ? '#cbd5e1' : '#64748b' }}>
                               Cancelar
                             </button>
                           </div>
