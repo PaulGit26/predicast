@@ -5030,9 +5030,15 @@ export default function Home() {
 
   if (hasData === false) {
     const produccionMod = MODULES.find(m => m.id === 'produccion')
+    const adminMod = MODULES.find(m => m.id === 'admin')
+    const isAdmin = roles.includes('admin')
     const goToIngesta = () => {
       if (produccionMod) { selectModule(produccionMod); setTab('ingesta') }
       setHasData(null); setLoading(true); loadAllData()
+    }
+    const goToAdmin = () => {
+      if (adminMod) { selectModule(adminMod); setTab('admin') }
+      setHasData(null)
     }
     return (
       <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: '24px 32px' }}>
@@ -5055,12 +5061,22 @@ export default function Home() {
               <li>El dashboard se cargará automáticamente</li>
             </ol>
           </div>
-          <button
-            onClick={goToIngesta}
-            style={{ background: BLUE, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
-          >
-            Ir a Actualización de Datos
-          </button>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={goToIngesta}
+              style={{ background: BLUE, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Ir a Actualización de Datos
+            </button>
+            {isAdmin && (
+              <button
+                onClick={goToAdmin}
+                style={{ background: 'white', color: BLUE, border: `2px solid ${BLUE}`, borderRadius: 8, padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Ir a Administración
+              </button>
+            )}
+          </div>
         </div>
       </main>
     )
