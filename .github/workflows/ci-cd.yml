@@ -195,6 +195,15 @@ jobs:
           echo 'set -e'                                                               >> /tmp/deploy.sh
           echo 'cd /home/ec2-user/predicast'                                         >> /tmp/deploy.sh
           echo 'source .env'                                                          >> /tmp/deploy.sh
+          echo '# Symlink SSL certs to generic path nginx expects'                   >> /tmp/deploy.sh
+          echo 'sudo mkdir -p /etc/ssl/predicast'                                    >> /tmp/deploy.sh
+          echo 'for CERT_DIR in /etc/letsencrypt/live/*/; do'                       >> /tmp/deploy.sh
+          echo '  if [ -f "${CERT_DIR}fullchain.pem" ]; then'                       >> /tmp/deploy.sh
+          echo '    sudo ln -sf "${CERT_DIR}fullchain.pem" /etc/ssl/predicast/fullchain.pem' >> /tmp/deploy.sh
+          echo '    sudo ln -sf "${CERT_DIR}privkey.pem" /etc/ssl/predicast/privkey.pem' >> /tmp/deploy.sh
+          echo '    break'                                                            >> /tmp/deploy.sh
+          echo '  fi'                                                                 >> /tmp/deploy.sh
+          echo 'done'                                                                 >> /tmp/deploy.sh
           echo 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REGISTRY"' >> /tmp/deploy.sh
           echo 'docker compose -f docker-compose.prod.yml pull'                      >> /tmp/deploy.sh
           echo 'docker compose -f docker-compose.prod.yml down --remove-orphans'    >> /tmp/deploy.sh
