@@ -2923,13 +2923,6 @@ const STATUS_LABEL = (p) => p >= 100 ? 'Completado' : p > 0 ? 'En progreso' : 'S
 function TabAsignacionSeguimiento({ produccion }) {
   const [view, setView]         = useState('asignar')
   const [weekIdx, setWeekIdx]   = useState(0)
-  // Auto-select current week when plan loads (productionWeeks starts on forecast date, not today)
-  useEffect(() => {
-    if (!productionWeeks.length) return
-    const todayStr = new Date().toISOString().slice(0, 10)
-    const idx = productionWeeks.findIndex(w => w.fecha >= todayStr)
-    if (idx > 0) setWeekIdx(idx)
-  }, [productionWeeks.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const [operarios, setOperarios] = useState([])
   const [progreso, setProgreso] = useState({})
   const [saving, setSaving]     = useState(false)
@@ -3004,6 +2997,14 @@ function TabAsignacionSeguimiento({ produccion }) {
     }
     return result
   }, [produccion])
+
+  // Auto-select current week when plan loads (productionWeeks starts on forecast date, not today)
+  useEffect(() => {
+    if (!productionWeeks.length) return
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const idx = productionWeeks.findIndex(w => w.fecha >= todayStr)
+    if (idx > 0) setWeekIdx(idx)
+  }, [productionWeeks.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const week = productionWeeks[weekIdx]
   const activeSKUs = week ? Object.entries(week.metas).filter(([, v]) => v > 0).map(([k]) => k) : []
