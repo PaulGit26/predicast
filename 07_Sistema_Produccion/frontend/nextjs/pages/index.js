@@ -3266,7 +3266,7 @@ function TabAsignacionSeguimiento({ produccion }) {
     <div>
       {/* Tab bar */}
       <div style={{ borderBottom: '2px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ display: 'flex' }}>
+        <div className="pred-tabs-scroll" style={{ display: 'flex', overflowX: 'auto', flexShrink: 0, maxWidth: '100%' }}>
           <ViewBtn id="asignar"     label="① Asignar" />
           <ViewBtn id="seguimiento" label="② Seguimiento" />
           <ViewBtn id="resumen"     label="③ Resumen" />
@@ -4709,7 +4709,7 @@ function TabIngestaReentrenamiento({ pipeline, setPipeline }) {
 
 function TabNav({ active, onChange, tabs, color = BLUE }) {
   return (
-    <div style={{ display: 'flex', borderBottom: `2px solid #e2e8f0`, marginBottom: 24, overflowX: 'auto' }}>
+    <div className="pred-tabs-scroll" style={{ display: 'flex', borderBottom: `2px solid #e2e8f0`, marginBottom: 24, overflowX: 'auto' }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)} style={{
           padding: '10px 20px', background: 'none', border: 'none', cursor: 'pointer',
@@ -5100,12 +5100,24 @@ export default function Home() {
   const firstName = (session?.user?.name || '').split(' ')[0] || 'Usuario'
 
   return (
-    <main style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: '24px 32px' }}>
+    <main className="pred-main" style={{ fontFamily: 'Segoe UI, Arial, sans-serif', padding: '24px 32px' }}>
+      <style>{`
+        @media (max-width: 600px) {
+          .pred-main { padding: 16px 14px !important; }
+          .pred-subtitle { display: none !important; }
+        }
+        @media (max-width: 860px) {
+          .pred-main { padding: 20px 18px !important; }
+        }
+        .pred-tabs-scroll { overflow-x: auto; scrollbar-width: thin; }
+        .pred-tabs-scroll::-webkit-scrollbar { height: 3px; }
+        .pred-tabs-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+      `}</style>
       <header style={{ borderBottom: `3px solid ${BLUE}`, paddingBottom: 16, marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <h1 style={{ color: BLUE, margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: 1 }}>PREDICAST</h1>
-            <span style={{ color: '#64748b', fontSize: 13 }}>Sistema de Planificación Inteligente de Demanda</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, minWidth: 0 }}>
+            <h1 style={{ color: BLUE, margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: 1, flexShrink: 0 }}>PREDICAST</h1>
+            <span className="pred-subtitle" style={{ color: '#64748b', fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Sistema de Planificación Inteligente de Demanda</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {pipeline.status === 'running' && (
