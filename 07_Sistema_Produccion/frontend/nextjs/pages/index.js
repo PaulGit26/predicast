@@ -979,7 +979,8 @@ function TabProduccion({ produccion, safetyWeeks, setSafetyWeeks, pareto }) {
   const overviewMonths = (() => {
     const MNAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
     const months = {}
-    const refCal = produccion[skus[0]]?.calendar.slice(0, horizon) || []
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const refCal = (produccion[skus[0]]?.calendar.slice(0, horizon) || []).filter(w => w.fecha >= todayStr)
     refCal.forEach(w => {
       const d = new Date(w.fecha + 'T00:00:00')
       const key = `${d.getFullYear()}-${d.getMonth()}`
@@ -1433,10 +1434,13 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
   const totalPlanchas = costData.reduce((s, d) => s + d.totPlanchas, 0)
   const avgSemanal = horizon > 0 ? totalInversion / horizon : 0
 
-  const allWeeks = produccion[skus[0]]?.calendar.slice(0, horizon) || []
+  const _todayStr = new Date().toISOString().slice(0, 10)
+  const _fullCal = produccion[skus[0]]?.calendar.slice(0, horizon) || []
+  const _futureStart = Math.max(0, _fullCal.findIndex(w => w.fecha >= _todayStr))
+  const allWeeks = _fullCal.slice(_futureStart)
   const overviewChartData = allWeeks.map((w, i) => {
     const pt = { semana: fmtWeekDate(w.fecha) }
-    costData.forEach(d => { pt[d.sku] = Math.round(d.weeks[i]?.costo || 0) })
+    costData.forEach(d => { pt[d.sku] = Math.round(d.weeks[_futureStart + i]?.costo || 0) })
     return pt
   })
 
@@ -2919,6 +2923,13 @@ const STATUS_LABEL = (p) => p >= 100 ? 'Completado' : p > 0 ? 'En progreso' : 'S
 function TabAsignacionSeguimiento({ produccion }) {
   const [view, setView]         = useState('asignar')
   const [weekIdx, setWeekIdx]   = useState(0)
+  // Auto-select current week when plan loads (productionWeeks starts on forecast date, not today)
+  useEffect(() => {
+    if (!productionWeeks.length) return
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const idx = productionWeeks.findIndex(w => w.fecha >= todayStr)
+    if (idx > 0) setWeekIdx(idx)
+  }, [productionWeeks.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const [operarios, setOperarios] = useState([])
   const [progreso, setProgreso] = useState({})
   const [saving, setSaving]     = useState(false)
