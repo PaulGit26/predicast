@@ -1390,6 +1390,7 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
   const horizon = 52
   const [editando, setEditando] = useState(false)
   const [preciosTemp, setPreciosTemp] = useState(precios)
+  const [preciosError, setPreciosError] = useState(null)
   const [selectedSku, setSelectedSku] = useState(null)
   const [showTable, setShowTable] = useState(false)
 
@@ -1434,7 +1435,17 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
     return pt
   })
 
-  const guardarPrecios = () => { setPrecios({ ...preciosTemp }); setEditando(false) }
+  const guardarPrecios = () => {
+    const invalidos = Object.entries(preciosTemp).filter(([, v]) => !v || v <= 0)
+    if (invalidos.length > 0) {
+      const tipos = invalidos.map(([k]) => `F.G. ${k}`).join(' y ')
+      setPreciosError(`El precio de ${tipos} debe ser mayor a cero.`)
+      return
+    }
+    setPreciosError(null)
+    setPrecios({ ...preciosTemp })
+    setEditando(false)
+  }
 
   const sel = selectedSku ? costData.find(d => d.sku === selectedSku) : null
   const skuChartData = sel
@@ -1509,7 +1520,7 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
               ))}
             </div>
           </div>
-          <button onClick={() => { setPreciosTemp({ ...precios }); setEditando(!editando) }}
+          <button onClick={() => { setPreciosTemp({ ...precios }); setPreciosError(null); setEditando(!editando) }}
             style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${TEAL_LIGHT}`, background: editando ? '#e0f2fe' : 'white', color: TEAL_DARK, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
             {editando ? 'Cancelar' : '✏️ Editar precios'}
           </button>
@@ -1519,15 +1530,26 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
             {['0.75', '1.20'].map(tipo => (
               <div key={tipo}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Plancha F.G. {tipo} (S/ por plancha)</label>
-                <input type="number" step="0.01" min="0" value={preciosTemp[tipo]}
-                  onChange={e => setPreciosTemp(p => ({ ...p, [tipo]: parseFloat(e.target.value) || 0 }))}
-                  style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${TEAL_LIGHT}`, fontSize: 14, width: 130 }} />
+                <input type="number" step="0.01" min="0.01" value={preciosTemp[tipo]}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value)
+                    setPreciosTemp(p => ({ ...p, [tipo]: isNaN(val) ? '' : val }))
+                    setPreciosError(null)
+                  }}
+                  style={{ padding: '7px 10px', borderRadius: 6, border: `1px solid ${preciosError ? '#fca5a5' : TEAL_LIGHT}`, fontSize: 14, width: 130 }} />
               </div>
             ))}
-            <button onClick={guardarPrecios}
-              style={{ padding: '7px 18px', borderRadius: 7, background: TEAL_DARK, color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
-              Aplicar
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
+              {preciosError && (
+                <span style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 5, padding: '4px 10px' }}>
+                  {preciosError}
+                </span>
+              )}
+              <button onClick={guardarPrecios}
+                style={{ padding: '7px 18px', borderRadius: 7, background: TEAL_DARK, color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+                Aplicar
+              </button>
+            </div>
           </div>
         )}
       </div>
