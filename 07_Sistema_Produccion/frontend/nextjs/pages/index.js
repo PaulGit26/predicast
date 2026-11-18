@@ -3771,11 +3771,14 @@ function TabAsignacionSeguimiento({ produccion }) {
             if (op.id)    e.id    = op.id
           })
         })
-        const opSummary = [...opMap.values()].sort((a, b) => {
-          const pa = a.totalMeta > 0 ? a.totalAv / a.totalMeta : 0
-          const pb = b.totalMeta > 0 ? b.totalAv / b.totalMeta : 0
-          return pb - pa
-        })
+        const catalogoNombres = new Set(catalogoOps.map(o => o.nombre.toLowerCase()))
+        const opSummary = [...opMap.values()]
+          .filter(o => catalogoNombres.size === 0 || catalogoNombres.has(o.nombre.toLowerCase()))
+          .sort((a, b) => {
+            const pa = a.totalMeta > 0 ? a.totalAv / a.totalMeta : 0
+            const pb = b.totalMeta > 0 ? b.totalAv / b.totalMeta : 0
+            return pb - pa
+          })
 
         const grandMeta = opSummary.reduce((s, o) => s + o.totalMeta, 0)
         const grandAv   = opSummary.reduce((s, o) => s + o.totalAv, 0)
