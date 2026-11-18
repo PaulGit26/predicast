@@ -2041,8 +2041,21 @@ function TabAdmin() {
     else { const e = await res.json(); flash(e.error || 'Error al actualizar', false) }
   }
 
-  if (loading) return <p style={{ color: '#64748b', padding: 24 }}>Cargando usuarios...</p>
-  if (error) return <p style={{ color: RED, padding: 24 }}>Error: {error}</p>
+  if (loading) return (
+    <div style={{ padding: 24 }}>
+      <p style={{ color: '#64748b', marginBottom: 8 }}>Cargando usuarios...</p>
+      <p style={{ color: '#94a3b8', fontSize: 12 }}>La primera carga puede tardar hasta 15 segundos.</p>
+    </div>
+  )
+  if (error) return (
+    <div style={{ padding: 24 }}>
+      <p style={{ color: RED, marginBottom: 12 }}>Error: {error}</p>
+      <button onClick={() => { setError(null); load(true) }}
+        style={{ padding: '8px 18px', background: BLUE, color: 'white', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+        Reintentar
+      </button>
+    </div>
+  )
 
   const { users = [], allRoles = [] } = data || {}
 

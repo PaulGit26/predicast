@@ -1,7 +1,12 @@
 const DOMAIN = process.env.AUTH0_DOMAIN
 const API_BASE = `https://${DOMAIN}/api/v2`
 
+// Module-level token cache — Auth0 M2M tokens last 24h; refresh 5 min before expiry
+let _tokenCache = null
+let _tokenExpiry = 0
+
 async function getToken() {
+  if (_tokenCache && Date.now() < _tokenExpiry) return _tokenCache
   const res = await fetch(`https://${DOMAIN}/oauth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -14,16 +19,18 @@ async function getToken() {
   })
   const data = await res.json()
   if (!data.access_token) throw new Error('Failed to get Management API token')
-  return data.access_token
+  _tokenCache = data.access_token
+  _tokenExpiry = Date.now() + ((data.expires_in || 86400) - 300) * 1000
+  return _tokenCache
 }
 
-async function mgmt(path, options = {}) {
-  const token = await getToken()
+async function mgmt(path, options = {}, token = null) {
+  const tok = token || await getToken()
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${tok}`,
       ...options.headers,
     },
   })
@@ -36,14 +43,15 @@ export async function listRoles() {
 }
 
 export async function listUsers() {
+  const token = await getToken()
   const [users, roles] = await Promise.all([
-    mgmt('/users?per_page=50&include_totals=false&fields=user_id,email,name,picture,last_login,created_at,blocked'),
-    listRoles(),
+    mgmt('/users?per_page=50&include_totals=false&fields=user_id,email,name,picture,last_login,created_at,blocked', {}, token),
+    mgmt('/roles?per_page=50', {}, token),
   ])
 
   const usersWithRoles = await Promise.all(
-    users.map(async (user) => {
-      const userRoles = await mgmt(`/users/${encodeURIComponent(user.user_id)}/roles`)
+    (Array.isArray(users) ? users : []).map(async (user) => {
+      const userRoles = await mgmt(`/users/${encodeURIComponent(user.user_id)}/roles`, {}, token)
       return { ...user, roles: Array.isArray(userRoles) ? userRoles : [] }
     })
   )
