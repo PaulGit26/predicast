@@ -852,20 +852,25 @@ function TabCanalMercado({ canalClientes, bodega, pareto }) {
 
       <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 8px', marginBottom: 32 }}>
         <ResponsiveContainer width="100%" height={Math.max(300, top_clientes.length * 26)}>
-          <BarChart layout="vertical" data={top_clientes} margin={{ top: 5, right: 60, left: 10, bottom: 5 }}>
+          <ComposedChart layout="vertical" data={top_clientes} margin={{ top: 24, right: 60, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <XAxis xAxisId="ventas" type="number" tick={{ fontSize: 11 }} tickFormatter={fmt} />
+            <XAxis xAxisId="pct" type="number" domain={[0, 100]} orientation="top"
+              tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: ORANGE }}
+              label={{ value: '% acumulado', position: 'insideTopRight', offset: -4, fontSize: 10, fill: ORANGE }} />
             <YAxis type="category" dataKey="cliente" width={160} tick={{ fontSize: 10 }}
               tickFormatter={v => v.length > 22 ? v.slice(0, 22) + '…' : v} />
             <Tooltip formatter={(v, n) => [n === 'ventas' ? fmt(v) : `${v}%`, n === 'ventas' ? 'Ventas (u)' : '% acumulado']} />
-            <Legend formatter={v => ({ ventas: 'Ventas (u)' }[v] ?? v)} />
-            <Bar dataKey="ventas" name="ventas" radius={[0, 4, 4, 0]}
-              label={{ position: 'right', formatter: (_, __, idx) => `${top_clientes[idx]?.acumulado_pct ?? ''}%`, fontSize: 10, fill: '#777' }}>
+            <Legend formatter={v => ({ ventas: 'Ventas (u)', acumulado_pct: '% acumulado' }[v] ?? v)} />
+            <Bar xAxisId="ventas" dataKey="ventas" name="ventas" radius={[0, 4, 4, 0]}>
               {top_clientes.map((r, i) => (
                 <Cell key={i} fill={r.acumulado_pct <= 50 ? RED : r.acumulado_pct <= 80 ? ORANGE : GREEN} />
               ))}
             </Bar>
-          </BarChart>
+            <Line xAxisId="pct" dataKey="acumulado_pct" name="acumulado_pct" type="monotone"
+              stroke={ORANGE} strokeWidth={2} dot={{ r: 3, fill: ORANGE, strokeWidth: 0 }}
+              label={{ position: 'right', formatter: v => `${v}%`, fontSize: 9, fill: '#999' }} />
+          </ComposedChart>
         </ResponsiveContainer>
         <p style={{ fontSize: 11, color: '#aaa', marginTop: 4, textAlign: 'center' }}>
           Rojo = clientes que concentran el 50% del volumen · Naranja = hasta 80% · Verde = resto
