@@ -2126,6 +2126,12 @@ function TabAdmin() {
               </span>
             </div>
           </div>
+          {msg && !msg.ok && (
+            <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 6, fontSize: 13,
+              background: '#fef2f2', border: '1px solid #fca5a5', color: '#dc2626' }}>
+              {msg.text}
+            </div>
+          )}
           <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
             <button type="submit" disabled={saving}
               style={{ padding: '8px 18px', background: GREEN, color: 'white', border: 'none', borderRadius: 6, cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13 }}>

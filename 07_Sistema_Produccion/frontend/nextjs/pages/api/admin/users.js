@@ -27,8 +27,15 @@ export default async function handler(req, res) {
     }
     try {
       const user = await createUser(email, password, name)
-      if (user.statusCode >= 400) {
-        return res.status(user.statusCode).json({ error: user.message })
+      if (user?.statusCode >= 400) {
+        const statusCode = user.statusCode
+        let mensaje = user.message || 'Error al crear usuario'
+        if (statusCode === 409 || /already exists/i.test(mensaje)) {
+          mensaje = `El correo ${email} ya está registrado. Usa otro correo o recupera la contraseña del usuario existente.`
+        } else if (statusCode === 400 && /password/i.test(mensaje)) {
+          mensaje = 'La contraseña no cumple los requisitos de seguridad de Auth0.'
+        }
+        return res.status(statusCode).json({ error: mensaje })
       }
       return res.status(201).json(user)
     } catch (e) {
