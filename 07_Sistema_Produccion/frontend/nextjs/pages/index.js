@@ -3816,6 +3816,9 @@ function TabAsignacionSeguimiento({ produccion }) {
         const grandMeta = opSummary.reduce((s, o) => s + o.totalMeta, 0)
         const grandAv   = opSummary.reduce((s, o) => s + o.totalAv, 0)
         const grandPct  = grandMeta > 0 ? Math.round(grandAv / grandMeta * 100) : 0
+        // Si hay producción pero el porcentaje redondea a 0, tratar como En progreso
+        const grandStatusPct  = grandAv > 0 && grandPct === 0 ? 1 : grandPct
+        const grandPctDisplay = grandAv > 0 && grandPct === 0 ? '<1' : grandPct
 
         const skuMap = new Map()
         sortedWeeks.forEach(w => {
@@ -3849,7 +3852,7 @@ function TabAsignacionSeguimiento({ produccion }) {
           { name: 'Producido', value: grandAv },
           { name: 'Pendiente', value: Math.max(0, grandMeta - grandAv) },
         ]
-        const DONUT_COLORS = [STATUS_COLOR(grandPct), '#e2e8f0']
+        const DONUT_COLORS = [STATUS_COLOR(grandStatusPct), '#e2e8f0']
 
         const mailtoOpReport = (op) => {
           const lines = sortedWeeks.map(w => {
@@ -3919,8 +3922,8 @@ function TabAsignacionSeguimiento({ produccion }) {
                   {[
                     { label: 'Semanas registradas', value: sortedWeeks.length,                       sub: 'períodos con asignación',  color: '#1a237e' },
                     { label: 'Unidades asignadas',  value: grandMeta.toLocaleString('es-PE'),        sub: 'meta acumulada total',     color: '#1a237e' },
-                    { label: 'Unidades producidas', value: grandAv.toLocaleString('es-PE'),          sub: 'avance acumulado total',   color: STATUS_COLOR(grandPct) },
-                    { label: 'Completado general',  value: `${grandPct}%`,                           sub: STATUS_LABEL(grandPct),     color: STATUS_COLOR(grandPct) },
+                    { label: 'Unidades producidas', value: grandAv.toLocaleString('es-PE'),          sub: 'avance acumulado total',   color: STATUS_COLOR(grandStatusPct) },
+                    { label: 'Completado general',  value: `${grandPctDisplay}%`,                   sub: STATUS_LABEL(grandStatusPct), color: STATUS_COLOR(grandStatusPct) },
                   ].map(({ label, value, sub, color }) => (
                     <div key={label} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', flex: '1 1 160px', minWidth: 140, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</div>
@@ -3944,7 +3947,7 @@ function TabAsignacionSeguimiento({ produccion }) {
                         </PieChart>
                       </ResponsiveContainer>
                       <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-                        <div style={{ fontSize: 22, fontWeight: 900, color: STATUS_COLOR(grandPct), lineHeight: 1 }}>{grandPct}%</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: STATUS_COLOR(grandStatusPct), lineHeight: 1 }}>{grandPctDisplay}%</div>
                         <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>del total</div>
                       </div>
                     </div>
