@@ -419,7 +419,7 @@ function TabProducto({ sku, setSku, historical, pareto, gap, eficiencia, predict
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
             <StatCard label="Producción total histórica" value={fmt(skuEfic.produccion_total)} sub="unidades" color={BLUE} />
             <StatCard label="Ventas totales históricas" value={fmt(skuEfic.ventas_total)} sub="unidades" color={GREEN} />
-            <StatCard label="GAP acumulado (planchas)" value={fmtDec(skuEfic.planchas_gap)} sub="planchas excedente" color={ORANGE} />
+            <StatCard label="GAP acumulado (planchas)" value={fmtDec(skuEfic.planchas_gap)} sub="planchas excedentes" color={ORANGE} />
             <StatCard label="Eficiencia productiva" value={`${fmtDec(skuEfic.eficiencia)}%`} sub="Ventas / Producción" color={skuEfic.eficiencia >= 98 ? GREEN : ORANGE} />
             <StatCard label="Ahorro potencial" value={`S/ ${fmt(skuEfic.ahorro)}`} sub="optimizando producción" color={PURPLE} />
           </div>
@@ -1488,7 +1488,7 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
             {
               icon: '📊',
               title: 'Gráfico general',
-              desc: 'Inversión semanal apilada por los 52 semanas y todos los SKUs. Identifica los picos de mayor gasto.',
+              desc: 'Inversión semanal apilada durante las 52 semanas y todos los SKUs. Identifica los picos de mayor gasto.',
             },
             {
               icon: '🏷️',
@@ -1655,7 +1655,7 @@ function TabCostoPlanchas({ produccion, safetyWeeks, setSafetyWeeks, precios, se
                   </span>
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', marginBottom: 2 }}>S/ {fmt(d.totCosto)}</div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>{fmtDec(d.totPlanchas, 1)} planchas · {d.weeksWithProd} sem activas</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{fmtDec(d.totPlanchas, 1)} planchas · {d.weeksWithProd} semanas activas</div>
                 <div style={{ marginTop: 10, fontSize: 12, color: TEAL_DARK, fontWeight: 600 }}>Ver detalle →</div>
               </button>
             ))}
