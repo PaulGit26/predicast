@@ -10,6 +10,7 @@ export const authOptions = {
       authorization: {
         params: {
           scope: 'openid profile email',
+          ui_locales: 'es',
         },
       },
       httpOptions: { timeout: 10000 },
